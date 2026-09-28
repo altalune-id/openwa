@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package altempltest.v1;
+
+import "mcp/v1/annotations.proto";
+
+option go_package = "altalune.id/template/cmd/protoc-gen-mcp/internal/gen/testdata/gen/altempltest/v1;altempltestv1";
+
+service BadNameService {
+  rpc ShoutLoudly(BadNameRequest) returns (BadNameResponse) {
+    option (mcp.v1.tool) = {name: "Shout-Loudly"};
+  }
+}
+
+message BadNameRequest {}
+
+message BadNameResponse {}

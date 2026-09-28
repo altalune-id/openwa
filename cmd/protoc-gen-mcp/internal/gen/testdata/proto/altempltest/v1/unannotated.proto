@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package altempltest.v1;
+
+option go_package = "altalune.id/template/cmd/protoc-gen-mcp/internal/gen/testdata/gen/altempltest/v1;altempltestv1";
+
+service PlainService {
+  rpc Plain(PlainRequest) returns (PlainResponse);
+}
+
+message PlainRequest {}
+
+message PlainResponse {}
