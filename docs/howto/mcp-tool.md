@@ -30,7 +30,7 @@ Worked example: `blog_list` and `blog_publish` in `api/blog/v1/blog.proto`.
   to the principal's `ActiveProjectID`, then runs the same `scopeToProject` check, so the fallback
   narrows and never re-targets. A principal carrying no active project fails with `PRJ005`, whose
   message tells the caller to run `project_list` first.
-- **Org-scoped tool** — the `projectId` argument and its check disappear. The tool then acts on `ActiveOrgID` alone, so an org-wide read is the blast radius of one delegated token.
+- **Org-scoped tool** (`member_list`) — the `projectId` argument and its check disappear. The tool acts on `ActiveOrgID` alone, so it takes an `org`-level scope and an org-wide read is the blast radius of one delegated token.
 - **Not tenant-scoped** — nothing enters a scope, and a tenant-scoped store call fails with `tenant: missing context`.
 - A JWT's org comes from the local user's membership, never from the token's `org_id` claim — the verifier puts it on `ClaimedOrgID` and `internal/user/authn.go` resolves the real one. Pinned by `TestMCP_JWTResolvesItsTenantFromMembership`.
 

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"net/http"
 	"net/url"
 	"strings"
@@ -42,7 +41,7 @@ func (h *InviteHandler) GetList(w http.ResponseWriter, r *http.Request) {
 		h.ErrorPage(w, r, http.StatusInternalServerError, "List failed", "Could not load invites.", err)
 		return
 	}
-	canManage, _ := h.isManager(r.Context(), o.ID, p.UserID)
+	canManage, _ := h.Orgs.IsManager(r.Context(), o.ID, p.UserID)
 	Render(w, r, templates.InvitesLayout(h.LayoutForOrg(r, "Invites", slug, "invites"), templates.InvitesView{
 		OrgSlug: slug, Invites: inviteRows(items), CanManage: canManage, Disabled: !h.Caps.InvitesEnabled,
 	}))
@@ -56,7 +55,7 @@ func (h *InviteHandler) PostSend(w http.ResponseWriter, r *http.Request) {
 	}
 	p, o, r := sc.principal, sc.org, sc.req
 	slug := o.Slug
-	canManage, _ := h.isManager(r.Context(), o.ID, p.UserID)
+	canManage, _ := h.Orgs.IsManager(r.Context(), o.ID, p.UserID)
 	if !canManage {
 		h.ErrorPage(w, r, http.StatusForbidden, "Not allowed", "Only owners and admins can invite.")
 		return
@@ -92,7 +91,7 @@ func (h *InviteHandler) PostRevoke(w http.ResponseWriter, r *http.Request) {
 	}
 	p, o, r := sc.principal, sc.org, sc.req
 	slug := o.Slug
-	canManage, _ := h.isManager(r.Context(), o.ID, p.UserID)
+	canManage, _ := h.Orgs.IsManager(r.Context(), o.ID, p.UserID)
 	if !canManage {
 		h.ErrorPage(w, r, http.StatusForbidden, "Not allowed", "Only owners and admins can revoke invites.")
 		return
@@ -177,15 +176,6 @@ func (h *InviteHandler) GetAccept(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, ResolveReturnTo(h.Cfg.HTTP.BasePath, dest), http.StatusSeeOther) //nolint:gosec // G710: destination sanitized via ResolveReturnTo → SanitizeReturnTo
-}
-
-// SECURITY: ctx must already carry the tenant scope; MembershipOf is RLS-filtered by org.
-func (h *InviteHandler) isManager(ctx context.Context, orgID, userID uuid.UUID) (bool, error) {
-	m, err := h.Orgs.MembershipOf(ctx, orgID, userID)
-	if err != nil {
-		return false, err
-	}
-	return m.Role == org.RoleOwner || m.Role == org.RoleAdmin, nil
 }
 
 func inviteRows(items []*invite.Invite) []templates.InviteRow {

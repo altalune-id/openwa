@@ -153,9 +153,9 @@ mint_key() {
     scopes="$2"
     out="${tmpdir}/mint-${name}.html"
     code=$(console_post /orgs/smoke-org/projects/smoke-proj/apikeys "$out" \
-        --data-urlencode "name=${name}" --data-urlencode "scopes=${scopes}")
+        --data-urlencode "name=${name}" --data-urlencode "scopes=${scopes}" --data-urlencode "expires_in=30")
     [ "$code" = "200" ] || fail "minting API key ${name} returned ${code}, want 200"
-    key=$(grep -oE 'key_[A-Za-z0-9_-]{20,}' "$out" | head -1)
+    key=$(grep -oE 'select-all[^>]*>key_[A-Za-z0-9_-]{20,}' "$out" | grep -oE 'key_[A-Za-z0-9_-]{20,}' | head -1)
     [ -n "$key" ] || fail "minting API key ${name} revealed no plaintext"
     printf "%s" "$key"
 }
@@ -221,8 +221,8 @@ code=$(rpc "$tools_out" "$READ_KEY" '{"jsonrpc":"2.0","id":2,"method":"tools/lis
 
 names=$(jqx "$tools_out" '[.result.tools[].name] | sort | join(",")') \
     || fail "tools/list returned no tools array"
-[ "$names" = "blog_list,blog_publish,project_list,todo_create" ] \
-    || fail "tools/list published [${names}], want [blog_list,blog_publish,project_list,todo_create]"
+[ "$names" = "blog_list,blog_publish,member_list,project_list,todo_create" ] \
+    || fail "tools/list published [${names}], want [blog_list,blog_publish,member_list,project_list,todo_create]"
 
 for tool in blog_list blog_publish project_list todo_create; do
     require_true "$tools_out" \
@@ -367,5 +367,5 @@ fi
 mkdir -p .cache
 cp "$servelog" .cache/verify-mcp.log 2>/dev/null || true
 
-echo "OK: initialize + 4 tools + ui://altempl/app (${bundle_size} bytes) + RFC 9728 challenge; shutdown in ${elapsed}s"
+echo "OK: initialize + 5 tools + ui://altempl/app (${bundle_size} bytes) + RFC 9728 challenge; shutdown in ${elapsed}s"
 exit 0

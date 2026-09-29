@@ -367,3 +367,32 @@ func IsSystemOrgExistsError(err error) bool {
 	_, ok := errors.AsType[*SystemOrgExistsError](err)
 	return ok
 }
+
+// NotManagerError signals that the caller is not an owner or admin of the org.
+type NotManagerError struct {
+	OrgID  string
+	UserID string
+}
+
+func (e *NotManagerError) Error() string {
+	if e == nil {
+		return "org: owner or admin required"
+	}
+	return fmt.Sprintf("org: owner or admin required: org=%s user=%s", e.OrgID, e.UserID)
+}
+
+// ToAppError maps NotManagerError to a PermissionDenied envelope.
+func (e *NotManagerError) ToAppError() *apperror.AppError {
+	return apperror.New(
+		apperror.CodeOrgManagerRequired,
+		"Only an owner or admin can do this",
+		codes.PermissionDenied,
+		&apperrorv1.ErrorDetail{Code: apperror.CodeOrgManagerRequired},
+	)
+}
+
+// IsNotManagerError reports whether err's tree contains a *NotManagerError.
+func IsNotManagerError(err error) bool {
+	_, ok := errors.AsType[*NotManagerError](err)
+	return ok
+}

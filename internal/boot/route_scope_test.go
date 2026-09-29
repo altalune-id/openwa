@@ -56,6 +56,7 @@ func probeRoutes() []probeRoute {
 		{http.MethodGet, base, nil},
 		{http.MethodGet, base + "/members", nil},
 		{http.MethodGet, base + "/invites", nil},
+		{http.MethodGet, base + "/apikeys", nil},
 		{http.MethodGet, base + "/projects", nil},
 		{http.MethodGet, base + "/projects/new", nil},
 		{http.MethodGet, pbase + "/overview", nil},
@@ -75,11 +76,21 @@ func probeRoutes() []probeRoute {
 		{http.MethodGet, "/onboard/oidc", nil},
 		{http.MethodGet, "/onboard/complete", nil},
 		{http.MethodGet, "/invites/accept", nil},
+		{http.MethodGet, "/settings/tokens", nil},
+		{http.MethodGet, "/settings/tokens/projects", nil},
 
 		{http.MethodPost, "/orgs", url.Values{"slug": {"probe-new-org"}, "name": {"Probe New Org"}}},
 		{http.MethodPost, base + "/rename", url.Values{"name": {"Renamed"}}},
 		{http.MethodPost, base + "/invites", url.Values{"email": {"probe@example.com"}, "role": {"member"}}},
 		{http.MethodPost, base + "/invites/" + id + "/revoke", url.Values{}},
+		{http.MethodPost, base + "/apikeys", url.Values{"name": {"Probe Key"}, "grant": {"all"}}},
+		{http.MethodPost, base + "/apikeys/" + id + "/projects", url.Values{}},
+		{http.MethodPost, base + "/apikeys/" + id + "/all-projects", url.Values{}},
+		{http.MethodPost, base + "/apikeys/" + id + "/revoke", url.Values{}},
+		{http.MethodPost, "/settings/tokens", url.Values{"org": {org}, "name": {"Probe Token"}, "grant": {"all"}, "expires_in": {"7"}}},
+		{http.MethodPost, "/settings/tokens/" + org + "/" + id + "/projects", url.Values{}},
+		{http.MethodPost, "/settings/tokens/" + org + "/" + id + "/all-projects", url.Values{}},
+		{http.MethodPost, "/settings/tokens/" + org + "/" + id + "/revoke", url.Values{}},
 		{http.MethodPost, base + "/members/" + id + "/remove", url.Values{}},
 		{http.MethodPost, base + "/projects", url.Values{"slug": {"probe-new-project"}, "name": {"Probe New Project"}}},
 		{http.MethodPost, pbase + "/rename", url.Values{"name": {"Renamed"}}},
@@ -275,6 +286,7 @@ var reUUID = regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
 func templatize(path string) string {
 	path = reUUID.ReplaceAllString(path, "{id}")
 	path = strings.Replace(path, "/orgs/probe-org", "/orgs/{org}", 1)
+	path = strings.Replace(path, "/settings/tokens/probe-org/", "/settings/tokens/{org}/", 1)
 	path = strings.Replace(path, "/projects/probe-project", "/projects/{project}", 1)
 	if strings.HasPrefix(path, "/orgs/{org}/members/{id}/") {
 		path = strings.Replace(path, "/members/{id}/", "/members/{user}/", 1)

@@ -172,8 +172,9 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 	keyStore := apikey.NewStore(cfg.DB, pool, pgConn)
 	keyUsage := apikey.NewUsageWorker(keyStore, apiKeyUsageFlushInterval, log)
 	keyScheme := apikey.NewScheme(cfg.API.KeyPrefix)
-	keyAuthn := apikey.NewAuthenticator(keyStore, keyUsage, keyScheme)
-	keys := apikey.NewService(keyStore, keyScheme, log, reporter.Unexpected)
+	keyAuthn := apikey.NewAuthenticator(keyStore, keyUsage, keyScheme, orgs)
+	keys := apikey.NewService(keyStore, keyScheme, orgs, projectServiceForAPIKeys{svc: projects}, log, reporter.Unexpected)
+	orgs.OnMemberRemoved(keys.RevokePersonalOf)
 	// SECURITY: key first, so its shape gate rejects a non-key credential without a DB call.
 	tenantResolution := user.WithTenantResolution(
 		orgStoreForOnboard{store: orgStore},

@@ -9,10 +9,14 @@ type APIKeys struct {
 	ID          postgres.ColumnString
 	OrgID       postgres.ColumnString
 	ProjectID   postgres.ColumnString
+	Kind        postgres.ColumnString
+	AllProjects postgres.ColumnBool
 	Name        postgres.ColumnString
 	SecretHash  postgres.ColumnBytea
+	SecretHint  postgres.ColumnString
 	Scopes      postgres.ColumnString
 	ResourceIDs postgres.ColumnString
+	CreatedBy   postgres.ColumnString
 	CreatedAt   postgres.ColumnTimestampz
 	ExpiresAt   postgres.ColumnTimestampz
 	RevokedAt   postgres.ColumnTimestampz
@@ -27,28 +31,36 @@ func NewAPIKeys(schema, tablePrefix string) *APIKeys {
 		schema = "public"
 	}
 	var (
-		id          = postgres.StringColumn("id")
+		iD          = postgres.StringColumn("id")
 		orgID       = postgres.StringColumn("org_id")
 		projectID   = postgres.StringColumn("project_id")
+		kind        = postgres.StringColumn("kind")
+		allProjects = postgres.BoolColumn("all_projects")
 		name        = postgres.StringColumn("name")
 		secretHash  = postgres.ByteaColumn("secret_hash")
+		secretHint  = postgres.StringColumn("secret_hint")
 		scopes      = postgres.StringColumn("scopes")
 		resourceIDs = postgres.StringColumn("resource_ids")
+		createdBy   = postgres.StringColumn("created_by")
 		createdAt   = postgres.TimestampzColumn("created_at")
 		expiresAt   = postgres.TimestampzColumn("expires_at")
 		revokedAt   = postgres.TimestampzColumn("revoked_at")
 		lastUsedAt  = postgres.TimestampzColumn("last_used_at")
-		all         = postgres.ColumnList{id, orgID, projectID, name, secretHash, scopes, resourceIDs, createdAt, expiresAt, revokedAt, lastUsedAt}
+		all         = postgres.ColumnList{iD, orgID, projectID, kind, allProjects, name, secretHash, secretHint, scopes, resourceIDs, createdBy, createdAt, expiresAt, revokedAt, lastUsedAt}
 	)
 	return &APIKeys{
 		Table:       postgres.NewTable(schema, tablePrefix+"api_keys", "api_keys", all...),
-		ID:          id,
+		ID:          iD,
 		OrgID:       orgID,
 		ProjectID:   projectID,
+		Kind:        kind,
+		AllProjects: allProjects,
 		Name:        name,
 		SecretHash:  secretHash,
+		SecretHint:  secretHint,
 		Scopes:      scopes,
 		ResourceIDs: resourceIDs,
+		CreatedBy:   createdBy,
 		CreatedAt:   createdAt,
 		ExpiresAt:   expiresAt,
 		RevokedAt:   revokedAt,

@@ -90,13 +90,8 @@ func TestDataPlaneRejectsJWT(t *testing.T) {
 
 func adminKeyFor(t *testing.T, f *dataplaneFixture) string {
 	t.Helper()
-	o, err := f.srv.Orgs.BySlug(t.Context(), "dp-org")
-	require.NoError(t, err)
-	orgCtx := tenant.Into(t.Context(), tenant.Context{OrgID: o.ID})
-	p, err := f.srv.Projects.BySlug(orgCtx, o.ID, "dp-project")
-	require.NoError(t, err)
-	_, key, err := f.srv.APIKeys.Mint(tenant.WithProject(orgCtx, p.ID), "dp-admin",
-		[]string{authn.ScopePostsAdmin}, nil, nil)
+	_, key, err := f.srv.APIKeys.Mint(tenant.WithProject(f.orgCtx, f.project), "dp-admin",
+		[]string{authn.ScopePostsAdmin}, nil, soon())
 	require.NoError(t, err)
 	return key
 }

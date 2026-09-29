@@ -18,7 +18,7 @@ Worked example: `internal/web/handlers/blog.go` + `internal/web/templates/catego
 2. Use `sc.req` for everything downstream — `sc.req.Context()`, `sc.org`, `sc.project`. The original `r` is the unscoped request.
 3. Render through `Render(w, sc.req, templates.X(h.LayoutForProject(sc.req, title, sc.org.Slug, sc.project, "<navKey>"), v))`. Org-only pages use `LayoutForOrg`.
 4. Write the `.templ` under `internal/web/templates/`, then `make generate`.
-5. Register the route on the handler's `Register(mux web.Mux)` method, under `/orgs/{org}/projects/{project}/…`. Never a bare path.
+5. Register the route on the handler's `Register(mux web.Mux)` method, under `/orgs/{org}/projects/{project}/…`. A bare path is for personal pages only (see Tenancy).
 6. Wire the handler in `internal/boot/http.go` — construct it in `buildWebHandler` and add it to the `AppHandlers` slice.
 7. Add the nav entry in `internal/web/templates/layout.templ` using `d.ProjectPath(slug, "/x")`, `d.Tr("nav.x")` and an `ActiveNav.ProjectKey` match. Add the key to every file in `internal/i18n/locales/active.*.yaml`.
 8. Add the route to `probeRoutes()` in `internal/boot/route_scope_test.go`.
@@ -28,6 +28,7 @@ Worked example: `internal/web/handlers/blog.go` + `internal/web/templates/catego
 
 - **Project-scoped (default)** — `RequireProject` gates org membership, then looks the project slug up inside that org. Membership is org-level, so it admits any project in an org the caller belongs to.
 - **Org-scoped** — `RequireOrg` instead; you get `sc.org` and `sc.req` but no `sc.project`, and the route drops the `/projects/{project}` segment.
+- **Personal** (`/settings/…`) — `RequireSignedIn` for the caller alone; `MemberOrgScopes` for one scoped request per org they belong to; `RequireOrgFrom` when a form or query field names the org. The last runs the same membership gate as `RequireOrg`.
 - **Not tenant-scoped** (`/login`, `/terms`, `/welcome`) — neither call appears, and the route carries no `{org}` segment. Nothing checks membership, and the request context enters no tenant scope, so any tenant-scoped store method reached from there fails with `tenant: missing context`. RLS stops being a second line of defence because there is no scope for it to narrow.
 
 ## Gotchas

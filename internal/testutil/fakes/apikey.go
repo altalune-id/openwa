@@ -38,6 +38,17 @@ func (f *APIKey) Seed(k *apikey.APIKey) {
 	f.byID[k.ID] = cloneAPIKey(k)
 }
 
+// All returns every stored key, in no particular order.
+func (f *APIKey) All() []*apikey.APIKey {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]*apikey.APIKey, 0, len(f.byID))
+	for _, k := range f.byID {
+		out = append(out, cloneAPIKey(k))
+	}
+	return out
+}
+
 func (f *APIKey) Save(_ context.Context, k *apikey.APIKey) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -75,13 +86,68 @@ func (f *APIKey) List(_ context.Context, projectID uuid.UUID) ([]*apikey.APIKey,
 	defer f.mu.Unlock()
 	out := make([]*apikey.APIKey, 0, len(f.byID))
 	for _, k := range f.byID {
-		if k.ProjectID != projectID {
+		if k.Kind != apikey.KindProject || k.ProjectID != projectID {
 			continue
 		}
 		out = append(out, cloneAPIKey(k))
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
 	return out, nil
+}
+
+// ListOrg returns the org keys of the ctx's org. NOTE: the real store scopes by org, so the fake must too.
+func (f *APIKey) ListOrg(ctx context.Context) ([]*apikey.APIKey, error) {
+	tc, err := tenant.From(ctx)
+	if err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]*apikey.APIKey, 0, len(f.byID))
+	for _, k := range f.byID {
+		if k.Kind != apikey.KindOrg || k.OrgID != tc.OrgID {
+			continue
+		}
+		out = append(out, cloneAPIKey(k))
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	return out, nil
+}
+
+// ListPersonal returns ownerID's personal tokens in the ctx's org. NOTE: the real store scopes by org, so the fake must too.
+func (f *APIKey) ListPersonal(ctx context.Context, ownerID uuid.UUID) ([]*apikey.APIKey, error) {
+	tc, err := tenant.From(ctx)
+	if err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]*apikey.APIKey, 0, len(f.byID))
+	for _, k := range f.byID {
+		if k.Kind != apikey.KindPersonal || k.OrgID != tc.OrgID || k.CreatedBy != ownerID {
+			continue
+		}
+		out = append(out, cloneAPIKey(k))
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	return out, nil
+}
+
+// RevokePersonal revokes ownerID's unrevoked personal tokens in the ctx's org.
+func (f *APIKey) RevokePersonal(ctx context.Context, ownerID uuid.UUID, at time.Time) error {
+	tc, err := tenant.From(ctx)
+	if err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, k := range f.byID {
+		if k.Kind == apikey.KindPersonal && k.OrgID == tc.OrgID && k.CreatedBy == ownerID && k.RevokedAt == nil {
+			t := at
+			k.RevokedAt = &t
+		}
+	}
+	return nil
 }
 
 func (f *APIKey) TouchLastUsed(ctx context.Context, id uuid.UUID, at time.Time) error {
@@ -105,5 +171,6 @@ func cloneAPIKey(k *apikey.APIKey) *apikey.APIKey {
 	cp := *k
 	cp.Scopes = slices.Clone(k.Scopes)
 	cp.ResourceIDs = slices.Clone(k.ResourceIDs)
+	cp.ProjectIDs = slices.Clone(k.ProjectIDs)
 	return &cp
 }

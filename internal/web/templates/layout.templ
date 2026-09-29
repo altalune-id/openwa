@@ -46,10 +46,10 @@ templ Layout(d web.LayoutData) {
 						</div>
 						@sidebarFooterUtils(d)
 					</aside>
-					if d.ActiveNav.Scope == web.NavScopeProject {
+					if d.ActiveNav.Scope == web.NavScopeProject || d.ActiveNav.Scope == web.NavScopeSettings {
 						<aside class="sticky top-14 hidden h-[calc(100vh-3.5rem)] shrink-0 flex-col md:flex md:w-64 md:border-r border-subtle" style="background:hsl(var(--card));color:hsl(var(--card-foreground));">
 							<div class="flex-1 overflow-y-auto">
-								@projectSidebar(d)
+								@secondarySidebar(d)
 							</div>
 						</aside>
 					}
@@ -164,6 +164,10 @@ templ userMenu(d web.LayoutData) {
 				<p class="mt-0.5 truncate text-sm font-medium text-foreground">{ d.Principal.Email }</p>
 			</div>
 			<div class="my-1 border-t border-subtle"></div>
+			<a href={ templ.SafeURL(d.Href("/settings/tokens")) } class="flex w-full items-center gap-2 rounded px-3 py-2 text-sm text-foreground/90 hover:bg-muted">
+				@icons.Icon("settings", "h-4 w-4 text-muted-foreground")
+				<span>{ d.Tr("nav.settings") }</span>
+			</a>
 			<form method="post" action={ templ.SafeURL(d.Href("/logout")) } class="block">
 				<button type="submit" class="flex w-full items-center gap-2 rounded px-3 py-2 text-sm text-foreground/90 hover:bg-muted">
 					@icons.Icon("log-out", "h-4 w-4 text-muted-foreground")
@@ -439,7 +443,29 @@ templ orgMenu(d web.LayoutData, slug string) {
 		<a href={ templ.SafeURL(d.Href("/orgs/" + slug + "/invites")) } class={ orgItemClass(d.ActiveNav.OrgKey == "invites") }>
 			@icons.Icon("mail", "h-4 w-4 shrink-0") <span>{ d.Tr("nav.invites") }</span>
 		</a>
+		<a href={ templ.SafeURL(d.Href("/orgs/" + slug + "/apikeys")) } class={ orgItemClass(d.ActiveNav.OrgKey == "apikeys") }>
+			@icons.Icon("key", "h-4 w-4 shrink-0") <span>{ d.Tr("nav.apikeys") }</span>
+		</a>
 	</nav>
+}
+
+templ secondarySidebar(d web.LayoutData) {
+	if d.ActiveNav.Scope == web.NavScopeSettings {
+		@settingsSidebar(d)
+	} else {
+		@projectSidebar(d)
+	}
+}
+
+templ settingsSidebar(d web.LayoutData) {
+	<div class="flex flex-col gap-1 p-3">
+		<p class="mt-1 mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">{ d.Tr("nav.settings") }</p>
+		<nav class="flex flex-col gap-0.5">
+			<a href={ templ.SafeURL(d.Href("/settings/tokens")) } class={ orgItemClass(d.ActiveNav.SettingsKey == "tokens") }>
+				@icons.Icon("key", "h-4 w-4 shrink-0") <span>{ d.Tr("nav.personal_tokens") }</span>
+			</a>
+		</nav>
+	</div>
 }
 
 templ projectSidebar(d web.LayoutData) {
@@ -568,9 +594,9 @@ templ mobileDrawer(d web.LayoutData) {
 		@orgSwitcherHeader(d)
 		<div class="flex-1 overflow-y-auto">
 			@orgSidebar(d)
-			if d.ActiveNav.Scope == web.NavScopeProject {
+			if d.ActiveNav.Scope == web.NavScopeProject || d.ActiveNav.Scope == web.NavScopeSettings {
 				<div class="mx-3 border-t border-subtle"></div>
-				@projectSidebar(d)
+				@secondarySidebar(d)
 			}
 		</div>
 		@sidebarFooterUtils(d)

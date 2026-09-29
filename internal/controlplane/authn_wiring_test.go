@@ -45,7 +45,7 @@ func TestServer_HandlerOptions_EnforcesKeyScopes(t *testing.T) {
 	}
 	store.Seed(adminKey)
 
-	keyAuthn := apikey.NewAuthenticator(store, nil, apikey.Scheme{})
+	keyAuthn := apikey.NewAuthenticator(store, nil, apikey.Scheme{}, fakes.NewMembers())
 	chain := authn.Chain{keyAuthn, tokens.NewAuthenticator(alwaysOKVerifier{})}
 
 	s := &Server{
@@ -107,14 +107,13 @@ func TestServer_HandlerOptions_RejectsUnscopedProcedure(t *testing.T) {
 	reporter := apperror.NewReporter(log, false)
 
 	store := fakes.NewAPIKey()
-	orgID, projectID := uuid.New(), uuid.New()
-	key, plain, err := apikey.Scheme{}.Mint(orgID, projectID, "everything", authn.AllScopes(), nil, nil, time.Now().UTC())
+	key, plain, err := apikey.Scheme{}.MintOrg(uuid.New(), "everything", authn.AllScopes(), apikey.ProjectGrant{All: true}, nil, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("mint key: %v", err)
 	}
 	store.Seed(key)
 
-	chain := authn.Chain{apikey.NewAuthenticator(store, nil, apikey.Scheme{}), tokens.NewAuthenticator(alwaysOKVerifier{})}
+	chain := authn.Chain{apikey.NewAuthenticator(store, nil, apikey.Scheme{}, fakes.NewMembers()), tokens.NewAuthenticator(alwaysOKVerifier{})}
 	s := &Server{
 		Kernel:    &platform.Kernel{Log: log, Reporter: reporter},
 		Authn:     chain,
@@ -157,7 +156,7 @@ func TestServer_HandlerOptions_AcceptsAnyConfiguredKeyPrefix(t *testing.T) {
 			}
 			store.Seed(key)
 
-			keyAuthn := apikey.NewAuthenticator(store, nil, scheme)
+			keyAuthn := apikey.NewAuthenticator(store, nil, scheme, fakes.NewMembers())
 			s := &Server{
 				Kernel:    &platform.Kernel{Log: log, Reporter: apperror.NewReporter(log, false)},
 				Authn:     authn.Chain{keyAuthn},

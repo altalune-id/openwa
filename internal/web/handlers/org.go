@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"net/http"
 	"strings"
 
@@ -95,7 +94,7 @@ func (h *OrgHandler) PostRename(w http.ResponseWriter, r *http.Request) {
 	}
 	name := strings.TrimSpace(r.PostForm.Get("name"))
 	// SECURITY: the slug comes from the URL, so membership in that org must be checked here — RLS no longer narrows this to the active org.
-	canManage, mErr := h.isManager(r.Context(), o.ID, p.UserID)
+	canManage, mErr := h.Orgs.IsManager(r.Context(), o.ID, p.UserID)
 	if mErr != nil || !canManage {
 		h.ErrorPage(w, r, http.StatusForbidden, "Not allowed", "You must be an admin or owner to rename this organization.")
 		return
@@ -125,7 +124,7 @@ func (h *OrgHandler) GetShow(w http.ResponseWriter, r *http.Request) {
 		h.ErrorPage(w, r, http.StatusInternalServerError, "Members failed", "Could not load members.", err)
 		return
 	}
-	canManage, _ := h.isManager(r.Context(), o.ID, p.UserID)
+	canManage, _ := h.Orgs.IsManager(r.Context(), o.ID, p.UserID)
 	Render(w, r, templates.MembersLayout(h.LayoutForOrg(r, o.Name, o.Slug, "members"), templates.MembersView{
 		OrgSlug:   o.Slug,
 		Members:   memberProfileRows(profiles, o.ID, p.UserID),
@@ -140,7 +139,7 @@ func (h *OrgHandler) PostRemoveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, o, r := sc.principal, sc.org, sc.req
-	canManage, mErr := h.isManager(r.Context(), o.ID, p.UserID)
+	canManage, mErr := h.Orgs.IsManager(r.Context(), o.ID, p.UserID)
 	if mErr != nil || !canManage {
 		h.ErrorPage(w, r, http.StatusForbidden, "Not allowed", "You must be an admin or owner to manage members.")
 		return
@@ -173,15 +172,6 @@ func (h *OrgHandler) PostRemoveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, ResolveReturnTo(h.Cfg.HTTP.BasePath, "/orgs/"+o.Slug+"/members"), http.StatusSeeOther) //nolint:gosec // G710: destination sanitized via ResolveReturnTo → SanitizeReturnTo
-}
-
-// SECURITY: ctx must already carry the tenant scope; MembershipOf is RLS-filtered by org.
-func (h *OrgHandler) isManager(ctx context.Context, orgID, userID uuid.UUID) (bool, error) {
-	m, err := h.Orgs.MembershipOf(ctx, orgID, userID)
-	if err != nil {
-		return false, err
-	}
-	return m.Role == org.RoleOwner || m.Role == org.RoleAdmin, nil
 }
 
 func (h *OrgHandler) requireAuth(w http.ResponseWriter, r *http.Request) (session.Principal, bool) {

@@ -7,6 +7,7 @@ import (
 	apikeyv1connect "altalune.id/template/gen/go/apikey/v1/apikeyv1connect"
 	authv1connect "altalune.id/template/gen/go/auth/v1/authv1connect"
 	blogv1connect "altalune.id/template/gen/go/blog/v1/blogv1connect"
+	orgv1connect "altalune.id/template/gen/go/org/v1/orgv1connect"
 	projectv1connect "altalune.id/template/gen/go/project/v1/projectv1connect"
 	todov1connect "altalune.id/template/gen/go/todo/v1/todov1connect"
 	"altalune.id/template/internal/platform/surfaces"
@@ -27,6 +28,7 @@ func VerbTable() map[string]surfaces.Verb {
 		blogv1connect.BlogServiceUnpublishPostProcedure:      {Module: "blog", Aggregate: "post", Operation: "unpublish"},
 		blogv1connect.BlogServiceDeletePostProcedure:         {Module: "blog", Aggregate: "post", Operation: "delete"},
 		projectv1connect.ProjectServiceListProjectsProcedure: {Module: "project", Aggregate: "project", Operation: "list"},
+		orgv1connect.MemberServiceListMembersProcedure:       {Module: "org", Aggregate: "member", Operation: "list"},
 		todov1connect.TodoServiceListProcedure:               {Module: "todo", Aggregate: "todo", Operation: "list"},
 		todov1connect.TodoServiceCreateProcedure:             {Module: "todo", Aggregate: "todo", Operation: "create"},
 		todov1connect.TodoServiceToggleProcedure:             {Module: "todo", Aggregate: "todo", Operation: "toggle"},

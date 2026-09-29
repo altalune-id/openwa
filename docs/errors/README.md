@@ -1,33 +1,25 @@
 # Error codes
 
-Every user-visible failure carries a code, printed next to the request id so a report can be matched
-to a log line. Codes are `<DOM><NNN>` — a three-letter domain mnemonic plus a per-domain sequence.
-They are **append-only**: never renumbered, never reused after retirement, because users quote them
-from screenshots. `NNN` in the range `900`-`999` is reserved for unexpected or internal failures.
+Every user-visible failure carries a code, shown next to the request id so a report matches a log
+line. Codes are `<DOM><NNN>`: a three-letter domain plus a sequence. **Append-only** — never
+renumbered or reused, because users quote them. `900`-`999` is reserved for internal failures.
 
-`TestCodes_EveryRefIsDocumented` pins this file to `internal/apperror/codes.go` in both directions:
-a constant with no row fails, and a row with no constant fails. Adding a code:
-[`howto/error-code.md`](../howto/error-code.md); raising one: [`howto/errors.md`](../howto/errors.md).
+`TestCodes_EveryRefIsDocumented` pins this file to `internal/apperror/codes.go` both ways. Adding a
+code: [`howto/error-code.md`](../howto/error-code.md); raising one: [`howto/errors.md`](../howto/errors.md).
 
 ## Where a code travels
 
-- **Console (S1)** — rendered on the error page and in the inline form banner. The HTTP status is
-  chosen by the handler, not by the code.
-- **Control plane `/api/` (S2)** — the code rides in `ErrorDetail.code` inside the Connect error.
-  The Status column below is the `google.golang.org/grpc/codes` value the envelope carries;
-  `internal/controlplane/interceptor/codes.go` maps it to the `connect.Code` of the same name, and
-  Connect derives the HTTP status from that.
-- **MCP `/mcp` (S7)** — the transport's 401 body and a failed tool's `ErrorPayload` both carry a
-  code. See [`mcp`](../mcp/README.md).
-- **CLI (S6)** — printed with the message. The process exit code is a separate contract; see
-  [`cli`](../cli/README.md).
-- **Data plane `/api/v1/` (S3) and ingest `/hooks/` (S4) do not emit these codes.** Their JSON body
-  is `{"code","message"}` where `code` is an outcome word — `not_found`, `unauthorized`,
-  `bad_request`, `conflict`, `in_progress`, `precondition_failed`, `precondition_required`,
-  `method_not_allowed`, `payload_too_large`, `internal`. That vocabulary is deliberately opaque, so a
-  denied scope and a missing row are indistinguishable. See [`surfaces`](../surfaces/README.md) R6.
+- **Console (S1)** — on the error page and in the form banner. The handler picks the HTTP status.
+- **Control plane `/api/` (S2)** — in `ErrorDetail.code` inside the Connect error. The Status
+  column is the gRPC code the envelope carries; `interceptor/codes.go` maps it to Connect's.
+- **MCP `/mcp` (S7)** — in the 401 body and in a failed tool's `ErrorPayload`. See [`mcp`](../mcp/README.md).
+- **CLI (S6)** — printed with the message; exit codes are separate ([`cli`](../cli/README.md)).
+- **Data plane `/api/v1/` (S3) and ingest `/hooks/` (S4) emit no codes** — only an opaque outcome
+  word (`not_found`, `unauthorized`, `bad_request`, `conflict`, `in_progress`,
+  `precondition_failed`, `precondition_required`, `method_not_allowed`, `payload_too_large`,
+  `internal`), so a denied scope and a missing row look the same. See [`surfaces`](../surfaces/README.md) R6.
 
-In the Status column, `—` means the code is registered but nothing constructs it yet.
+In the Status column, `—` means registered but not yet constructed.
 
 ## GEN — General / cross-cutting
 
@@ -65,6 +57,7 @@ In the Status column, `—` means the code is registered but nothing constructs 
 | `ORG008` | `apperror.CodeOrgSystemProtected`   | `FailedPrecondition` | Org System Protected   |
 | `ORG009` | `apperror.CodeOrgSelfRemoval`       | `FailedPrecondition` | Org Self Removal       |
 | `ORG010` | `apperror.CodeOrgOwnerRemoval`      | `FailedPrecondition` | Org Owner Removal      |
+| `ORG011` | `apperror.CodeOrgManagerRequired`   | `PermissionDenied`   | Org Manager Required   |
 
 ## PRJ — Projects
 
@@ -172,6 +165,23 @@ write's expected version no longer matches. On the data plane the same failure a
 `WWW-Authenticate` and an `mcp.ErrorPayload` body. A failure inside a tool call goes through
 `mcp.TranslateError` instead and carries `GEN002` for a rejected credential, and `GEN003` — the
 scope-denial code, returned by `internal/mcp/auth.go` — for a denied or undeclared scope.
+
+## APK — API keys
+
+| Code     | Constant                                | Status               | Meaning                      |
+| -------- | --------------------------------------- | -------------------- | ---------------------------- |
+| `APK001` | `apperror.CodeAPIKeyUnknownScope`       | `InvalidArgument`    | API Key Unknown Scope        |
+| `APK002` | `apperror.CodeAPIKeyRetiredScope`       | `InvalidArgument`    | API Key Retired Scope        |
+| `APK003` | `apperror.CodeAPIKeyScopeLevel`         | `InvalidArgument`    | API Key Scope Level          |
+| `APK004` | `apperror.CodeAPIKeyEmptyGrant`         | `InvalidArgument`    | API Key Empty Grant          |
+| `APK005` | `apperror.CodeAPIKeyGrantConflict`      | `InvalidArgument`    | API Key Grant Conflict       |
+| `APK006` | `apperror.CodeAPIKeyBoundToProject`     | `FailedPrecondition` | API Key Bound To Project     |
+| `APK007` | `apperror.CodeAPIKeyAlreadyAllProjects` | `FailedPrecondition` | API Key Already All Projects |
+| `APK008` | `apperror.CodeAPIKeyRevoked`            | `FailedPrecondition` | API Key Revoked              |
+| `APK009` | `apperror.CodeAPIKeyProjectNotInOrg`    | `InvalidArgument`    | API Key Project Not In Org   |
+| `APK010` | `apperror.CodeAPIKeyExpiryRequired`     | `InvalidArgument`    | API Key Expiry Required      |
+| `APK011` | `apperror.CodeAPIKeyExpiryInPast`       | `InvalidArgument`    | API Key Expiry In Past       |
+| `APK012` | `apperror.CodeAPIKeyExpiryTooLong`      | `InvalidArgument`    | API Key Expiry Too Long      |
 
 ## WHK — Webhooks
 

@@ -38,47 +38,6 @@ func TestMintRejectsUnknownScope(t *testing.T) {
 	}
 }
 
-func TestAllows(t *testing.T) {
-	catA, catB := uuid.New(), uuid.New()
-	now := time.Now().UTC()
-
-	wide, _, _ := apikey.Scheme{}.Mint(uuid.New(), uuid.New(), "wide", []string{authn.ScopePostsWrite}, nil, nil, now)
-	narrow, _, _ := apikey.Scheme{}.Mint(uuid.New(), uuid.New(), "narrow", []string{authn.ScopePostsWrite}, []uuid.UUID{catA}, nil, now)
-
-	tests := []struct {
-		name     string
-		key      *apikey.APIKey
-		scope    string
-		resource uuid.UUID
-		want     bool
-	}{
-		{"wide key any resource", wide, authn.ScopePostsWrite, catB, true},
-		{"wide key wrong scope", wide, authn.ScopePostsAdmin, catB, false},
-		{"narrow key listed resource", narrow, authn.ScopePostsWrite, catA, true},
-		{"narrow key unlisted resource", narrow, authn.ScopePostsWrite, catB, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.key.Allows(tt.scope, tt.resource); got != tt.want {
-				t.Fatalf("Allows = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-// SECURITY: a resource-restricted key must not satisfy a route that names no resource.
-func TestAllowsProjectRefusesRestrictedKey(t *testing.T) {
-	now := time.Now().UTC()
-	narrow, _, _ := apikey.Scheme{}.Mint(uuid.New(), uuid.New(), "narrow", []string{authn.ScopePostsWrite}, []uuid.UUID{uuid.New()}, nil, now)
-	if narrow.AllowsProject(authn.ScopePostsWrite) {
-		t.Fatal("a resource-restricted key satisfied a project-wide check")
-	}
-	wide, _, _ := apikey.Scheme{}.Mint(uuid.New(), uuid.New(), "wide", []string{authn.ScopePostsWrite}, nil, nil, now)
-	if !wide.AllowsProject(authn.ScopePostsWrite) {
-		t.Fatal("an unrestricted key failed a project-wide check")
-	}
-}
-
 func TestUsable(t *testing.T) {
 	now := time.Now().UTC()
 	past, future := now.Add(-time.Hour), now.Add(time.Hour)

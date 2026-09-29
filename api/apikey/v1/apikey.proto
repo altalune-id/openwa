@@ -37,6 +37,7 @@ message CreateRequest {
   string name = 2;
   repeated string scopes = 3;
   repeated string resource_ids = 4;
+  // Required: when the key stops working, in the future and at most one year away
   google.protobuf.Timestamp expires_at = 5;
 }
 

@@ -2,7 +2,6 @@ package controlplane
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
 	"altalune.id/template/internal/apikey"
 	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/tenant"
 	"altalune.id/template/internal/project"
 )
 
@@ -32,11 +30,11 @@ func NewAPIKeyService(keys *apikey.Service, projects *project.Service) *APIKeySe
 
 // List returns the keys in the request's project, never carrying a plaintext secret.
 func (s *APIKeyService) List(ctx context.Context, req *connect.Request[apikeyv1.ListRequest]) (*connect.Response[apikeyv1.ListResponse], error) {
-	tctx, pid, err := s.scopeToProject(ctx, req.Msg.GetProjectId())
+	tctx, proj, err := scopeToProject(ctx, s.projects, req.Msg.GetProjectId())
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.keys.List(tctx, pid)
+	items, err := s.keys.List(tctx, proj.ID)
 	if err != nil {
 		return nil, translateKeyErr(err)
 	}
@@ -49,7 +47,7 @@ func (s *APIKeyService) List(ctx context.Context, req *connect.Request[apikeyv1.
 
 // Create mints a new key in the request's project. SECURITY: the plaintext secret is returned here only and cannot be recovered afterwards.
 func (s *APIKeyService) Create(ctx context.Context, req *connect.Request[apikeyv1.CreateRequest]) (*connect.Response[apikeyv1.CreateResponse], error) {
-	tctx, _, err := s.scopeToProject(ctx, req.Msg.GetProjectId())
+	tctx, _, err := scopeToProject(ctx, s.projects, req.Msg.GetProjectId())
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +75,7 @@ func (s *APIKeyService) Create(ctx context.Context, req *connect.Request[apikeyv
 
 // Revoke marks the referenced key permanently unusable. SECURITY: a key outside the request's own project reports the same NotFound as a made-up id.
 func (s *APIKeyService) Revoke(ctx context.Context, req *connect.Request[apikeyv1.RevokeRequest]) (*connect.Response[apikeyv1.RevokeResponse], error) {
-	tctx, _, err := s.scopeToProject(ctx, req.Msg.GetProjectId())
+	tctx, _, err := scopeToProject(ctx, s.projects, req.Msg.GetProjectId())
 	if err != nil {
 		return nil, err
 	}
@@ -91,37 +89,7 @@ func (s *APIKeyService) Revoke(ctx context.Context, req *connect.Request[apikeyv
 	return connect.NewResponse(&apikeyv1.RevokeResponse{}), nil
 }
 
-func (s *APIKeyService) scopeToProject(ctx context.Context, projectIDRaw string) (context.Context, uuid.UUID, error) {
-	p, err := principal(ctx)
-	if err != nil {
-		return nil, uuid.Nil, err
-	}
-	pid, err := parseUUID("project_id", projectIDRaw)
-	if err != nil {
-		return nil, uuid.Nil, err
-	}
-	scoped := tenant.Into(ctx, tenant.Context{OrgID: p.ActiveOrgID, UserID: p.UserID})
-	proj, err := s.projects.ByID(scoped, pid)
-	if err != nil {
-		return nil, uuid.Nil, err
-	}
-	if proj.OrgID != p.ActiveOrgID {
-		return nil, uuid.Nil, forbiddenErr("project belongs to another org", "project_id", pid.String())
-	}
-	tctx := tenant.Into(ctx, tenant.Context{
-		OrgID:     proj.OrgID,
-		ProjectID: proj.ID,
-		UserID:    p.UserID,
-	})
-	return tctx, proj.ID, nil
-}
-
-// NOTE: internal/apikey/errors.go implements no ToAppError hop, so without this an unknown scope surfaces as internal.
 func translateKeyErr(err error) error {
-	var unknown *apikey.UnknownScopeError
-	if errors.As(err, &unknown) {
-		return validationErr("scopes", "unknown scope: "+unknown.Scope)
-	}
 	if apikey.IsNotFoundError(err) {
 		return keyNotFoundErr()
 	}

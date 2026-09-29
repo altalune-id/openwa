@@ -24,7 +24,14 @@ type Service struct {
 	caps       capabilities.Capabilities
 	log        *slog.Logger
 	unexpected apperror.UnexpectedFunc
+	onRemoved  []MemberRemovedFunc
 }
+
+// MemberRemovedFunc reacts to a member leaving an org, such as revoking what the member held there.
+type MemberRemovedFunc func(ctx context.Context, orgID, userID uuid.UUID) error
+
+// OnMemberRemoved registers fn to run on every RemoveMember, before the membership is deleted. NOTE: register at boot, before serving; the list is not guarded for concurrent registration.
+func (s *Service) OnMemberRemoved(fn MemberRemovedFunc) { s.onRemoved = append(s.onRemoved, fn) }
 
 // NewService wires the Service.
 func NewService(store Store, caps capabilities.Capabilities, log *slog.Logger, unexpected apperror.UnexpectedFunc) *Service {
@@ -293,6 +300,12 @@ func (s *Service) RemoveMember(ctx context.Context, orgID, userID uuid.UUID) err
 	if refusal := RemovalRefusal(orgID, tc.UserID, userID, actor.Role, m.Role, m.System); refusal != nil {
 		return refusal
 	}
+	// SECURITY: hooks run before the delete, so a failed revoke leaves the member in place and a retry can finish it.
+	for _, fn := range s.onRemoved {
+		if err := fn(ctx, orgID, userID); err != nil {
+			return s.unexpected(ctx, "org.RemoveMember: hook", fmt.Errorf("org.RemoveMember: hook: %w", err), "org_id", orgID.String(), "user_id", userID.String())
+		}
+	}
 	if err := s.store.RemoveMember(ctx, orgID, userID); err != nil {
 		if IsMembershipMissingError(err) {
 			return err
@@ -356,6 +369,53 @@ func (s *Service) MembershipOf(ctx context.Context, orgID, userID uuid.UUID) (*M
 		return nil, s.unexpected(ctx, "org.MembershipOf", fmt.Errorf("org.MembershipOf: %w", err), "org_id", orgID.String(), "user_id", userID.String())
 	}
 	return m, nil
+}
+
+// IsManager reports whether userID holds an owner or admin membership in orgID. SECURITY: ctx must already carry the tenant scope.
+func (s *Service) IsManager(ctx context.Context, orgID, userID uuid.UUID) (bool, error) {
+	ctx, span := tracer.Start(ctx, "org.IsManager")
+	defer span.End()
+	if userID == uuid.Nil {
+		return false, nil
+	}
+	m, err := s.MembershipOf(ctx, orgID, userID)
+	if IsMembershipMissingError(err) || IsNotFoundError(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return m.Role.CanManage(), nil
+}
+
+// RequireManager refuses with *NotManagerError unless userID is an owner or admin of orgID; a machine principal is always refused. SECURITY: ctx must already carry the tenant scope.
+func (s *Service) RequireManager(ctx context.Context, orgID, userID uuid.UUID) error {
+	ctx, span := tracer.Start(ctx, "org.RequireManager")
+	defer span.End()
+	ok, err := s.IsManager(ctx, orgID, userID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return &NotManagerError{OrgID: orgID.String(), UserID: userID.String()}
+	}
+	return nil
+}
+
+// RequireMember refuses with *MembershipMissingError unless userID holds any membership in orgID. SECURITY: ctx must already carry the tenant scope.
+func (s *Service) RequireMember(ctx context.Context, orgID, userID uuid.UUID) error {
+	ctx, span := tracer.Start(ctx, "org.RequireMember")
+	defer span.End()
+	if userID == uuid.Nil {
+		return &MembershipMissingError{OrgID: orgID.String(), UserID: userID.String()}
+	}
+	if _, err := s.MembershipOf(ctx, orgID, userID); err != nil {
+		if IsNotFoundError(err) {
+			return &MembershipMissingError{OrgID: orgID.String(), UserID: userID.String()}
+		}
+		return err
+	}
+	return nil
 }
 
 // ListMembers returns every membership in the given org.

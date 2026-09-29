@@ -32,7 +32,7 @@ func newAPIKeyService(t *testing.T, store apikey.Store) (*apikey.Service, *int) 
 		return apperror.New("altempl.unexpected", err.Error(), codes.Internal,
 			&apperrorv1.ErrorDetail{Code: "altempl.unexpected"}).WithCause(err)
 	}
-	return apikey.NewService(store, apikey.Scheme{}, log, unexpected), &calls
+	return apikey.NewService(store, apikey.Scheme{}, fakes.PermissiveMembers(), fakes.NewOrgProjects(), log, unexpected), &calls
 }
 
 func tenantCtx(t *testing.T) (context.Context, tenant.Context) {
@@ -54,7 +54,7 @@ func mustAuthenticate(t *testing.T) session.Principal {
 	store := fakes.NewAPIKey()
 	_, plaintext := mintSeeded(t, store, uuid.New(), uuid.New(), []string{authn.ScopePostsRead}, nil)
 
-	auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{})
+	auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{}, fakes.NewMembers())
 	p, err := auth.Authenticate(t.Context(), plaintext)
 	require.NoError(t, err)
 	return p
@@ -62,7 +62,7 @@ func mustAuthenticate(t *testing.T) session.Principal {
 
 func TestAuthenticateRejectsForeignShape(t *testing.T) {
 	store := fakes.NewAPIKey()
-	auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{})
+	auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{}, fakes.NewMembers())
 
 	_, err := auth.Authenticate(t.Context(), "aaa.bbb.ccc")
 	assert.True(t, authn.IsUnauthorizedError(err), "got %T: %v", err, err)
@@ -76,7 +76,7 @@ func TestAuthenticateRejectsRevokedKey(t *testing.T) {
 	k.RevokedAt = &now
 	store.Seed(k)
 
-	auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{})
+	auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{}, fakes.NewMembers())
 	_, err := auth.Authenticate(t.Context(), plaintext)
 	assert.True(t, authn.IsUnauthorizedError(err), "got %T: %v", err, err)
 	assert.False(t, apikey.IsNotFoundError(err), "a revoked key must not surface as a distinguishable NotFoundError")
@@ -85,7 +85,7 @@ func TestAuthenticateRejectsRevokedKey(t *testing.T) {
 func TestAuthenticateCollapsesStoreOutage(t *testing.T) {
 	store := fakes.NewAPIKey()
 	store.BySecretHashErr = errors.New("connection refused")
-	auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{})
+	auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{}, fakes.NewMembers())
 
 	_, err := auth.Authenticate(t.Context(), apikey.DefaultPrefix+"whatever")
 	assert.True(t, authn.IsUnauthorizedError(err), "a store outage must collapse to the same opaque error as a bad credential, got %T: %v", err, err)
@@ -145,7 +145,7 @@ func TestAuthenticateReturnsAnIdenticalErrorForEveryRejectionCause(t *testing.T)
 		t.Run(tt.name, func(t *testing.T) {
 			store := fakes.NewAPIKey()
 			raw := tt.setup(t, store)
-			auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{})
+			auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{}, fakes.NewMembers())
 
 			p, err := auth.Authenticate(t.Context(), raw)
 			assert.Equal(t, &authn.UnauthorizedError{}, err, "every rejection must be the same opaque error")
@@ -158,7 +158,7 @@ func TestAuthorizeChecksOrgProjectAndScope(t *testing.T) {
 	store := fakes.NewAPIKey()
 	orgID, projectID := uuid.New(), uuid.New()
 	k, plaintext := mintSeeded(t, store, orgID, projectID, []string{authn.ScopePostsRead}, nil)
-	auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{})
+	auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{}, fakes.NewMembers())
 
 	t.Run("wrong org denies", func(t *testing.T) {
 		_, err := auth.Authorize(t.Context(), plaintext, authn.ScopePostsRead, uuid.New(), projectID, uuid.New())
@@ -184,7 +184,7 @@ func TestAuthorizeProjectRefusesRestrictedKey(t *testing.T) {
 	store := fakes.NewAPIKey()
 	orgID, projectID, resourceID := uuid.New(), uuid.New(), uuid.New()
 	_, restrictedPlaintext := mintSeeded(t, store, orgID, projectID, []string{authn.ScopePostsRead}, []uuid.UUID{resourceID})
-	auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{})
+	auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{}, fakes.NewMembers())
 
 	_, err := auth.AuthorizeProject(t.Context(), restrictedPlaintext, authn.ScopePostsRead, orgID, projectID)
 	assert.True(t, authn.IsInsufficientScopeError(err), "a resource-restricted key must not pass a project-wide check, got %T: %v", err, err)
@@ -193,6 +193,31 @@ func TestAuthorizeProjectRefusesRestrictedKey(t *testing.T) {
 	p, err := auth.AuthorizeProject(t.Context(), unrestrictedPlaintext, authn.ScopePostsRead, orgID, projectID)
 	require.NoError(t, err)
 	assert.Equal(t, session.SourceAPIKey, p.Source)
+}
+
+func TestAuthorizeRefusesAnUnlistedResource(t *testing.T) {
+	store := fakes.NewAPIKey()
+	orgID, projectID, listed := uuid.New(), uuid.New(), uuid.New()
+	_, plaintext := mintSeeded(t, store, orgID, projectID, []string{authn.ScopePostsWrite}, []uuid.UUID{listed})
+	auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{}, fakes.NewMembers())
+
+	_, err := auth.Authorize(t.Context(), plaintext, authn.ScopePostsWrite, orgID, projectID, listed)
+	require.NoError(t, err, "the listed resource must stay reachable")
+
+	_, err = auth.Authorize(t.Context(), plaintext, authn.ScopePostsWrite, orgID, projectID, uuid.New())
+	assert.True(t, authn.IsInsufficientScopeError(err), "an unlisted resource must be refused, got %T: %v", err, err)
+}
+
+// SECURITY: the control plane and the MCP surface bound a key by the grant its principal carries, so the principal must carry the key's project and resources.
+func TestPrincipalCarriesTheKeysGrant(t *testing.T) {
+	store := fakes.NewAPIKey()
+	projectID, resourceID := uuid.New(), uuid.New()
+	_, plaintext := mintSeeded(t, store, uuid.New(), projectID, []string{authn.ScopePostsRead}, []uuid.UUID{resourceID})
+
+	p, err := apikey.NewAuthenticator(store, nil, apikey.Scheme{}, fakes.NewMembers()).Authenticate(t.Context(), plaintext)
+	require.NoError(t, err)
+	assert.Equal(t, []uuid.UUID{projectID}, p.ProjectIDs)
+	assert.Equal(t, []uuid.UUID{resourceID}, p.ResourceIDs)
 }
 
 func TestPrincipalCarriesNoUserIDAndNoSecret(t *testing.T) {
@@ -211,7 +236,7 @@ func TestPrincipalCarriesTheKeyID(t *testing.T) {
 	store := fakes.NewAPIKey()
 	k, plaintext := mintSeeded(t, store, uuid.New(), uuid.New(), []string{authn.ScopePostsRead}, nil)
 
-	auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{})
+	auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{}, fakes.NewMembers())
 	p, err := auth.Authenticate(t.Context(), plaintext)
 	require.NoError(t, err)
 	assert.Equal(t, k.ID, p.KeyID, "principalFor must carry the minted key's id so downstream writers can attribute rows to it")
@@ -222,7 +247,7 @@ func TestService_MintListRevoke(t *testing.T) {
 	svc, unex := newAPIKeyService(t, store)
 	ctx, tc := tenantCtx(t)
 
-	k, plaintext, err := svc.Mint(ctx, "ci key", []string{authn.ScopePostsRead}, nil, nil)
+	k, plaintext, err := svc.Mint(ctx, "ci key", []string{authn.ScopePostsRead}, nil, in(time.Hour))
 	require.NoError(t, err)
 	assert.NotEmpty(t, plaintext)
 	assert.Equal(t, tc.OrgID, k.OrgID)
@@ -244,7 +269,7 @@ func TestService_MintRejectsUnknownScope(t *testing.T) {
 	svc, unex := newAPIKeyService(t, store)
 	ctx, _ := tenantCtx(t)
 
-	_, _, err := svc.Mint(ctx, "bad", []string{"not-a-scope"}, nil, nil)
+	_, _, err := svc.Mint(ctx, "bad", []string{"not-a-scope"}, nil, in(time.Hour))
 	assert.True(t, apikey.IsUnknownScopeError(err), "got %T: %v", err, err)
 	assert.Zero(t, *unex)
 }

@@ -4,6 +4,7 @@ import (
 	apikeyv1connect "altalune.id/template/gen/go/apikey/v1/apikeyv1connect"
 	authv1connect "altalune.id/template/gen/go/auth/v1/authv1connect"
 	blogv1connect "altalune.id/template/gen/go/blog/v1/blogv1connect"
+	orgv1connect "altalune.id/template/gen/go/org/v1/orgv1connect"
 	projectv1connect "altalune.id/template/gen/go/project/v1/projectv1connect"
 	todov1connect "altalune.id/template/gen/go/todo/v1/todov1connect"
 	"altalune.id/template/internal/platform/authn"
@@ -23,6 +24,7 @@ func ScopeTable() authn.ScopeTable {
 		blogv1connect.BlogServiceUnpublishPostProcedure:      authn.ScopePostsWrite,
 		blogv1connect.BlogServiceDeletePostProcedure:         authn.ScopePostsAdmin,
 		projectv1connect.ProjectServiceListProjectsProcedure: authn.ScopePostsRead,
+		orgv1connect.MemberServiceListMembersProcedure:       authn.ScopeMembersRead,
 		todov1connect.TodoServiceListProcedure:               authn.ScopePostsRead,
 		todov1connect.TodoServiceCreateProcedure:             authn.ScopePostsWrite,
 		todov1connect.TodoServiceToggleProcedure:             authn.ScopePostsWrite,

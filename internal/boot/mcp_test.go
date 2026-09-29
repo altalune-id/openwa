@@ -170,9 +170,9 @@ func newMCPFixture(t *testing.T, opts mcpOpts) *mcpFixture {
 	_, err = srv.Posts.Publish(projCtx, post.ID, 0)
 	require.NoError(t, err)
 
-	_, readKey, err := srv.APIKeys.Mint(projCtx, "mcp-reader", []string{authn.ScopePostsRead}, nil, nil)
+	_, readKey, err := srv.APIKeys.Mint(projCtx, "mcp-reader", []string{authn.ScopePostsRead}, nil, soon())
 	require.NoError(t, err)
-	_, noneKey, err := srv.APIKeys.Mint(projCtx, "mcp-keys-only", []string{authn.ScopeAPIKeysRead}, nil, nil)
+	_, noneKey, err := srv.APIKeys.Mint(projCtx, "mcp-keys-only", []string{authn.ScopeAPIKeysRead}, nil, soon())
 	require.NoError(t, err)
 
 	return &mcpFixture{
@@ -492,6 +492,7 @@ func TestMCP_ToolsCarryAScopeAndTheSharedInstances(t *testing.T) {
 		"blog_publish": f.srv.API.BlogSvc,
 		"blog_list":    f.srv.API.BlogSvc,
 		"project_list": f.srv.API.ProjectSvc,
+		"member_list":  f.srv.API.MemberSvc,
 	}
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {
@@ -526,6 +527,7 @@ func TestMCP_ToolsShareTheConnectHandlerInstance(t *testing.T) {
 		{mcpinternal.ToolBlogPublish, f.srv.API.BlogSvc},
 		{mcpinternal.ToolBlogList, f.srv.API.BlogSvc},
 		{mcpinternal.ToolProjectList, f.srv.API.ProjectSvc},
+		{mcpinternal.ToolMemberList, f.srv.API.MemberSvc},
 	}
 
 	covered := make([]string, 0, len(tests))

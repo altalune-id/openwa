@@ -10,6 +10,7 @@ import (
 	"altalune.id/template/internal/dataplane"
 	"altalune.id/template/internal/invite"
 	"altalune.id/template/internal/org"
+	"altalune.id/template/internal/platform/tenant"
 	"altalune.id/template/internal/project"
 	"altalune.id/template/internal/user"
 )
@@ -216,6 +217,21 @@ func (s projectServiceForDataplane) BySlug(ctx context.Context, orgID uuid.UUID,
 		return dataplane.ProjectRef{}, err
 	}
 	return dataplane.ProjectRef{ID: p.ID}, nil
+}
+
+type projectServiceForAPIKeys struct{ svc *project.Service }
+
+// NOTE: tenant.WithOrg scopes the read to orgID, so the key service can check a grant before any project scope exists.
+func (s projectServiceForAPIKeys) ProjectIDs(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error) {
+	list, err := s.svc.List(tenant.WithOrg(ctx, orgID), orgID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uuid.UUID, 0, len(list))
+	for _, p := range list {
+		ids = append(ids, p.ID)
+	}
+	return ids, nil
 }
 
 type blogServiceForDataplane struct{ svc *blog.Service }

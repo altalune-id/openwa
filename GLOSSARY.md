@@ -87,13 +87,18 @@ Three DB credentials, three jobs:
 Tenant scope answers _whose rows_. A scope answers _which verbs_. They are independent
 checks and both run.
 
-| Term          | Where                                     | What it is                                                                                                                      |
-| ------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| scope         | `internal/platform/authn/scope.go`        | A permission string minted into an API key or JWT: `posts:read`, `posts:write`, `posts:admin`, `apikeys:read`, `apikeys:write`. |
-| scope catalog | `authn.AllScopes()` / `authn.Valid()`     | The closed set minting is gated on. A **wire contract** — additive only; renaming one invalidates keys in the field.            |
-| `ScopeTable`  | `internal/controlplane/scopes.go:12`      | Maps each RPC procedure to the scope it requires. Read by both the control plane interceptor and the MCP surface.               |
-| `Principal`   | `internal/platform/session/session.go:21` | The authenticated caller. A key principal keeps `UserID == uuid.Nil`, so it is never mistaken for a signed-in human.            |
-| `authn.Chain` | `internal/platform/authn/authn.go:48`     | Tries each `Authenticator` in order and returns the first `Principal`; otherwise `UnauthorizedError`.                           |
+| Term                  | Where                                      | What it is                                                                                                                                                     |
+| --------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| scope                 | `internal/platform/authn/scope.go`         | A permission string minted into an API key or JWT: `posts:read`, `posts:write`, `posts:admin`, `apikeys:read`, `members:read`; `apikeys:write` is retired.     |
+| scope catalog         | `authn.MintableScopes()` / `authn.Valid()` | The closed set minting is gated on. A **wire contract** — additive only; a retired scope still validates but is never minted.                                  |
+| scope level           | `authn.LevelOf()`                          | `project` (acts on data inside the projects a key reaches) or `org` (acts on the org itself; refused on a project key).                                        |
+| project key           | `apikey.KindProject`                       | An API key bound to one project for life.                                                                                                                      |
+| org key               | `apikey.KindOrg`                           | An API key reaching its grant (`apikey.ProjectGrant`: all projects, or named ones in `api_key_projects`). Created by an owner or admin; the grant only widens. |
+| personal access token | `apikey.KindPersonal`                      | A key a member mints for themselves in one org, under Settings. Never exceeds its owner; dies when the owner leaves.                                           |
+| reach                 | `session.Principal.Reaches*`               | The one rule every surface asks: may this caller act inside this org, project, resource.                                                                       |
+| `ScopeTable`          | `internal/controlplane/scopes.go:12`       | Maps each RPC procedure to the scope it requires. Read by both the control plane interceptor and the MCP surface.                                              |
+| `Principal`           | `internal/platform/session/session.go:21`  | The authenticated caller. A key principal keeps `UserID == uuid.Nil`, so it is never mistaken for a signed-in human.                                           |
+| `authn.Chain`         | `internal/platform/authn/authn.go:48`      | Tries each `Authenticator` in order and returns the first `Principal`; otherwise `UnauthorizedError`.                                                          |
 
 NOTE: scopes do **not** imply one another — the check is `slices.Contains`. A key needing
 read plus delete holds both strings. Full catalog and per-surface enforcement:

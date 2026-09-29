@@ -166,6 +166,7 @@ components:
           title: resource_ids
         expiresAt:
           title: expires_at
+          description: 'Required: when the key stops working, in the future and at most one year away'
           $ref: '#/components/schemas/google.protobuf.Timestamp'
       title: CreateRequest
       additionalProperties: false

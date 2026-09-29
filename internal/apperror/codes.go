@@ -30,6 +30,7 @@ const (
 	CodeOrgSystemProtected   = "ORG008"
 	CodeOrgSelfRemoval       = "ORG009"
 	CodeOrgOwnerRemoval      = "ORG010"
+	CodeOrgManagerRequired   = "ORG011"
 
 	CodeProjectNotFound        = "PRJ001"
 	CodeProjectAlreadyExists   = "PRJ002"
@@ -76,6 +77,19 @@ const (
 	CodeTagInUse         = "TAG004"
 
 	CodeMCPUnauthenticated = "MCP001"
+
+	CodeAPIKeyUnknownScope       = "APK001"
+	CodeAPIKeyRetiredScope       = "APK002"
+	CodeAPIKeyScopeLevel         = "APK003"
+	CodeAPIKeyEmptyGrant         = "APK004"
+	CodeAPIKeyGrantConflict      = "APK005"
+	CodeAPIKeyBoundToProject     = "APK006"
+	CodeAPIKeyAlreadyAllProjects = "APK007"
+	CodeAPIKeyRevoked            = "APK008"
+	CodeAPIKeyProjectNotInOrg    = "APK009"
+	CodeAPIKeyExpiryRequired     = "APK010"
+	CodeAPIKeyExpiryInPast       = "APK011"
+	CodeAPIKeyExpiryTooLong      = "APK012"
 
 	CodeWebhookEndpointNotFound     = "WHK001"
 	CodeWebhookInvalidURL           = "WHK002"

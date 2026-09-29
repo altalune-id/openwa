@@ -5,9 +5,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"altalune.id/template/internal/apikey"
 	"altalune.id/template/internal/boot"
 	"altalune.id/template/internal/onboard"
 	"altalune.id/template/internal/org"
@@ -28,6 +31,9 @@ type dataplaneFixture struct {
 	postURL  string
 	readKey  string
 	noneKey  string
+	orgCtx   context.Context
+	orgID    uuid.UUID
+	project  uuid.UUID
 }
 
 func newDataplaneFixture(t *testing.T, opts dataplaneOpts) *dataplaneFixture {
@@ -79,9 +85,9 @@ func newDataplaneFixture(t *testing.T, opts dataplaneOpts) *dataplaneFixture {
 	_, err = srv.Posts.Publish(projCtx, post.ID, 0)
 	require.NoError(t, err)
 
-	_, readKey, err := srv.APIKeys.Mint(projCtx, "reader", []string{authn.ScopePostsRead}, nil, nil)
+	_, readKey, err := srv.APIKeys.Mint(projCtx, "reader", []string{authn.ScopePostsRead}, nil, soon())
 	require.NoError(t, err)
-	_, noneKey, err := srv.APIKeys.Mint(projCtx, "keys-only", []string{authn.ScopeAPIKeysRead}, nil, nil)
+	_, noneKey, err := srv.APIKeys.Mint(projCtx, "keys-only", []string{authn.ScopeAPIKeysRead}, nil, soon())
 	require.NoError(t, err)
 
 	base := "/api/v1/orgs/" + o.Slug + "/projects/" + p.Slug + "/posts"
@@ -91,6 +97,9 @@ func newDataplaneFixture(t *testing.T, opts dataplaneOpts) *dataplaneFixture {
 		postURL:  base + "/hello",
 		readKey:  readKey,
 		noneKey:  noneKey,
+		orgCtx:   orgCtx,
+		orgID:    o.ID,
+		project:  p.ID,
 	}
 }
 
@@ -180,4 +189,28 @@ func TestDataPlane_DisabledLeavesTheSubtreeUnmounted(t *testing.T) {
 	require.NotEqual(t, http.StatusOK, rec.Code)
 	require.NotContains(t, rec.Body.String(), `"slug":"hello"`,
 		"an unmounted data plane must not serve posts: %s", rec.Body.String())
+}
+
+// TestDataPlane_OrgKeyAgreesWithItsGrant proves the data plane asks the same reach rule as the control plane for an org key.
+func TestDataPlane_OrgKeyAgreesWithItsGrant(t *testing.T) {
+	f := newDataplaneFixture(t, dataplaneOpts{enabled: true})
+	other, err := f.srv.Projects.Create(f.orgCtx, f.orgID, "dp-other", "DP Other")
+	require.NoError(t, err)
+
+	_, granted, err := f.srv.APIKeys.MintOrg(f.orgCtx, "granted", []string{authn.ScopePostsRead},
+		apikey.ProjectGrant{ProjectIDs: []uuid.UUID{f.project}}, soon())
+	require.NoError(t, err)
+	_, elsewhere, err := f.srv.APIKeys.MintOrg(f.orgCtx, "elsewhere", []string{authn.ScopePostsRead},
+		apikey.ProjectGrant{ProjectIDs: []uuid.UUID{other.ID}}, soon())
+	require.NoError(t, err)
+
+	rec := f.get(t, f.postURL, granted)
+	require.Equal(t, http.StatusOK, rec.Code, "an org key granted the project must read it; body=%s", rec.Body.String())
+	rec = f.get(t, f.postURL, elsewhere)
+	require.Equal(t, http.StatusNotFound, rec.Code, "an org key granted another project must read nothing here; body=%s", rec.Body.String())
+}
+
+func soon() *time.Time {
+	t := time.Now().UTC().Add(24 * time.Hour)
+	return &t
 }

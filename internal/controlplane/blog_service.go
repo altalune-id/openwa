@@ -35,7 +35,7 @@ func NewBlogService(posts *blog.Service, cats *category.Service, tags *tag.Servi
 
 // CreatePost persists a draft post in the request's project and sets its tag set.
 func (s *BlogService) CreatePost(ctx context.Context, req *connect.Request[blogv1.CreatePostRequest]) (*connect.Response[blogv1.CreatePostResponse], error) {
-	tctx, err := s.scopeToProject(ctx, req.Msg.GetProjectId())
+	tctx, _, err := scopeToProject(ctx, s.projects, req.Msg.GetProjectId())
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (s *BlogService) GetPost(ctx context.Context, req *connect.Request[blogv1.G
 
 // ListPosts returns the posts in the request's project, or in the principal's active project when project_id is omitted, optionally filtered by status and category.
 func (s *BlogService) ListPosts(ctx context.Context, req *connect.Request[blogv1.ListPostsRequest]) (*connect.Response[blogv1.ListPostsResponse], error) {
-	tctx, err := s.scopeToActiveProject(ctx, req.Msg.GetProjectId())
+	tctx, _, err := scopeToActiveProject(ctx, s.projects, req.Msg.GetProjectId())
 	if err != nil {
 		return nil, err
 	}
@@ -185,45 +185,6 @@ func (s *BlogService) UnpublishPost(ctx context.Context, req *connect.Request[bl
 	return connect.NewResponse(&blogv1.UnpublishPostResponse{Post: msg}), nil
 }
 
-// SECURITY: an omitted project_id falls back to the principal's own active project and still lands in scopeToProject, so the org check is the same one an explicit id passes through.
-func (s *BlogService) scopeToActiveProject(ctx context.Context, projectIDRaw string) (context.Context, error) {
-	if strings.TrimSpace(projectIDRaw) != "" {
-		return s.scopeToProject(ctx, projectIDRaw)
-	}
-	p, err := principal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if p.ActiveProjectID == uuid.Nil {
-		return nil, &ProjectUnresolvedError{}
-	}
-	return s.scopeToProject(ctx, p.ActiveProjectID.String())
-}
-
-func (s *BlogService) scopeToProject(ctx context.Context, projectIDRaw string) (context.Context, error) {
-	p, err := principal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	pid, err := parseUUID("project_id", projectIDRaw)
-	if err != nil {
-		return nil, err
-	}
-	scoped := tenant.Into(ctx, tenant.Context{OrgID: p.ActiveOrgID, UserID: p.UserID})
-	proj, err := s.projects.ByID(scoped, pid)
-	if err != nil {
-		return nil, err
-	}
-	if proj.OrgID != p.ActiveOrgID {
-		return nil, forbiddenErr("project belongs to another org", "project_id", pid.String())
-	}
-	return tenant.Into(ctx, tenant.Context{
-		OrgID:     proj.OrgID,
-		ProjectID: proj.ID,
-		UserID:    p.UserID,
-	}), nil
-}
-
 func (s *BlogService) scopeToPost(ctx context.Context, postIDRaw string) (context.Context, *blog.Post, error) {
 	pr, err := principal(ctx)
 	if err != nil {
@@ -233,16 +194,18 @@ func (s *BlogService) scopeToPost(ctx context.Context, postIDRaw string) (contex
 	if err != nil {
 		return nil, nil, err
 	}
-	orgCtx := tenant.Into(ctx, tenant.Context{OrgID: pr.ActiveOrgID, UserID: pr.UserID})
-	post, err := s.posts.Locate(orgCtx, pid)
+	post, err := s.posts.Locate(tenant.Into(ctx, tenant.Context{OrgID: pr.ActiveOrgID, UserID: pr.UserID}), pid)
 	if err != nil {
 		return nil, nil, err
 	}
-	return tenant.Into(ctx, tenant.Context{
-		OrgID:     post.OrgID,
-		ProjectID: post.ProjectID,
-		UserID:    pr.UserID,
-	}), post, nil
+	// SECURITY: a post out of reach reads as absent, like another org's, so the answer never confirms the id exists.
+	tctx, err := scopeToResource(ctx, post.OrgID, post.ProjectID, post.ID, func() error {
+		return &blog.NotFoundError{ID: pid.String()}
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return tctx, post, nil
 }
 
 func (s *BlogService) toProto(ctx context.Context, p *blog.Post) (*blogv1.Post, error) {

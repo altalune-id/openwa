@@ -21,7 +21,7 @@ func NewProjectService(projects *project.Service) *ProjectService {
 	return &ProjectService{projects: projects}
 }
 
-// ListProjects returns every project in the principal's active org. SECURITY: the org is read from the principal alone — the request carries no org or project argument, so no caller can re-target this read.
+// ListProjects returns the projects in the principal's active org that the principal reaches. SECURITY: the org is read from the principal alone, so no caller can re-target this read.
 func (s *ProjectService) ListProjects(ctx context.Context, _ *connect.Request[projectv1.ListProjectsRequest]) (*connect.Response[projectv1.ListProjectsResponse], error) {
 	p, err := principal(ctx)
 	if err != nil {
@@ -34,6 +34,9 @@ func (s *ProjectService) ListProjects(ctx context.Context, _ *connect.Request[pr
 	}
 	resp := &projectv1.ListProjectsResponse{Projects: make([]*projectv1.Project, 0, len(items))}
 	for _, item := range items {
+		if !p.ReachesProject(item.OrgID, item.ID) {
+			continue
+		}
 		resp.Projects = append(resp.Projects, projectToProto(item))
 	}
 	return connect.NewResponse(resp), nil

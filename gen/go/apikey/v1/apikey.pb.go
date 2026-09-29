@@ -219,11 +219,12 @@ func (x *ListResponse) GetKeys() []*APIKey {
 }
 
 type CreateRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Scopes        []string               `protobuf:"bytes,3,rep,name=scopes,proto3" json:"scopes,omitempty"`
-	ResourceIds   []string               `protobuf:"bytes,4,rep,name=resource_ids,json=resourceIds,proto3" json:"resource_ids,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId   string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	Name        string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Scopes      []string               `protobuf:"bytes,3,rep,name=scopes,proto3" json:"scopes,omitempty"`
+	ResourceIds []string               `protobuf:"bytes,4,rep,name=resource_ids,json=resourceIds,proto3" json:"resource_ids,omitempty"`
+	// Required: when the key stops working, in the future and at most one year away
 	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

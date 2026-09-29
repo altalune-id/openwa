@@ -57,7 +57,7 @@ shape: [`howto/webpage.md`](../howto/webpage.md).
 - **`Principal.ActiveOrgID` never scopes data** — only the post-login redirect and the org switcher read it.
 - **Use `sc.req`, not the original `r`** — the scoped request replaces the unscoped one, so a later
   `r.Context()` cannot be the wrong scope.
-- **Call `RequireOrg` / `RequireProject`, never `OrgScopeFor` / `ProjectScopeFor`.** That sequence is the only
+- **Call `RequireOrg` / `RequireProject` (or `RequireOrgFrom` / `MemberOrgScopes` on personal pages), never `OrgScopeFor` / `ProjectScopeFor`.** That sequence is the only
   thing separating one org's members from another org's rows, so it lives in
   `internal/web/handlers/scope.go` once. `TestTenantGateIsNotCopiedIntoHandlers` fails the build on a handler
   that rebuilds it.
@@ -92,10 +92,14 @@ interchangeable downstream.
 - **S7** — `/mcp` has **no org segment**. `internal/mcp/auth.go` authenticates and puts the principal on the
   context; the tool then calls the same control-plane method an RPC would, so it lands in the same scoping
   code.
-- **A project argument narrows, it never re-targets.** `BlogService.scopeToProject` loads the project under
-  the principal's `ActiveOrgID` and returns forbidden when `proj.OrgID` differs.
-- **An api key's org and project are fixed when it is minted** and travel on its principal. That is the whole
-  of its tenant scope: no path segment can widen it.
+- **Reach is one rule: `session.Principal.Reaches{Project,WholeProject,Resource}`** (`internal/platform/session/reach.go`).
+  A person reaches every project of their org. A key reaches its `ProjectIDs` (one for a project key, the
+  grant for an org key or personal token) or all of them; a personal token also needs its owner's membership.
+- **A handler never compares tenant ids itself.** `internal/controlplane/reach.go` holds `scopeToProject`,
+  `scopeToActiveProject` and `scopeToResource`; every service calls those. `TestReachIsNotCopiedIntoHandlers`
+  fails on a hand-written `x.OrgID != p.ActiveOrgID`.
+- **An argument narrows, it never re-targets.** A key's grant is fixed at mint; a project out of reach is
+  forbidden, a post out of reach reads as absent. Pinned by `TestMCP_KeyNeverReachesASiblingProject`.
 
 ### A JWT's org comes from membership, never from the claim
 
@@ -112,9 +116,10 @@ interchangeable downstream.
 
 Mounted at `/api/v1/orgs/{org}/projects/{project}/…`. `internal/dataplane/scope.go` resolves both slugs — the
 org through a `SECURITY DEFINER` wrapper, the project under the org scope just entered — and
-`apikey.Authenticator.Authorize` then refuses unless `k.OrgID` **and** `k.ProjectID` equal the resolved pair.
-A non-empty `ResourceIDs` narrows further, to named resources inside that project; `AuthorizeProject` demands
-an _unrestricted_ project-wide grant, so a resource-pinned key fails it outright. Steps:
+`apikey.Authenticator.Authorize` then asks the key's principal the same reach rule the control plane uses, so
+it refuses unless the key reaches the resolved org and project. A non-empty `ResourceIDs` narrows further, to
+named resources inside that project; `AuthorizeProject` demands an _unrestricted_ project-wide grant, so a
+resource-pinned key fails it outright. Steps:
 [`howto/external-api.md`](../howto/external-api.md).
 
 - **Every failure is one masked `NotFoundError`** — unresolvable slug, missing row and denied key are

@@ -11,6 +11,7 @@ import (
 	"altalune.id/template/internal/apikey"
 	"altalune.id/template/internal/platform/authn"
 	"altalune.id/template/internal/platform/tenant"
+	"altalune.id/template/internal/testutil/fakes"
 )
 
 const benchKeyRows = 1000
@@ -35,7 +36,7 @@ func benchCredentials(b *testing.B) (*apikey.Authenticator, map[string]string) {
 	_, err := rand.Read(buf)
 	require.NoError(b, err)
 
-	return apikey.NewAuthenticator(store, nil, apikey.Scheme{}), map[string]string{
+	return apikey.NewAuthenticator(store, nil, apikey.Scheme{}, fakes.NewMembers()), map[string]string{
 		"malformed": "not-a-credential",
 		"unknown":   apikey.DefaultPrefix + base64.RawURLEncoding.EncodeToString(buf),
 		"valid":     valid,

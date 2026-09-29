@@ -7,13 +7,17 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
+	"github.com/google/uuid"
 
+	apikeyv1connect "altalune.id/template/gen/go/apikey/v1/apikeyv1connect"
 	authv1connect "altalune.id/template/gen/go/auth/v1/authv1connect"
 	blogv1connect "altalune.id/template/gen/go/blog/v1/blogv1connect"
 	projectv1connect "altalune.id/template/gen/go/project/v1/projectv1connect"
 	todov1connect "altalune.id/template/gen/go/todo/v1/todov1connect"
+	"altalune.id/template/internal/apikey"
 	"altalune.id/template/internal/apperror"
 	"altalune.id/template/internal/blog"
 	"altalune.id/template/internal/blog/category"
@@ -50,6 +54,7 @@ type harness struct {
 	posts  *fakes.Blog
 	cats   *fakes.Category
 	tags   *fakes.Tag
+	keys   *fakes.APIKey
 }
 
 func newHarness(t *testing.T, p session.Principal) *harness {
@@ -68,6 +73,7 @@ func newHarnessOpts(t *testing.T, p session.Principal, verr error) *harness {
 	posts := fakes.NewBlog()
 	cats := fakes.NewCategory()
 	tags := fakes.NewTag()
+	keys := fakes.NewAPIKey()
 
 	orgSvc := org.NewService(orgs, capabilities.Capabilities{OrgCreation: true}, log, reporter.Unexpected)
 	projectSvc := project.NewService(projs, log, reporter.Unexpected)
@@ -90,10 +96,30 @@ func newHarnessOpts(t *testing.T, p session.Principal, verr error) *harness {
 		tds,
 		postSvc, catSvc, tagSvc,
 	)
-	srv.Authn = authn.Chain{tokens.NewAuthenticator(kernel.Verifier)}
+	srv.Authn = authn.Chain{apikey.NewAuthenticator(keys, nil, apikey.Scheme{}, fakes.NewMembers()), tokens.NewAuthenticator(kernel.Verifier)}
+	srv.APIKeys = apikey.NewService(keys, apikey.Scheme{}, fakes.PermissiveMembers(), fakes.NewOrgProjects(), log, reporter.Unexpected)
+	srv.KeyPrefix = apikey.DefaultPrefix
 	ts := httptest.NewServer(srv.Handler(""))
 	t.Cleanup(ts.Close)
-	return &harness{t: t, server: ts, orgs: orgs, projs: projs, todos: tds, posts: posts, cats: cats, tags: tags}
+	return &harness{t: t, server: ts, orgs: orgs, projs: projs, todos: tds, posts: posts, cats: cats, tags: tags, keys: keys}
+}
+
+func (h *harness) mintKey(orgID, projectID uuid.UUID, scopes []string, resourceIDs []uuid.UUID) string {
+	h.t.Helper()
+	k, plaintext, err := apikey.Scheme{}.Mint(orgID, projectID, "test-key", scopes, resourceIDs, nil, time.Now().UTC())
+	if err != nil {
+		h.t.Fatalf("mint key: %v", err)
+	}
+	h.keys.Seed(k)
+	return plaintext
+}
+
+func (h *harness) apikeyClient() apikeyv1connect.APIKeyServiceClient {
+	return apikeyv1connect.NewAPIKeyServiceClient(http.DefaultClient, h.server.URL+"/api")
+}
+
+func withKey(plaintext string) func(http.Header) {
+	return func(hdr http.Header) { hdr.Set("Authorization", "Bearer "+plaintext) }
 }
 
 func (h *harness) authClient() todov1connect.TodoServiceClient {

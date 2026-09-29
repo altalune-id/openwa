@@ -11,8 +11,6 @@ import (
 	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
 	todov1 "altalune.id/template/gen/go/todo/v1"
 	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
 	"altalune.id/template/internal/project"
 	"altalune.id/template/internal/todo"
 )
@@ -31,7 +29,7 @@ func NewTodoService(todos *todo.Service, todoStore todo.Store, projects *project
 
 // Create persists a new todo bound to the request's project.
 func (s *TodoService) Create(ctx context.Context, req *connect.Request[todov1.CreateRequest]) (*connect.Response[todov1.CreateResponse], error) {
-	tctx, err := s.scopeToProject(ctx, req.Msg.GetProjectId())
+	tctx, _, err := scopeToProject(ctx, s.projects, req.Msg.GetProjectId())
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +42,7 @@ func (s *TodoService) Create(ctx context.Context, req *connect.Request[todov1.Cr
 
 // List returns todos in the request's project.
 func (s *TodoService) List(ctx context.Context, req *connect.Request[todov1.ListRequest]) (*connect.Response[todov1.ListResponse], error) {
-	tctx, err := s.scopeToProject(ctx, req.Msg.GetProjectId())
+	tctx, _, err := scopeToProject(ctx, s.projects, req.Msg.GetProjectId())
 	if err != nil {
 		return nil, err
 	}
@@ -84,33 +82,8 @@ func (s *TodoService) Delete(ctx context.Context, req *connect.Request[todov1.De
 	return connect.NewResponse(&todov1.DeleteResponse{}), nil
 }
 
-func (s *TodoService) scopeToProject(ctx context.Context, projectIDRaw string) (context.Context, error) {
-	p, err := principal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	pid, err := parseUUID("project_id", projectIDRaw)
-	if err != nil {
-		return nil, err
-	}
-	scoped := tenant.Into(ctx, tenant.Context{OrgID: p.ActiveOrgID, UserID: p.UserID})
-	proj, err := s.projects.ByID(scoped, pid)
-	if err != nil {
-		return nil, err
-	}
-	if proj.OrgID != p.ActiveOrgID {
-		return nil, forbiddenErr("project belongs to another org", "project_id", pid.String())
-	}
-	return tenant.Into(ctx, tenant.Context{
-		OrgID:     proj.OrgID,
-		ProjectID: proj.ID,
-		UserID:    p.UserID,
-	}), nil
-}
-
 func (s *TodoService) scopeToTodo(ctx context.Context, todoIDRaw string) (context.Context, uuid.UUID, error) {
-	p, err := principal(ctx)
-	if err != nil {
+	if _, err := principal(ctx); err != nil {
 		return nil, uuid.Nil, err
 	}
 	tid, err := parseUUID("todo_id", todoIDRaw)
@@ -121,32 +94,13 @@ func (s *TodoService) scopeToTodo(ctx context.Context, todoIDRaw string) (contex
 	if err != nil {
 		return nil, uuid.Nil, err
 	}
-	if t.OrgID != p.ActiveOrgID {
-		return nil, uuid.Nil, forbiddenErr("todo belongs to another org", "todo_id", tid.String())
+	tctx, err := scopeToResource(ctx, t.OrgID, t.ProjectID, t.ID, func() error {
+		return forbiddenErr("todo is outside this credential's reach", "todo_id", tid.String())
+	})
+	if err != nil {
+		return nil, uuid.Nil, err
 	}
-	return tenant.Into(ctx, tenant.Context{
-		OrgID:     t.OrgID,
-		ProjectID: t.ProjectID,
-		UserID:    p.UserID,
-	}), tid, nil
-}
-
-// SECURITY: a key principal carries UserID == uuid.Nil, so it is admitted on ActiveOrgID instead.
-func principal(ctx context.Context) (session.Principal, error) {
-	p := session.PrincipalFrom(ctx)
-	usable := p.UserID != uuid.Nil
-	if p.Source == session.SourceAPIKey {
-		usable = p.ActiveOrgID != uuid.Nil
-	}
-	if !usable {
-		return session.Principal{}, apperror.New(
-			apperror.CodeUnauthenticated,
-			"No principal in context",
-			codes.Unauthenticated,
-			&apperrorv1.ErrorDetail{Code: apperror.CodeUnauthenticated},
-		)
-	}
-	return p, nil
+	return tctx, tid, nil
 }
 
 func parseUUID(field, raw string) (uuid.UUID, error) {

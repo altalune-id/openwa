@@ -33,13 +33,16 @@ const (
 	NavScopeOrg NavScope = "org"
 	// NavScopeProject shows sidebar A and sidebar B.
 	NavScopeProject NavScope = "project"
+	// NavScopeSettings shows sidebar A and the personal settings sidebar in sidebar B's slot.
+	NavScopeSettings NavScope = "settings"
 )
 
 // ActiveNav tells the layout which sidebar item to mark selected.
 type ActiveNav struct {
-	Scope      NavScope
-	OrgKey     string
-	ProjectKey string
+	Scope       NavScope
+	OrgKey      string
+	ProjectKey  string
+	SettingsKey string
 }
 
 // ActiveOrg is what the org switcher pill and menu heading show.

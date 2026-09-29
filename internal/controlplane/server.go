@@ -16,6 +16,8 @@ import (
 	authv1connect "altalune.id/template/gen/go/auth/v1/authv1connect"
 	blogv1 "altalune.id/template/gen/go/blog/v1"
 	blogv1connect "altalune.id/template/gen/go/blog/v1/blogv1connect"
+	orgv1 "altalune.id/template/gen/go/org/v1"
+	orgv1connect "altalune.id/template/gen/go/org/v1/orgv1connect"
 	projectv1 "altalune.id/template/gen/go/project/v1"
 	projectv1connect "altalune.id/template/gen/go/project/v1/projectv1connect"
 	todov1 "altalune.id/template/gen/go/todo/v1"
@@ -60,6 +62,7 @@ type Server struct {
 	TodoSvc    *TodoService
 	BlogSvc    *BlogService
 	ProjectSvc *ProjectService
+	MemberSvc  *MemberService
 	APIKeySvc  *APIKeyService
 
 	Authn     authn.Chain
@@ -102,6 +105,7 @@ func New(
 		TodoSvc:    NewTodoService(todos, todoStore, projects),
 		BlogSvc:    NewBlogService(posts, categories, tags, projects),
 		ProjectSvc: NewProjectService(projects),
+		MemberSvc:  NewMemberService(orgs),
 	}
 	if cfg != nil {
 		s.OpenAPIEnabled = cfg.API.OpenAPI.Enabled
@@ -120,6 +124,7 @@ var (
 	_ todov1connect.TodoServiceHandler       = (*TodoService)(nil)
 	_ blogv1connect.BlogServiceHandler       = (*BlogService)(nil)
 	_ projectv1connect.ProjectServiceHandler = (*ProjectService)(nil)
+	_ orgv1connect.MemberServiceHandler      = (*MemberService)(nil)
 	_ apikeyv1connect.APIKeyServiceHandler   = (*APIKeyService)(nil)
 )
 
@@ -138,6 +143,8 @@ func (s *Server) Handler(basePath string) http.Handler {
 	inner.Handle(blogPath, blogHandler)
 	projectPath, projectHandler := projectv1connect.NewProjectServiceHandler(s.ProjectSvc, opts...)
 	inner.Handle(projectPath, projectHandler)
+	memberPath, memberHandler := orgv1connect.NewMemberServiceHandler(s.MemberSvc, opts...)
+	inner.Handle(memberPath, memberHandler)
 	apikeyPath, apikeyHandler := apikeyv1connect.NewAPIKeyServiceHandler(s.APIKeySvc, opts...)
 	inner.Handle(apikeyPath, apikeyHandler)
 
@@ -164,6 +171,7 @@ func (s *Server) MountedProcedures() []string {
 		serviceProcedures(authv1.File_auth_v1_auth_proto, "AuthService"),
 		serviceProcedures(blogv1.File_blog_v1_blog_proto, "BlogService"),
 		serviceProcedures(projectv1.File_project_v1_project_proto, "ProjectService"),
+		serviceProcedures(orgv1.File_org_v1_org_proto, "MemberService"),
 		serviceProcedures(apikeyv1.File_apikey_v1_apikey_proto, "APIKeyService"),
 	)
 }
