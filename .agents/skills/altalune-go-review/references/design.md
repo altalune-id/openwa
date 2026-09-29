@@ -17,7 +17,7 @@ the owners in this codebase; a second copy of anything they hold is a finding.
 | config keys, defaults, awareness | `internal/platform/config` (one field, one default)         |
 | tenant scope for a request       | `Deps.RequireProject` / `RequireOrg`, `tenant.From(ctx)`    |
 | credentials, auth failures       | `internal/platform/authn`                                   |
-| SQL NULLs, SQLite time           | `internal/platform/db/entity/{postgres,sqlite}` helpers     |
+| SQL NULLs                        | `internal/platform/db/entity/postgres` helpers              |
 | outbound HTTP, retries           | `httpclient/`                                               |
 | ids, slugs, request ids          | `nanoid/`, `slug/`, `reqid/`                                |
 | webhook event catalog            | `internal/platform/events`                                  |

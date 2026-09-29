@@ -11,7 +11,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 
-	"altalune.id/template/internal/platform/tenant"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 func TestTenantHeaders_RoundTrip(t *testing.T) {
@@ -105,18 +105,18 @@ func TestHeaderNames(t *testing.T) {
 		want string
 	}{
 		{headerMsgID, "Nats-Msg-Id"},
-		{headerJob, "Altempl-Job"},
-		{headerJobVersion, "Altempl-Job-Version"},
-		{headerBroadcast, "Altempl-Broadcast"},
-		{headerBroadcastVersion, "Altempl-Broadcast-Version"},
-		{headerCreatedAt, "Altempl-Created-At"},
-		{headerOrgID, "Altempl-Org-Id"},
-		{headerProjectID, "Altempl-Project-Id"},
-		{headerUserID, "Altempl-User-Id"},
-		{headerDlqReason, "Altempl-Dlq-Reason"},
-		{headerDlqError, "Altempl-Dlq-Error"},
-		{headerDlqAttempts, "Altempl-Dlq-Attempts"},
-		{headerDlqStreamSeq, "Altempl-Dlq-Stream-Seq"},
+		{headerJob, "Openwa-Job"},
+		{headerJobVersion, "Openwa-Job-Version"},
+		{headerBroadcast, "Openwa-Broadcast"},
+		{headerBroadcastVersion, "Openwa-Broadcast-Version"},
+		{headerCreatedAt, "Openwa-Created-At"},
+		{headerOrgID, "Openwa-Org-Id"},
+		{headerProjectID, "Openwa-Project-Id"},
+		{headerUserID, "Openwa-User-Id"},
+		{headerDlqReason, "Openwa-Dlq-Reason"},
+		{headerDlqError, "Openwa-Dlq-Error"},
+		{headerDlqAttempts, "Openwa-Dlq-Attempts"},
+		{headerDlqStreamSeq, "Openwa-Dlq-Stream-Seq"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.want, func(t *testing.T) {

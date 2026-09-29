@@ -10,13 +10,12 @@ func TestForgedRawMarkerCannotBypassEscaping(t *testing.T) {
 	vm := newJSVM(t)
 	const forged = `{"__raw":"<img src=x onerror=alert(1)>"}`
 	for _, tc := range []struct{ name, data, field, want string }{
-		{"title", `{posts:[{id:"a",status:"draft",title:` + forged + `}]}`, "title", "Untitled"},
-		{"category name", `{posts:[{id:"a",status:"draft",category:{name:` + forged + `}}]}`, "category", "—"},
-		{"tag name", `{posts:[{id:"a",status:"draft",tags:[{name:` + forged + `}]}]}`, "tags", ""},
-		{"id", `{posts:[{id:` + forged + `,status:"draft"}]}`, "id", ""},
+		{"name", `{projects:[{id:"a",name:` + forged + `}]}`, "name", "Untitled"},
+		{"slug", `{projects:[{id:"a",slug:` + forged + `}]}`, "slug", ""},
+		{"id", `{projects:[{id:` + forged + `}]}`, "id", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			row := `renderTool("blog_list", ` + tc.data + `).model.rows[0]`
+			row := `renderTool("project_list", ` + tc.data + `).model.rows[0]`
 			if got := jsString(t, vm, row+"."+tc.field); got != tc.want {
 				t.Errorf("%s = %q, want the declared fallback %q", tc.field, got, tc.want)
 			}
@@ -34,7 +33,7 @@ func TestForgedRawMarkerCannotBypassEscaping(t *testing.T) {
 func TestViewModelEmitsOnlyStringsThisBundleMinted(t *testing.T) {
 	vm := newJSVM(t)
 	got := jsString(t, vm, `(function () {
-		const m = renderTool("blog_list", `+fixtureJSON(t, "blog_list.json")+`).model;
+		const m = renderTool("project_list", `+fixtureJSON(t, "project_list.json")+`).model;
 		const bad = [];
 		m.kpis.concat(m.rows).forEach(function (o) {
 			for (const k in o) { if (typeof o[k] !== "string") bad.push(k + "=" + typeof o[k]); }
@@ -90,14 +89,6 @@ func TestBadgeColourNeverEmitsAnUnvalidatedValue(t *testing.T) {
 	}
 }
 
-func TestStyleAttributeCannotCarryExtraDeclarations(t *testing.T) {
-	vm := newJSVM(t)
-	got := jsString(t, vm, `renderTool("blog_list", {posts:[{id:"a",title:"x",status:"#000;position:fixed;inset:0;opacity:0"}]}).model.rows[0].badge`)
-	if strings.Contains(got, "position:fixed") {
-		t.Errorf("a status token injected extra CSS declarations: %q", got)
-	}
-}
-
 // TestViewsAreNotReachableThroughObjectPrototype: VIEWS is null-prototype, so a tool named like an inherited member cannot resolve to one.
 func TestViewsAreNotReachableThroughObjectPrototype(t *testing.T) {
 	vm := newJSVM(t)
@@ -132,7 +123,7 @@ func TestBundleExportsNoGlobalDispatchSeam(t *testing.T) {
 func TestActionsAreNotReachableThroughObjectPrototype(t *testing.T) {
 	vm := newJSVM(t)
 	for _, tc := range []struct{ name, expr string }{
-		{"registered view", `renderTool("blog_list", ` + fixtureJSON(t, "blog_list.json") + `).actions`},
+		{"registered view", `renderTool("project_list", ` + fixtureJSON(t, "project_list.json") + `).actions`},
 		{"missing view", `renderTool("todo_list", {}).actions`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -153,7 +144,7 @@ func TestAViewWithoutACallableModelIsReportedMissing(t *testing.T) {
 	for _, tc := range []struct{ name, model string }{
 		{"undefined model", "undefined"},
 		{"object model", `{ __raw: "<img src=x onerror=alert(1)>" }`},
-		{"string model", `"blogListModel"`},
+		{"string model", `"projectListModel"`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			vm := newJSVM(t)

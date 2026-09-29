@@ -13,12 +13,12 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/password"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/password"
 )
 
 //nolint:gochecknoglobals // OTel tracer is a package-level fixture, not runtime state.
-var tracer trace.Tracer = otel.Tracer("altalune.id/template/internal/user")
+var tracer trace.Tracer = otel.Tracer("altalune.id/openwa/internal/user")
 
 // GenesisConfig names the built-in admin identity reconciled by ReconcileGenesisAdmin.
 type GenesisConfig struct {

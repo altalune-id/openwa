@@ -195,3 +195,38 @@ scope-denial code, returned by `internal/mcp/auth.go` — for a denied or undecl
 | `WHK006` | `apperror.CodeWebhookDeliveryNotFound`     | `NotFound`           | Webhook Delivery Not Found     |
 | `WHK007` | `apperror.CodeWebhookEndpointInactive`     | `FailedPrecondition` | Webhook Endpoint Inactive      |
 | `WHK008` | `apperror.CodeWebhookSecretConflict`       | `FailedPrecondition` | Webhook Secret Conflict        |
+
+## DEV — Devices
+
+| Code | Constant | Status | Meaning |
+| ---- | -------- | ------ | ------- |
+
+_Reserved for spec 03/04; no codes yet._
+
+## WAS — WhatsApp sessions
+
+| Code | Constant | Status | Meaning |
+| ---- | -------- | ------ | ------- |
+
+_Reserved for spec 03/04; no codes yet._
+
+## MSG — Messages
+
+| Code | Constant | Status | Meaning |
+| ---- | -------- | ------ | ------- |
+
+_Reserved for spec 03/04; no codes yet._
+
+## CHT — Chats
+
+| Code | Constant | Status | Meaning |
+| ---- | -------- | ------ | ------- |
+
+_Reserved for spec 03/04; no codes yet._
+
+## CNT — Contacts
+
+| Code | Constant | Status | Meaning |
+| ---- | -------- | ------ | ------- |
+
+_Reserved for spec 03/04; no codes yet._

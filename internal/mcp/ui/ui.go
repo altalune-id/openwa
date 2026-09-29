@@ -1,4 +1,4 @@
-// Package ui assembles this template's MCP Apps bundle: one self-contained HTML document published at ui://altempl/app.
+// Package ui assembles this template's MCP Apps bundle: one self-contained HTML document published at ui://openwa/app.
 package ui
 
 import (
@@ -10,11 +10,11 @@ import (
 )
 
 // ResourceURI is the ui:// URI the bundle is published at; it must match buf.gen.yaml's ui_prefix plus the proto's ui name.
-const ResourceURI = "ui://altempl/app"
+const ResourceURI = "ui://openwa/app"
 
 //go:embed shell.html app.css assets/ext-apps-2.0.0.js assets/lit-3.3.3.js
 //go:embed src/lit.js src/styles.js src/format.js src/color.js src/registry.js
-//go:embed src/views/blog_list_model.js src/views/blog_list.js src/app.js src/bridge.js src/boot.js
+//go:embed src/views/project_list_model.js src/views/project_list.js src/app.js src/bridge.js src/boot.js
 var files embed.FS
 
 type vendorPart struct {
@@ -39,8 +39,8 @@ var scriptParts = []string{
 	"src/format.js",
 	"src/color.js",
 	"src/registry.js",
-	"src/views/blog_list_model.js",
-	"src/views/blog_list.js",
+	"src/views/project_list_model.js",
+	"src/views/project_list.js",
 	"src/app.js",
 	"src/bridge.js",
 	"src/boot.js",

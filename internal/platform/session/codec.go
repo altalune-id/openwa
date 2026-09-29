@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"altalune.id/template/internal/platform/sealer"
+	"altalune.id/openwa/internal/platform/sealer"
 )
 
 // SECURITY: Principal.IDToken is a live IdP assertion, so the payload is sealed and AAD-bound to the sid.

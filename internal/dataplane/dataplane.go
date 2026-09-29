@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/platform/capabilities"
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/platform/capabilities"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 // Posts is the driven port the data plane reads posts through.

@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"altalune.id/template/scheduler"
+	"altalune.id/openwa/scheduler"
 )
 
 const (

@@ -13,10 +13,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/dataplane"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/dataplane"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 const testKey = "key_test"

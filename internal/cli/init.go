@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"altalune.id/template/internal/onboard"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/user"
+	"altalune.id/openwa/internal/onboard"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/user"
 )
 
 func newInitCmd(bootServer ServerBootFn) *cobra.Command {
@@ -25,7 +25,7 @@ func newInitCmd(bootServer ServerBootFn) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:     "init",
-		Short:   "Initialize altempl on first run — create the first admin, org, and project.",
+		Short:   "Initialize openwa on first run — create the first admin, org, and project.",
 		GroupID: "runtime",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -92,7 +92,7 @@ func newInitCmd(bootServer ServerBootFn) *cobra.Command {
 				srv.CompleteOnboarding(cmd.Context())
 			}
 
-			cmd.Printf("altempl: onboarded admin=%s (org=%s, project=%s)\n", u.Email, orgSlug, cmp.Or(projectSlug, "none"))
+			cmd.Printf("openwa: onboarded admin=%s (org=%s, project=%s)\n", u.Email, orgSlug, cmp.Or(projectSlug, "none"))
 			return nil
 		},
 	}

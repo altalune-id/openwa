@@ -6,9 +6,9 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	orgv1 "altalune.id/template/gen/go/org/v1"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/tenant"
+	orgv1 "altalune.id/openwa/gen/go/org/v1"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 // MemberService implements org.v1.MemberService.

@@ -3,7 +3,7 @@ package boot
 import (
 	"log/slog"
 
-	"altalune.id/template/internal/platform/outbox"
+	"altalune.id/openwa/internal/platform/outbox"
 )
 
 // Option tunes what BootServer wires and starts.

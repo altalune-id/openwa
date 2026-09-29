@@ -3,8 +3,8 @@ package web_test
 import (
 	"testing"
 
-	"altalune.id/template/internal/i18n"
-	"altalune.id/template/internal/web"
+	"altalune.id/openwa/internal/i18n"
+	"altalune.id/openwa/internal/web"
 )
 
 func TestLayoutData_LocaleLabel(t *testing.T) {

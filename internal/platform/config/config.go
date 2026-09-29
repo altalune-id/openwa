@@ -1,4 +1,4 @@
-// Package config models altempl's typed configuration and its viper-driven load path.
+// Package config models openwa's typed configuration and its viper-driven load path.
 package config
 
 import (
@@ -10,12 +10,12 @@ import (
 
 	"github.com/go-playground/validator/v10"
 
-	"altalune.id/template/internal/platform/db"
-	"altalune.id/template/internal/platform/notify"
-	"altalune.id/template/internal/platform/tokens"
-	"altalune.id/template/logger"
-	"altalune.id/template/scheduler"
-	"altalune.id/template/telemetry"
+	"altalune.id/openwa/internal/platform/db"
+	"altalune.id/openwa/internal/platform/notify"
+	"altalune.id/openwa/internal/platform/tokens"
+	"altalune.id/openwa/logger"
+	"altalune.id/openwa/scheduler"
+	"altalune.id/openwa/telemetry"
 )
 
 // Mode selects the deployment posture (selfhosted vs. multi-tenant cloud).
@@ -29,7 +29,7 @@ const (
 // IsProduction reports whether the mode implies production hardening.
 func (m Mode) IsProduction() bool { return m == ModeCloud }
 
-// Config is the top-level typed configuration for altempl.
+// Config is the top-level typed configuration for openwa.
 type Config struct {
 	Mode          Mode                `yaml:"mode"          mapstructure:"mode"          awareness:"required,bootstrap" validate:"required,oneof=selfhosted cloud"`
 	HTTP          HTTPConfig          `yaml:"http"          mapstructure:"http"`
@@ -51,6 +51,7 @@ type Config struct {
 	I18n          I18nConfig          `yaml:"i18n"          mapstructure:"i18n"`
 	Compliance    ComplianceConfig    `yaml:"compliance"    mapstructure:"compliance"`
 	Security      SecurityConfig      `yaml:"security"      mapstructure:"security"`
+	WhatsApp      WhatsAppConfig      `yaml:"whatsapp"      mapstructure:"whatsapp"`
 	Blog          BlogConfig          `yaml:"blog"          mapstructure:"blog"`
 	DataPlane     DataPlaneConfig     `yaml:"dataplane"     mapstructure:"dataplane"`
 }
@@ -102,6 +103,12 @@ type CSPConfig struct {
 	// ReportOnly logs violations without blocking.
 	ReportOnly bool   `yaml:"reportOnly" mapstructure:"reportOnly" awareness:"-"`
 	ReportURI  string `yaml:"reportURI"  mapstructure:"reportURI"  awareness:"-"                validate:"omitempty,uri"`
+}
+
+// WhatsAppConfig selects the WhatsApp engine and the name shown under Linked Devices.
+type WhatsAppConfig struct {
+	Engine     string `yaml:"engine"     mapstructure:"engine"     awareness:"bootstrap" validate:"required,oneof=whatsmeow"`
+	ClientName string `yaml:"clientName" mapstructure:"clientName" awareness:"-"         validate:"required"`
 }
 
 // GenesisConfig configures the built-in admin account.
@@ -308,16 +315,13 @@ func validateInvariants(c *Config) error {
 			return err
 		}
 	}
-	return validatePostgresNeedsEncryptionKey(c)
+	return validateEncryptionKey(c)
 }
 
 func validateSelfhosted(_ *Config) error { return nil }
 
 func validateCloud(c *Config) error {
 	if err := validateCloudOIDC(c); err != nil {
-		return err
-	}
-	if err := validateCloudDBDriver(c); err != nil {
 		return err
 	}
 	if err := validateCloudGenesisEmail(c); err != nil {
@@ -329,84 +333,67 @@ func validateCloud(c *Config) error {
 	if err := validateCloudSingletonOrg(c); err != nil {
 		return err
 	}
-	if err := validateAutoMigrateNeedsMigrator(c); err != nil {
-		return err
-	}
-	return validateCloudEncryptionKey(c)
+	return validateAutoMigrateNeedsMigrator(c)
 }
 
 func validateCloudOIDC(c *Config) error {
 	if c.OIDC.Issuer == "" {
-		return errors.New("config: mode=cloud requires oidc.issuer (set ALT_OIDC_ISSUER)")
+		return errors.New("config: mode=cloud requires oidc.issuer (set OPENWA_OIDC_ISSUER)")
 	}
 	if c.OIDC.ClientID == "" {
-		return errors.New("config: mode=cloud requires oidc.clientID (set ALT_OIDC_CLIENT_ID)")
+		return errors.New("config: mode=cloud requires oidc.clientID (set OPENWA_OIDC_CLIENT_ID)")
 	}
 	if c.OIDC.ClientSecret == "" {
-		return errors.New("config: mode=cloud requires oidc.clientSecret (set ALT_OIDC_CLIENT_SECRET)")
-	}
-	return nil
-}
-
-func validateCloudDBDriver(c *Config) error {
-	if c.DB.Driver != "" && c.DB.Driver != "postgres" {
-		return fmt.Errorf("config: mode=cloud requires db.driver=postgres, got %q (set ALT_DB_DRIVER=postgres)", c.DB.Driver)
+		return errors.New("config: mode=cloud requires oidc.clientSecret (set OPENWA_OIDC_CLIENT_SECRET)")
 	}
 	return nil
 }
 
 func validateCloudGenesisEmail(c *Config) error {
 	if c.Genesis.Email == "" {
-		return errors.New("config: mode=cloud requires genesis.email — first-boot admin identity, matched against OIDC subject email (set ALT_GENESIS_EMAIL)")
+		return errors.New("config: mode=cloud requires genesis.email — first-boot admin identity, matched against OIDC subject email (set OPENWA_GENESIS_EMAIL)")
 	}
 	return nil
 }
 
 func validateQueueNeedsURL(c *Config) error {
 	if c.Queue.Enabled && c.Queue.URL == "" {
-		return errors.New("config: queue.enabled=true requires queue.url (set ALT_QUEUE_URL)")
+		return errors.New("config: queue.enabled=true requires queue.url (set OPENWA_QUEUE_URL)")
 	}
 	return nil
 }
 
-func validatePostgresNeedsEncryptionKey(c *Config) error {
-	if c.DB.Driver == db.DriverPostgres && c.Security.EncryptionKey == "" {
-		return errors.New("config: db.driver=postgres requires security.encryptionKey — 32 bytes hex or base64; without it persisted sessions cannot be sealed and every login fails (set ALT_SECURITY_ENCRYPTION_KEY)")
-	}
-	return nil
-}
-
-func validateCloudEncryptionKey(c *Config) error {
+func validateEncryptionKey(c *Config) error {
 	if c.Security.EncryptionKey == "" {
-		return errors.New("config: mode=cloud requires security.encryptionKey — 32 bytes hex or base64; without it persisted sessions cannot be sealed and every login fails (set ALT_SECURITY_ENCRYPTION_KEY)")
+		return errors.New("config: security.encryptionKey is required — 32 bytes hex or base64; without it persisted sessions and webhook secrets cannot be sealed (set " + EnvVar("security.encryptionKey") + ")")
 	}
 	return nil
 }
 
 func validateGenesisPasswordNeedsEmail(c *Config) error {
 	if c.Genesis.Password != "" && c.Genesis.Email == "" {
-		return errors.New("config: genesis.password without genesis.email — no account is created, so the password is silently ignored (set ALT_GENESIS_EMAIL, or unset ALT_GENESIS_PASSWORD)")
+		return errors.New("config: genesis.password without genesis.email — no account is created, so the password is silently ignored (set OPENWA_GENESIS_EMAIL, or unset OPENWA_GENESIS_PASSWORD)")
 	}
 	return nil
 }
 
 func validateCloudGenesisPasswordBreakGlass(c *Config) error {
 	if c.Genesis.Password != "" && !c.Genesis.BreakGlass {
-		return errors.New("config: mode=cloud with genesis.password requires genesis.breakGlass=true — the /login local form is hidden in cloud otherwise (set ALT_GENESIS_BREAK_GLASS=true, or unset ALT_GENESIS_PASSWORD)")
+		return errors.New("config: mode=cloud with genesis.password requires genesis.breakGlass=true — the /login local form is hidden in cloud otherwise (set OPENWA_GENESIS_BREAK_GLASS=true, or unset OPENWA_GENESIS_PASSWORD)")
 	}
 	return nil
 }
 
 func validateCloudSingletonOrg(c *Config) error {
 	if c.Tenant.SingletonOrg.Name == "" {
-		return errors.New("config: mode=cloud requires tenant.singletonOrg.name — the display name of the first organization (set ALT_TENANT_SINGLETON_ORG_NAME)")
+		return errors.New("config: mode=cloud requires tenant.singletonOrg.name — the display name of the first organization (set OPENWA_TENANT_SINGLETON_ORG_NAME)")
 	}
 	return nil
 }
 
 func validateAutoMigrateNeedsMigrator(c *Config) error {
 	if !c.DB.AllowBypassRLS && c.DB.AutoMigrate && c.DB.Migrator.DSN == "" {
-		return errors.New("config: mode=cloud with autoMigrate and RLS enforced requires db.migrator.dsn — run scripts/db/provision.sh (APP=altempl DB_NAME=altempl) and set ALT_DB_MIGRATOR_DSN to the altempl_migrator credential, or disable autoMigrate and run migrations out-of-band")
+		return fmt.Errorf("config: mode=cloud with autoMigrate and RLS enforced requires db.migrator.dsn — run scripts/db/provision.sh (APP=openwa DB_NAME=openwa) and set %s to the openwa_migrator credential, or disable autoMigrate and run migrations out-of-band", EnvVar("db.migrator.dsn"))
 	}
 	return nil
 }
@@ -415,7 +402,7 @@ func validateAutoMigrateNeedsMigrator(c *Config) error {
 type MCPIssuerRequiredError struct{}
 
 func (*MCPIssuerRequiredError) Error() string {
-	return "config: mcp.enabled requires tokens.issuer — no issuer, no verifier, and every MCP call would be unauthenticated (set ALT_TOKENS_ISSUER, or unset ALT_MCP_ENABLED)"
+	return "config: mcp.enabled requires tokens.issuer — no issuer, no verifier, and every MCP call would be unauthenticated (set OPENWA_TOKENS_ISSUER, or unset OPENWA_MCP_ENABLED)"
 }
 
 // IsMCPIssuerRequiredError reports whether err is an *MCPIssuerRequiredError.
@@ -428,7 +415,7 @@ func IsMCPIssuerRequiredError(err error) bool {
 type MCPBaseURLRequiredError struct{}
 
 func (*MCPBaseURLRequiredError) Error() string {
-	return "config: mcp.enabled requires http.baseURL to derive mcp.audience — without it the audience cannot name this deployment (set ALT_HTTP_BASE_URL, or set ALT_MCP_AUDIENCE with ALT_MCP_AUDIENCE_OVERRIDE=true)"
+	return "config: mcp.enabled requires http.baseURL to derive mcp.audience — without it the audience cannot name this deployment (set OPENWA_HTTP_BASE_URL, or set OPENWA_MCP_AUDIENCE with OPENWA_MCP_AUDIENCE_OVERRIDE=true)"
 }
 
 // IsMCPBaseURLRequiredError reports whether err is an *MCPBaseURLRequiredError.
@@ -444,7 +431,7 @@ type MCPAudienceInvalidError struct {
 }
 
 func (e *MCPAudienceInvalidError) Error() string {
-	return fmt.Sprintf("config: mcp.audience %q is %s — a token audience must be an absolute, fragment-free URL identifying this MCP endpoint (set ALT_MCP_AUDIENCE)", e.Audience, e.Reason)
+	return fmt.Sprintf("config: mcp.audience %q is %s — a token audience must be an absolute, fragment-free URL identifying this MCP endpoint (set OPENWA_MCP_AUDIENCE)", e.Audience, e.Reason)
 }
 
 // IsMCPAudienceInvalidError reports whether err is an *MCPAudienceInvalidError.
@@ -461,7 +448,7 @@ type MCPAudienceMismatchError struct {
 
 func (e *MCPAudienceMismatchError) Error() string {
 	// SECURITY: an audience naming another resource means tokens minted for that resource are accepted here.
-	return fmt.Sprintf("config: mcp.audience %q does not match the mounted endpoint %q — tokens minted for another resource would be accepted (set ALT_MCP_AUDIENCE=%s, or ALT_MCP_AUDIENCE_OVERRIDE=true when a proxy rewrites the public URL)", e.Audience, e.Mounted, e.Mounted)
+	return fmt.Sprintf("config: mcp.audience %q does not match the mounted endpoint %q — tokens minted for another resource would be accepted (set OPENWA_MCP_AUDIENCE=%s, or OPENWA_MCP_AUDIENCE_OVERRIDE=true when a proxy rewrites the public URL)", e.Audience, e.Mounted, e.Mounted)
 }
 
 // IsMCPAudienceMismatchError reports whether err is an *MCPAudienceMismatchError.

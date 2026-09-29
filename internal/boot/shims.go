@@ -5,14 +5,14 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/auth"
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/dataplane"
-	"altalune.id/template/internal/invite"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/user"
+	"altalune.id/openwa/internal/auth"
+	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/dataplane"
+	"altalune.id/openwa/internal/invite"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/user"
 )
 
 type userStoreForInvite struct{ store user.Store }

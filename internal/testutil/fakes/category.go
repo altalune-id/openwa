@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/blog/category"
+	"altalune.id/openwa/internal/blog/category"
 )
 
 // Category is an in-memory category.Store.

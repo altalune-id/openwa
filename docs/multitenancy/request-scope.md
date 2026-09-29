@@ -132,7 +132,7 @@ resource-pinned key fails it outright. Steps:
 - **CLI** is dual-mode, and so is its scope. In-process commands (`org`, `project`, `invite`) build
   `tenant.Context` from the principal `cli.Resolve` returns — the session file, or a token verified through
   `Whoami` — and enter it with `tenant.Into`. The remote `blog` commands are a data-plane client instead:
-  `--org` / `--project` (or `ALT_ORG` / `ALT_PROJECT`, or the profile) become path slugs, and the API key
+  `--org` / `--project` (or `OPENWA_ORG` / `OPENWA_PROJECT`, or the profile) become path slugs, and the API key
   still has to agree with them.
 - **Ingest** is credential-free machine push under `/hooks/{provider}/`. Provider identity _is_ the
   authorization (R4), and the surface establishes **no** tenant scope of its own — the template ships no
@@ -192,9 +192,9 @@ which turned each of these into its own debugging session.
 | `TestRequireProject_AdmitsAnySiblingProjectInTheCallersOrg` | the org-level model being narrowed by accident             |
 | `TestTenantGateIsNotCopiedIntoHandlers`                     | a handler rebuilding the gate and skipping the org check   |
 | `TestMCP_JWTResolvesItsTenantFromMembership`                | an issuer naming a tenant its subject has no membership in |
-| `internal/org/definer_integration_test.go`                  | writes that only pass because the test role bypasses RLS   |
+| `internal/org/definer_test.go`                              | writes that only pass because the test role bypasses RLS   |
 | `schema/tenant_policy_guard_test.go`                        | a migration inlining the GUC instead of calling the helper |
 
-The route walk runs on SQLite, whose org store scopes by explicit argument rather than by context, so it
-cannot see org-domain scope bugs. Those need the Postgres integration tests running as a **non-BYPASSRLS**
+The route walk runs on Postgres with `AllowBypassRLS: true`, a bypassing role, so RLS refuses nothing there and
+it cannot see org-domain scope bugs. Those need the Postgres tests running as a **non-BYPASSRLS**
 role — a test connecting as a superuser proves nothing about RLS.

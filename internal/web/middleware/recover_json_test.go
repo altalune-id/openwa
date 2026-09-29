@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/web/middleware"
+	"altalune.id/openwa/internal/web/middleware"
 )
 
 func TestRecoverJSON_TurnsPanicIntoJSON500(t *testing.T) {

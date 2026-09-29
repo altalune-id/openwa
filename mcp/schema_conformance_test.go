@@ -8,7 +8,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"altalune.id/template/mcp"
+	"altalune.id/openwa/mcp"
 )
 
 // Vendored from the MCP Apps ext-apps bundle: https://modelcontextprotocol.io/specification/ (apps.mdx).

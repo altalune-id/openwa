@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/httpclient"
+	"altalune.id/openwa/httpclient"
 )
 
 func TestProber_Probe(t *testing.T) {

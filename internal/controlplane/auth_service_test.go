@@ -7,9 +7,9 @@ import (
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
 
-	authv1 "altalune.id/template/gen/go/auth/v1"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/session"
+	authv1 "altalune.id/openwa/gen/go/auth/v1"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 func TestWhoami_MissingAuth_ReturnsUnauthenticated(t *testing.T) {

@@ -4,9 +4,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/templates"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/templates"
 )
 
 // LayoutFn builds a LayoutData for the shared error page.

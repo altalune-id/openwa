@@ -15,7 +15,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"altalune.id/template/mcp"
+	"altalune.id/openwa/mcp"
 )
 
 const (

@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strings"
 
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/templates"
-	slugs "altalune.id/template/slug"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/templates"
+	slugs "altalune.id/openwa/slug"
 )
 
 // ProjectHandler owns the /projects routes.

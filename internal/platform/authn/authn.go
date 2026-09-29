@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 // Shape classifies a raw credential by form alone.

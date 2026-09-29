@@ -15,11 +15,11 @@ problem; a subpackage that shares the parent's table is.
 1. Create `internal/<name>/<sub>/` with the same file set as a module —
    [`modules`](../modules/README.md) Section 1. The package name is the domain term:
    `category`, not `blogcategory`.
-2. Its table goes in the parent's migration or a new one, both dialects, with its own RLS block and
-   `VERSION` bumps. `006_blog.sql` carries `blog_posts`, `blog_categories`, `blog_tags` and the
+2. Its table goes in the parent's migration or a new one, with its own RLS block and a
+   `VERSION` bump. `006_blog.sql` carries `blog_posts`, `blog_categories`, `blog_tags` and the
    `blog_post_tags` join table together. Then `make tenant-tables`.
-3. Jet bindings per dialect:
-   `internal/platform/db/entity/{postgres,sqlite}/<table>.go`.
+3. Jet bindings:
+   `internal/platform/db/entity/postgres/<table>.go`.
 4. Its own `errors.go` and its own error-code block — `CAT001`+ for categories, `TAG001`+ for tags,
    in `internal/apperror/codes.go` and [`error codes`](../errors/README.md).
 5. Store and adapters: [`store-method.md`](store-method.md). Service methods:
@@ -32,7 +32,7 @@ problem; a subpackage that shares the parent's table is.
    a method on the parent's.
 8. Sibling-private helpers go under `internal/<name>/<sub>/internal/`, which only `<sub>/` and its
    children can import.
-9. `make check`, then `make test-integration`.
+9. `make check`.
 
 ## Cross-references
 

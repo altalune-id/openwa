@@ -13,11 +13,11 @@ import (
 
 	"google.golang.org/grpc/codes"
 
-	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/session"
-	rootmcp "altalune.id/template/mcp"
+	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/session"
+	rootmcp "altalune.id/openwa/mcp"
 )
 
 const unauthorizedMessage = "unauthorized"

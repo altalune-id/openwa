@@ -25,8 +25,8 @@ cap() { printf '%s%s' "$(printf '%s' "${1:0:1}" | tr '[:lower:]' '[:upper:]')" "
 Type="${2:-$(cap "$name")}"
 
 cp -r "$src" "$dst"
-# Drop todo-specific extras; a new module starts without periodic work or a hijack test.
-rm -f "$dst"/scheduler.go "$dst"/scheduler_test.go "$dst"/service_extra_test.go "$dst"/sqlite_hijack_test.go
+# Drop todo-specific extras; postgres_hijack_test.go stays as the template for the guard tests.
+rm -f "$dst"/scheduler.go "$dst"/scheduler_test.go "$dst"/service_extra_test.go
 
 for f in "$dst"/*.go; do
   sed -i '' \

@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"altalune.id/template/internal/webhook"
+	"altalune.id/openwa/internal/webhook"
 )
 
 func TestSign_FixedVector(t *testing.T) {

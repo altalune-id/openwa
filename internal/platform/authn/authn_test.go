@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"altalune.id/template/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/authn"
 )
 
 func TestSchemeLooks(t *testing.T) {

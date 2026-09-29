@@ -1,4 +1,4 @@
-class AltemplApp extends LitElement {
+class OpenwaApp extends LitElement {
   static properties = { status: {}, message: {}, detail: {}, view: { attribute: false } };
   static styles = appStyles;
 
@@ -12,7 +12,7 @@ class AltemplApp extends LitElement {
   }
 
   firstUpdated() {
-    this.renderRoot.addEventListener("altempl-action", (ev) => {
+    this.renderRoot.addEventListener("openwa-action", (ev) => {
       ev.stopPropagation();
       if (this.onaction) this.onaction(ev.detail);
     });
@@ -35,4 +35,4 @@ class AltemplApp extends LitElement {
   }
 }
 
-customElements.define("altempl-app", AltemplApp);
+customElements.define("openwa-app", OpenwaApp);

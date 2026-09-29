@@ -14,10 +14,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/queue"
-	"altalune.id/template/internal/user"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/queue"
+	"altalune.id/openwa/internal/user"
 )
 
 type unexpectedRecorder struct {

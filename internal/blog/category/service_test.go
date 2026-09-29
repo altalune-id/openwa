@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 
-	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/blog/category"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/testutil/fakes"
+	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/blog/category"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/testutil/fakes"
 )
 
 func newSvc(t *testing.T, store category.Store) (*category.Service, *int) {
@@ -26,8 +26,8 @@ func newSvc(t *testing.T, store category.Store) (*category.Service, *int) {
 	calls := 0
 	unexpected := func(_ context.Context, _ string, err error, _ ...any) *apperror.AppError {
 		calls++
-		return apperror.New("altempl.unexpected", err.Error(), codes.Internal,
-			&apperrorv1.ErrorDetail{Code: "altempl.unexpected"}).WithCause(err)
+		return apperror.New("openwa.unexpected", err.Error(), codes.Internal,
+			&apperrorv1.ErrorDetail{Code: "openwa.unexpected"}).WithCause(err)
 	}
 	return category.NewService(store, log, unexpected), &calls
 }

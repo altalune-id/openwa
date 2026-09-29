@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/platform/db"
+	"altalune.id/openwa/internal/platform/db"
 )
 
 func TestLoad_DefaultsPopulate(t *testing.T) {
@@ -38,6 +38,7 @@ func TestLoad_DefaultsPopulate(t *testing.T) {
 }
 
 func TestLoad_YAMLThenEnvOverride(t *testing.T) {
+	withRequiredEnv(t)
 	t.Setenv("HOME", t.TempDir())
 	yaml := `
 mode: selfhosted
@@ -50,7 +51,7 @@ genesis:
 `
 	path := writeTempYAML(t, "cfg.yaml", yaml)
 
-	t.Setenv("ALT_HTTP_ADDR", ":8080")
+	t.Setenv("OPENWA_HTTP_ADDR", ":8080")
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -68,6 +69,7 @@ genesis:
 }
 
 func TestLoad_ValidateCascades(t *testing.T) {
+	withRequiredEnv(t)
 	t.Setenv("HOME", t.TempDir())
 	yaml := `
 mode: selfhosted
@@ -94,6 +96,7 @@ func TestValidate_ModeInvariants(t *testing.T) {
 			DB:       validDB(),
 			Genesis:  GenesisConfig{Email: "root@example.com", Password: "x"},
 			Security: validSecurity(),
+			WhatsApp: validWhatsApp(),
 		}
 		c.Tenant.SingletonOrg.Slug = "default"
 		c.Tenant.SingletonOrg.Name = "Default Organization"
@@ -142,47 +145,27 @@ func TestValidate_ModeInvariants(t *testing.T) {
 			wantSub: "cloud requires oidc.clientID",
 		},
 		{
-			name: "cloud with sqlite driver fails",
-			mutate: func(c *Config) {
-				c.Mode = ModeCloud
-				c.Genesis = GenesisConfig{}
-				c.OIDC = OIDCConfig{Issuer: "https://iss.example.com", ClientID: "c", ClientSecret: "s"}
-				c.DB.Driver = "sqlite"
-			},
-			wantSub: "cloud requires db.driver=postgres",
-		},
-		{
 			name: "postgres without an encryption key fails",
 			mutate: func(c *Config) {
-				c.DB.Driver = db.DriverPostgres
 				c.Security.EncryptionKey = ""
 			},
-			wantSub: "db.driver=postgres requires security.encryptionKey",
-		},
-		{
-			name: "sqlite without an encryption key is allowed",
-			mutate: func(c *Config) {
-				c.Security.EncryptionKey = ""
-			},
-			wantSub: "",
+			wantSub: "OPENWA_SECURITY_ENCRYPTION_KEY",
 		},
 		{
 			name: "cloud without an encryption key fails",
 			mutate: func(c *Config) {
 				c.Mode = ModeCloud
 				c.OIDC = OIDCConfig{Issuer: "https://iss.example.com", ClientID: "c", ClientSecret: "s"}
-				c.DB.Driver = "postgres"
 				c.Genesis = GenesisConfig{Email: "root@example.com"}
 				c.Security.EncryptionKey = ""
 			},
-			wantSub: "mode=cloud requires security.encryptionKey",
+			wantSub: "OPENWA_SECURITY_ENCRYPTION_KEY",
 		},
 		{
 			name: "cloud with full oidc + postgres + genesis + singleton org (no break-glass) is allowed",
 			mutate: func(c *Config) {
 				c.Mode = ModeCloud
 				c.OIDC = OIDCConfig{Issuer: "https://iss.example.com", ClientID: "c", ClientSecret: "s"}
-				c.DB.Driver = "postgres"
 				c.Genesis = GenesisConfig{Email: "root@example.com", Password: "s3cret", BreakGlass: true}
 			},
 			wantSub: "",
@@ -192,7 +175,6 @@ func TestValidate_ModeInvariants(t *testing.T) {
 			mutate: func(c *Config) {
 				c.Mode = ModeCloud
 				c.OIDC = OIDCConfig{Issuer: "https://iss.example.com", ClientID: "c", ClientSecret: "s"}
-				c.DB.Driver = "postgres"
 				c.Genesis = GenesisConfig{Email: "root@example.com", Password: "s3cret", BreakGlass: true}
 			},
 			wantSub: "",
@@ -202,7 +184,6 @@ func TestValidate_ModeInvariants(t *testing.T) {
 			mutate: func(c *Config) {
 				c.Mode = ModeCloud
 				c.OIDC = OIDCConfig{Issuer: "https://iss.example.com", ClientID: "c", ClientSecret: "s"}
-				c.DB.Driver = "postgres"
 				c.Genesis = GenesisConfig{Email: "root@example.com"}
 			},
 			wantSub: "",
@@ -212,7 +193,6 @@ func TestValidate_ModeInvariants(t *testing.T) {
 			mutate: func(c *Config) {
 				c.Mode = ModeCloud
 				c.OIDC = OIDCConfig{Issuer: "https://iss.example.com", ClientID: "c", ClientSecret: "s"}
-				c.DB.Driver = "postgres"
 				c.Genesis = GenesisConfig{Email: "root@example.com", Password: "s3cret"}
 			},
 			wantSub: "requires genesis.breakGlass",
@@ -222,7 +202,6 @@ func TestValidate_ModeInvariants(t *testing.T) {
 			mutate: func(c *Config) {
 				c.Mode = ModeCloud
 				c.OIDC = OIDCConfig{Issuer: "https://iss.example.com", ClientID: "c", ClientSecret: "s"}
-				c.DB.Driver = "postgres"
 				c.Genesis = GenesisConfig{}
 			},
 			wantSub: "requires genesis.email",
@@ -232,7 +211,6 @@ func TestValidate_ModeInvariants(t *testing.T) {
 			mutate: func(c *Config) {
 				c.Mode = ModeCloud
 				c.OIDC = OIDCConfig{Issuer: "https://iss.example.com", ClientID: "c", ClientSecret: "s"}
-				c.DB.Driver = "postgres"
 				c.Genesis = GenesisConfig{Email: "root@example.com", Password: "s3cret", BreakGlass: true}
 				c.Tenant.SingletonOrg.Slug = ""
 			},
@@ -243,7 +221,6 @@ func TestValidate_ModeInvariants(t *testing.T) {
 			mutate: func(c *Config) {
 				c.Mode = ModeCloud
 				c.OIDC = OIDCConfig{Issuer: "https://iss.example.com", ClientID: "c", ClientSecret: "s"}
-				c.DB.Driver = "postgres"
 				c.Genesis = GenesisConfig{Email: "root@example.com", Password: "s3cret", BreakGlass: true}
 				c.Tenant.SingletonOrg.Name = ""
 			},
@@ -284,7 +261,6 @@ func TestValidate_ModeInvariants(t *testing.T) {
 			mutate: func(c *Config) {
 				c.Mode = ModeCloud
 				c.OIDC = OIDCConfig{Issuer: "https://iss.example.com", ClientID: "c", ClientSecret: "s"}
-				c.DB.Driver = "postgres"
 				c.Genesis = GenesisConfig{Password: "x", BreakGlass: true}
 			},
 			wantSub: "genesis.password without genesis.email",
@@ -399,7 +375,7 @@ func writeTempYAML(t *testing.T, name, content string) string {
 }
 
 func validDB() db.DBConfig {
-	return db.DBConfig{Driver: db.DriverSQLite, DSN: ":memory:"}
+	return db.DBConfig{DSN: "postgres://openwa:openwa@localhost:5432/openwa?sslmode=disable", Schema: "public", TablePrefix: "openwa_"}
 }
 
 func validSecurity() SecurityConfig {
@@ -421,9 +397,16 @@ func withCwdOverride(t *testing.T, dir string) Option {
 
 func withGenesisFallback(t *testing.T) Option {
 	t.Helper()
-	t.Setenv("ALT_GENESIS_EMAIL", "root@example.com")
-	t.Setenv("ALT_GENESIS_PASSWORD", "x")
+	t.Setenv("OPENWA_GENESIS_EMAIL", "root@example.com")
+	t.Setenv("OPENWA_GENESIS_PASSWORD", "x")
+	withRequiredEnv(t)
 	return func(*loadOptions) {}
+}
+
+func withRequiredEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("OPENWA_DB_DSN", validDB().DSN)
+	t.Setenv("OPENWA_SECURITY_ENCRYPTION_KEY", validSecurity().EncryptionKey)
 }
 
 func TestSchedulerConfig_Locations(t *testing.T) {
@@ -513,10 +496,36 @@ func TestDefaults_FirstRunSlugsAreGenerated(t *testing.T) {
 
 func TestLoad_FirstRunSlugsHonourEnv(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("ALT_TENANT_SINGLETON_ORG_SLUG", "acme")
-	t.Setenv("ALT_TENANT_PERSONAL_PROJECT_SLUG", "web")
+	t.Setenv("OPENWA_TENANT_SINGLETON_ORG_SLUG", "acme")
+	t.Setenv("OPENWA_TENANT_PERSONAL_PROJECT_SLUG", "web")
 	cfg, err := Load("", withCwdOverride(t, t.TempDir()), withGenesisFallback(t))
 	require.NoError(t, err)
 	require.Equal(t, "acme", cfg.Tenant.SingletonOrg.Slug, "a configured slug still wins over generation")
 	require.Equal(t, "web", cfg.Tenant.PersonalProjectSlug)
+}
+
+func validSelfhosted() *Config {
+	c := &Config{
+		Mode:     ModeSelfhosted,
+		DB:       validDB(),
+		Genesis:  GenesisConfig{Email: "root@example.com", Password: "x"},
+		Security: validSecurity(),
+		WhatsApp: validWhatsApp(),
+	}
+	c.Tenant.SingletonOrg.Slug = "default"
+	c.Tenant.SingletonOrg.Name = "Default Organization"
+	return c
+}
+
+func TestValidate_EncryptionKeyIsAlwaysRequired(t *testing.T) {
+	t.Parallel()
+	cfg := validSelfhosted()
+	cfg.Security.EncryptionKey = ""
+	err := cfg.Validate()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "OPENWA_SECURITY_ENCRYPTION_KEY")
+}
+
+func validWhatsApp() WhatsAppConfig {
+	return WhatsAppConfig{Engine: "whatsmeow", ClientName: "OpenWA"}
 }

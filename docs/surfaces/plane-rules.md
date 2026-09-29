@@ -27,6 +27,11 @@ each machine plane, the same verbs as Connect RPCs and as REST so a fork can rea
 side by side. A demonstration, not a precedent: a fork's own module goes on one plane, and a
 second name in that allowlist means writing the reason here first.
 
+**Why `device`, `message`, `chat` and `contact` are allowlisted.** openwa's integrators call the
+REST data plane with device-bound keys and `Idempotency-Key`; its MCP tools and CLI bind to
+control-plane RPCs. The same `Service` instance backs both handlers, so no verb has two
+implementations. The allowlist entry is the documented exception, not a precedent for a third plane.
+
 ### R3 — one primitive per surface
 
 Every surface resolves its tenant through the primitive that surface owns, and never

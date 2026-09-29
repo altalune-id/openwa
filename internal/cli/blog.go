@@ -10,9 +10,10 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/codes"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/cli/render"
-	"altalune.id/template/internal/dataplane"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/cli/render"
+	"altalune.id/openwa/internal/dataplane"
+	"altalune.id/openwa/internal/platform/config"
 )
 
 func newBlogCmd() *cobra.Command {
@@ -112,7 +113,7 @@ func newBlogUpdateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update <slug>",
 		Short: "Update a post, guarded by its version",
-		Long:  "Update a post. --if-version is the version last read with `altempl blog get`; the data plane rejects the write when the post moved on.",
+		Long:  "Update a post. --if-version is the version last read with `openwa blog get`; the data plane rejects the write when the post moved on.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			target, err := blogTargetFrom(cmd)
@@ -150,7 +151,7 @@ func newBlogUpdateCmd() *cobra.Command {
 	f.StringVar(&slug, "slug", "", "new slug")
 	f.StringVar(&body, "body", "", "new body")
 	f.StringVar(&category, "category", "", "new category uuid")
-	f.IntVar(&ifVersion, "if-version", 0, "version the write is conditioned on, from `altempl blog get`")
+	f.IntVar(&ifVersion, "if-version", 0, "version the write is conditioned on, from `openwa blog get`")
 	f.BoolVar(&replace, "replace", false, "replace the post wholesale (PUT) instead of patching the given fields")
 	_ = cmd.MarkFlagRequired("if-version")
 	return cmd
@@ -160,7 +161,7 @@ func newBlogPublishCmd() *cobra.Command {
 	return newBlogTransitionCmd(
 		"publish <slug>",
 		"Publish a post, guarded by its version",
-		"Publish a post so it is readable without a credential where the instance enables public reads. --if-version is the version last read with `altempl blog get`.",
+		"Publish a post so it is readable without a credential where the instance enables public reads. --if-version is the version last read with `openwa blog get`.",
 		func(c *dataplane.Client) blogTransition { return c.PublishPost },
 		"blog publish",
 	)
@@ -170,7 +171,7 @@ func newBlogUnpublishCmd() *cobra.Command {
 	return newBlogTransitionCmd(
 		"unpublish <slug>",
 		"Return a post to draft, guarded by its version",
-		"Return a post to draft, so it is no longer readable without a credential. --if-version is the version last read with `altempl blog get`.",
+		"Return a post to draft, so it is no longer readable without a credential. --if-version is the version last read with `openwa blog get`.",
 		func(c *dataplane.Client) blogTransition { return c.UnpublishPost },
 		"blog unpublish",
 	)
@@ -199,7 +200,7 @@ func newBlogTransitionCmd(use, short, long string, pick func(*dataplane.Client) 
 			return renderPost(cmd, post)
 		},
 	}
-	cmd.Flags().IntVar(&ifVersion, "if-version", 0, "version the transition is conditioned on, from `altempl blog get`")
+	cmd.Flags().IntVar(&ifVersion, "if-version", 0, "version the transition is conditioned on, from `openwa blog get`")
 	_ = cmd.MarkFlagRequired("if-version")
 	return cmd
 }
@@ -224,7 +225,7 @@ func newBlogDeleteCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().IntVar(&ifVersion, "if-version", 0, "version the delete is conditioned on, from `altempl blog get`")
+	cmd.Flags().IntVar(&ifVersion, "if-version", 0, "version the delete is conditioned on, from `openwa blog get`")
 	_ = cmd.MarkFlagRequired("if-version")
 	return cmd
 }
@@ -243,7 +244,7 @@ func blogTargetFrom(cmd *cobra.Command) (blogTarget, error) {
 	}
 	instance := resolveURL(cmd)
 	if instance == "" {
-		return blogTarget{}, errors.New("blog: no instance URL — pass --url, set ALT_URL, or configure http.baseURL")
+		return blogTarget{}, errors.New("blog: no instance URL — pass --url, set OPENWA_URL, or configure http.baseURL")
 	}
 	prof, err := loadProfile(cfg.Session.Path, instance)
 	if err != nil {
@@ -260,12 +261,12 @@ func blogTargetFrom(cmd *cobra.Command) (blogTarget, error) {
 	if key == "" {
 		return blogTarget{}, apperror.New(
 			apperror.CodeUnauthenticated,
-			"blog: no API key for "+instance+" — pass --token, set ALT_TOKEN, or run `altempl auth login`",
+			"blog: no API key for "+instance+" — pass --token, set OPENWA_TOKEN, or run `openwa auth login`",
 			codes.Unauthenticated,
 		)
 	}
-	org := blogSlug(cmd, "org", "ALT_ORG", prof.Org)
-	project := blogSlug(cmd, "project", "ALT_PROJECT", prof.Project)
+	org := blogSlug(cmd, "org", config.EnvVar("org"), prof.Org)
+	project := blogSlug(cmd, "project", config.EnvVar("project"), prof.Project)
 	if org == "" || project == "" {
 		return blogTarget{}, errors.New("blog: no active org or project — pass --org and --project")
 	}
@@ -349,7 +350,7 @@ func blogError(op string, err error) error {
 	case dataplane.IsConflictError(err):
 		return blogAppError(apperror.CodeAlreadyExists, op+": slug already taken, or the idempotency key was replayed with a different body", codes.AlreadyExists, err)
 	case dataplane.IsPreconditionFailedError(err):
-		return blogAppError(apperror.CodeValidation, op+": the post moved on since --if-version — re-read it with `altempl blog get` and retry", codes.FailedPrecondition, err)
+		return blogAppError(apperror.CodeValidation, op+": the post moved on since --if-version — re-read it with `openwa blog get` and retry", codes.FailedPrecondition, err)
 	case dataplane.IsPreconditionRequiredError(err):
 		return blogAppError(apperror.CodeValidation, op+": this write needs --if-version", codes.FailedPrecondition, err)
 	case dataplane.IsBadRequestError(err):

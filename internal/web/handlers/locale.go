@@ -5,10 +5,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/i18n"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/web"
+	"altalune.id/openwa/internal/i18n"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/web"
 )
 
 // LocaleHandler serves POST /locale, persisting the locale choice for signed-in users.

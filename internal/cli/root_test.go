@@ -7,8 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/boot"
-	"altalune.id/template/internal/platform/config"
+	"altalune.id/openwa/internal/boot"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/testutil/pgtest"
 )
 
 func stubServerBoot(_ context.Context, _ *config.Config, _ ...boot.Option) (*boot.Server, error) {
@@ -23,17 +24,25 @@ func setSelfhostedEnv(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	sessPath := filepath.Join(dir, "session.json")
-	t.Setenv("ALT_MODE", "selfhosted")
-	t.Setenv("ALT_DB_DRIVER", "sqlite")
-	t.Setenv("ALT_DB_DSN", filepath.Join(dir, "alt.db"))
-	t.Setenv("ALT_HTTP_ADDR", "127.0.0.1:0")
-	t.Setenv("ALT_HTTP_BASEURL", "http://127.0.0.1")
-	t.Setenv("ALT_GENESIS_EMAIL", "root@example.com")
-	t.Setenv("ALT_GENESIS_PASSWORD", "hunter2")
-	t.Setenv("ALT_SESSION_PATH", sessPath)
-	t.Setenv("ALT_MAIL_DRIVER", "console")
-	t.Setenv("ALT_MAIL_FROM", "no-reply@example.com")
+	t.Setenv("OPENWA_MODE", "selfhosted")
+	t.Setenv("OPENWA_DB_DSN", "postgres://openwa:openwa@localhost:5432/openwa?sslmode=disable")
+	t.Setenv("OPENWA_SECURITY_ENCRYPTION_KEY", strings.Repeat("ab", 32))
+	t.Setenv("OPENWA_HTTP_ADDR", "127.0.0.1:0")
+	t.Setenv("OPENWA_HTTP_BASEURL", "http://127.0.0.1")
+	t.Setenv("OPENWA_GENESIS_EMAIL", "root@example.com")
+	t.Setenv("OPENWA_GENESIS_PASSWORD", "hunter2")
+	t.Setenv("OPENWA_SESSION_PATH", sessPath)
+	t.Setenv("OPENWA_MAIL_DRIVER", "console")
+	t.Setenv("OPENWA_MAIL_FROM", "no-reply@example.com")
 	return sessPath
+}
+
+func usePostgres(t *testing.T) {
+	t.Helper()
+	h := pgtest.New(t)
+	t.Setenv("OPENWA_DB_DSN", h.SearchPathDSN(t))
+	t.Setenv("OPENWA_DB_SCHEMA", h.Schema)
+	t.Setenv("OPENWA_DB_ALLOWBYPASSRLS", "true")
 }
 
 func TestRoot_VersionSubcommand(t *testing.T) {
@@ -46,8 +55,8 @@ func TestRoot_VersionSubcommand(t *testing.T) {
 	if err := root.ExecuteContext(context.Background()); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	if !strings.Contains(buf.String(), "altempl") {
-		t.Errorf("expected altempl in output, got %q", buf.String())
+	if !strings.Contains(buf.String(), "openwa") {
+		t.Errorf("expected openwa in output, got %q", buf.String())
 	}
 }
 
@@ -79,7 +88,7 @@ func TestRoot_KnownSubcommandsRegistered(t *testing.T) {
 	root := NewRootCmd(stubServerBoot, stubClientBoot)
 	want := map[string]bool{
 		"version": false, "serve": false, "init": false, "migrate": false, "auth": false,
-		"org": false, "project": false, "todo": false, "blog": false, "invite": false,
+		"org": false, "project": false, "invite": false,
 		"completion": false,
 	}
 	for _, c := range root.Commands() {

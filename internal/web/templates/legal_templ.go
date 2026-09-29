@@ -9,8 +9,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"altalune.id/template/internal/legal"
-	"altalune.id/template/internal/web"
+	"altalune.id/openwa/internal/legal"
+	"altalune.id/openwa/internal/web"
 )
 
 // LegalView carries a parsed legal document to the layout.

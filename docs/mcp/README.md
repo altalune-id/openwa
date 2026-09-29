@@ -19,11 +19,11 @@ no SSR gate (R5).
 ## Setup
 
 ```bash
-ALT_TOKENS_ISSUER=https://auth.example.com   # must be reachable — OIDC discovery runs at boot
-ALT_HTTP_BASE_URL=https://app.example.com
-ALT_MCP_ENABLED=true
-ALT_MCP_CHALLENGE_TOKEN=<issued by authl>
-ALT_MCP_APPS_UI=true                         # only if the host renders MCP Apps
+OPENWA_TOKENS_ISSUER=https://auth.example.com   # must be reachable — OIDC discovery runs at boot
+OPENWA_HTTP_BASE_URL=https://app.example.com
+OPENWA_MCP_ENABLED=true
+OPENWA_MCP_CHALLENGE_TOKEN=<issued by authl>
+OPENWA_MCP_APPS_UI=true                         # only if the host renders MCP Apps
 ```
 
 Order is enforced — each step's omission is a boot error:
@@ -135,11 +135,11 @@ blank panel in every host.
 
 ### UI link
 
-`mcp.appsUI=true` publishes one self-contained bundle at `ui://altempl/app`, media type
+`mcp.appsUI=true` publishes one self-contained bundle at `ui://openwa/app`, media type
 `text/html;profile=mcp-app`, and binds every tool carrying a `ui:`:
 
 ```json
-"_meta": { "ui": { "resourceUri": "ui://altempl/app" } }
+"_meta": { "ui": { "resourceUri": "ui://openwa/app" } }
 ```
 
 - **Exactly one key. No flat `ui/resourceUri` sibling.** Both meta schemas are
@@ -156,7 +156,7 @@ blank panel in every host.
 | `go test ./mcp/... ./internal/mcp/...` | transport, registry, scope, meta |
 | `make check`                           | everything but the smoke script  |
 
-The smoke script boots on ephemeral SQLite against a stub issuer and asserts capabilities, tool
+The smoke script boots on Postgres against a stub issuer and asserts capabilities, tool
 names and schemas, `_meta.ui` carrying one key, the bundle's media type and self-containment,
 the 401 challenge, an in-result scope denial, and the metadata document. Needs `go`, `curl`,
 `jq`, `python3`. CI runs it as its own job.

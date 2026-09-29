@@ -8,17 +8,8 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-// Driver selects the underlying database/sql driver.
-type Driver string
-
-const (
-	DriverPostgres Driver = "postgres"
-	DriverSQLite   Driver = "sqlite"
-)
-
-// DBConfig is the driver-agnostic input to Open.
+// DBConfig is the input to Open.
 type DBConfig struct {
-	Driver          Driver         `yaml:"driver"          mapstructure:"driver"          awareness:"required,bootstrap" validate:"required,oneof=postgres sqlite"`
 	DSN             string         `yaml:"dsn"             mapstructure:"dsn"             awareness:"required,secret"    validate:"required"`
 	Schema          string         `yaml:"schema"          mapstructure:"schema"          awareness:"bootstrap"`
 	TablePrefix     string         `yaml:"tablePrefix"     mapstructure:"tablePrefix"     awareness:"bootstrap"`

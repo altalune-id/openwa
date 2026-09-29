@@ -2,91 +2,78 @@ package db_test
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 
-	_ "modernc.org/sqlite"
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/platform/db"
+	"altalune.id/openwa/internal/platform/db"
 )
 
-func openTestPool(t *testing.T) db.Pool {
+func openMockPool(t *testing.T) (db.Pool, sqlmock.Sqlmock) {
 	t.Helper()
-	sqlDB, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	if _, err := sqlDB.ExecContext(t.Context(), "CREATE TABLE things (id INTEGER PRIMARY KEY, name TEXT NOT NULL)"); err != nil {
-		t.Fatalf("create table: %v", err)
-	}
-	return db.Pool{W: sqlDB, R: sqlDB}
+	return db.Pool{W: sqlDB, R: sqlDB}, mock
 }
 
 func TestRunInTx_CommitOnSuccess(t *testing.T) {
 	t.Parallel()
-	pool := openTestPool(t)
+	pool, mock := openMockPool(t)
+	mock.ExpectBegin()
+	mock.ExpectExec("INSERT INTO things").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
 
 	err := db.RunInTx(t.Context(), pool, func(ctx context.Context) error {
 		tx, ok := db.CurrentTx(ctx)
 		if !ok {
 			return errors.New("expected CurrentTx to return the enrolled tx")
 		}
-		if _, err := tx.ExecContext(ctx, "INSERT INTO things (name) VALUES ('committed')"); err != nil {
-			return err
-		}
-		return nil
+		_, err := tx.ExecContext(ctx, "INSERT INTO things (name) VALUES ('committed')")
+		return err
 	})
-	if err != nil {
-		t.Fatalf("RunInTx: %v", err)
-	}
-
-	var n int
-	if err := pool.R.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM things WHERE name = 'committed'").Scan(&n); err != nil {
-		t.Fatalf("count: %v", err)
-	}
-	if n != 1 {
-		t.Fatalf("committed row missing: n=%d", n)
-	}
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestRunInTx_RollbackOnError(t *testing.T) {
 	t.Parallel()
-	pool := openTestPool(t)
+	pool, mock := openMockPool(t)
+	mock.ExpectBegin()
+	mock.ExpectRollback()
 
 	want := errors.New("boom")
-	err := db.RunInTx(t.Context(), pool, func(ctx context.Context) error {
-		tx, _ := db.CurrentTx(ctx)
-		if _, err := tx.ExecContext(ctx, "INSERT INTO things (name) VALUES ('rolled_back')"); err != nil {
-			return err
-		}
-		return want
-	})
-	if !errors.Is(err, want) {
-		t.Fatalf("err = %v, want %v", err, want)
-	}
+	err := db.RunInTx(t.Context(), pool, func(context.Context) error { return want })
+	require.ErrorIs(t, err, want)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
 
-	var n int
-	if err := pool.R.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM things WHERE name = 'rolled_back'").Scan(&n); err != nil {
-		t.Fatalf("count: %v", err)
-	}
-	if n != 0 {
-		t.Fatalf("row not rolled back: n=%d", n)
-	}
+func TestRunInTx_RollbackOnPanic(t *testing.T) {
+	t.Parallel()
+	pool, mock := openMockPool(t)
+	mock.ExpectBegin()
+	mock.ExpectRollback()
+
+	require.PanicsWithValue(t, "kaboom", func() {
+		_ = db.RunInTx(t.Context(), pool, func(context.Context) error { panic("kaboom") })
+	})
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestRunInTx_RejectsNestedUnitOfWork(t *testing.T) {
 	t.Parallel()
-	pool := openTestPool(t)
+	pool, mock := openMockPool(t)
+	mock.ExpectBegin()
+	mock.ExpectRollback()
 
 	outerErr := db.RunInTx(t.Context(), pool, func(outer context.Context) error {
-		return db.RunInTx(outer, pool, func(inner context.Context) error {
+		return db.RunInTx(outer, pool, func(context.Context) error {
 			t.Fatalf("nested fn should not run")
 			return nil
 		})
 	})
-	if !errors.Is(outerErr, db.ErrNestedUnitOfWork) {
-		t.Fatalf("err = %v, want ErrNestedUnitOfWork", outerErr)
-	}
+	require.ErrorIs(t, outerErr, db.ErrNestedUnitOfWork)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

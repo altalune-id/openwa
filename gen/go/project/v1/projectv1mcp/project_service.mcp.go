@@ -5,9 +5,9 @@
 package projectv1mcp
 
 import (
-	v1 "altalune.id/template/gen/go/project/v1"
-	projectv1connect "altalune.id/template/gen/go/project/v1/projectv1connect"
-	mcp "altalune.id/template/mcp"
+	v1 "altalune.id/openwa/gen/go/project/v1"
+	projectv1connect "altalune.id/openwa/gen/go/project/v1/projectv1connect"
+	mcp "altalune.id/openwa/mcp"
 	connect "connectrpc.com/connect"
 	context "context"
 	json "encoding/json"
@@ -32,6 +32,7 @@ func RegisterProjectServiceTools(reg *mcp.Registry, h projectv1connect.ProjectSe
 		Scope:       scopeFor(ProjectListToolName),
 		Mutation:    false,
 		Destructive: false,
+		UI:          "ui://openwa/app",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
 		Handler: func(ctx context.Context, input json.RawMessage) (json.RawMessage, error) {
 			if len(input) == 0 {

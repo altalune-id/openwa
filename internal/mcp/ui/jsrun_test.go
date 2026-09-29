@@ -10,10 +10,10 @@ import (
 //nolint:gochecknoglobals // a classification table has to be package level.
 var (
 	litParts = map[string]bool{
-		"src/lit.js":             true,
-		"src/styles.js":          true,
-		"src/views/blog_list.js": true,
-		"src/app.js":             true,
+		"src/lit.js":                true,
+		"src/styles.js":             true,
+		"src/views/project_list.js": true,
+		"src/app.js":                true,
 	}
 	domParts = map[string]bool{
 		"src/bridge.js": true,
@@ -60,8 +60,8 @@ func newJSVM(t *testing.T) *goja.Runtime {
 			t.Fatalf("eval %s: %v", p, err)
 		}
 	}
-	if _, err := vm.RunString(`registerView("blog_list", blogListModel, null);`); err != nil {
-		t.Fatalf("register blog_list: %v", err)
+	if _, err := vm.RunString(`registerView("project_list", projectListModel, null);`); err != nil {
+		t.Fatalf("register project_list: %v", err)
 	}
 	return vm
 }
@@ -107,46 +107,39 @@ func TestFormatDayToleratesMissingTimestamps(t *testing.T) {
 	}
 }
 
-func TestBlogListModelRendersPostsAndOffersPublishOnDraftsOnly(t *testing.T) {
+func TestProjectListModelRendersProjectsWithoutActions(t *testing.T) {
 	vm := newJSVM(t)
-	model, actions := modelFixture(t, vm, "blog_list", "blog_list.json")
-	body := jsString(t, vm, `JSON.stringify(renderTool("blog_list", `+fixtureJSON(t, "blog_list.json")+`).model)`)
-	for _, want := range []string{"Shipping the MCP surface", "Draft: tenant scoping notes", "Engineering", "mcp · release", "2026-09-01"} {
+	model, actions := modelFixture(t, vm, "project_list", "project_list.json")
+	body := jsString(t, vm, `JSON.stringify(renderTool("project_list", `+fixtureJSON(t, "project_list.json")+`).model)`)
+	for _, want := range []string{"Smoke", "smoke-proj", "Alpha", "0193f2a0-0000-7000-8000-0000000000aa"} {
 		if !strings.Contains(body, want) {
-			t.Errorf("blog_list model is missing %q:\n%s", want, body)
+			t.Errorf("project_list model is missing %q:\n%s", want, body)
 		}
 	}
 	if model["empty"] != false {
 		t.Errorf("model.empty = %v, want false", model["empty"])
 	}
-	if len(actions) != 1 {
-		t.Fatalf("blog_list declared %d actions, want 1 — only the draft is publishable: %v", len(actions), actions)
-	}
-	action, ok := actions["publish:0193f2a0-0000-7000-8000-000000000002"].(map[string]any)
-	if !ok {
-		t.Fatalf("the draft's publish action is missing: %v", actions)
-	}
-	if action["tool"] != "blog_publish" {
-		t.Errorf("action tool = %v, want blog_publish", action["tool"])
+	if len(actions) != 0 {
+		t.Errorf("project_list declared %d actions, want 0: %v", len(actions), actions)
 	}
 }
 
-func TestBlogListModelCountsKPIs(t *testing.T) {
+func TestProjectListModelCountsKPIs(t *testing.T) {
 	vm := newJSVM(t)
-	got := jsString(t, vm, `renderTool("blog_list", `+fixtureJSON(t, "blog_list.json")+`).model.kpis.map(function (k) { return k.label + "=" + k.value; }).join(",")`)
-	if got != "Posts=2,Published=1,Drafts=1" {
+	got := jsString(t, vm, `renderTool("project_list", `+fixtureJSON(t, "project_list.json")+`).model.kpis.map(function (k) { return k.label + "=" + k.value; }).join(",")`)
+	if got != "Projects=2" {
 		t.Errorf("kpis = %q", got)
 	}
 }
 
-func TestBlogListModelRendersAnEmptyState(t *testing.T) {
+func TestProjectListModelRendersAnEmptyState(t *testing.T) {
 	vm := newJSVM(t)
-	model, actions := modelFixture(t, vm, "blog_list", "blog_list_empty.json")
+	model, actions := modelFixture(t, vm, "project_list", "project_list_empty.json")
 	if model["empty"] != true {
 		t.Errorf("empty fixture produced empty = %v, want true", model["empty"])
 	}
 	if len(actions) != 0 {
-		t.Errorf("empty blog_list declared %d actions, want 0", len(actions))
+		t.Errorf("empty project_list declared %d actions, want 0", len(actions))
 	}
 }
 

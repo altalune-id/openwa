@@ -3,8 +3,8 @@ package fakes
 import (
 	"context"
 
-	"altalune.id/template/internal/platform/db"
-	"altalune.id/template/internal/platform/tenant"
+	"altalune.id/openwa/internal/platform/db"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 var _ tenant.UnitOfWork = UnitOfWork

@@ -4,7 +4,7 @@ package apikey.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "altalune.id/template/gen/go/apikey/v1;apikeyv1";
+option go_package = "altalune.id/openwa/gen/go/apikey/v1;apikeyv1";
 
 service APIKeyService {
   rpc List(ListRequest) returns (ListResponse);

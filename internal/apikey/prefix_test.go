@@ -11,11 +11,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/apikey"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/testutil/fakes"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/testutil/fakes"
 )
 
 func failingUnexpected(t *testing.T) apperror.UnexpectedFunc {
@@ -54,7 +54,7 @@ func TestSchemePrefix(t *testing.T) {
 func TestMintAndResolveAgreeUnderEveryPrefix(t *testing.T) {
 	t.Parallel()
 
-	for _, configured := range []string{"", "key_", "ak_", "sk_live_", "altempl-"} {
+	for _, configured := range []string{"", "key_", "ak_", "sk_live_", "openwa-"} {
 		t.Run("prefix="+configured, func(t *testing.T) {
 			t.Parallel()
 

@@ -10,17 +10,17 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	"altalune.id/template/authl"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/capabilities"
-	"altalune.id/template/internal/platform/db"
-	"altalune.id/template/internal/platform/outbox"
-	"altalune.id/template/internal/platform/queue"
-	"altalune.id/template/internal/platform/sealer"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/platform/tokens"
-	"altalune.id/template/mailer"
+	"altalune.id/openwa/authl"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/capabilities"
+	"altalune.id/openwa/internal/platform/db"
+	"altalune.id/openwa/internal/platform/outbox"
+	"altalune.id/openwa/internal/platform/queue"
+	"altalune.id/openwa/internal/platform/sealer"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/platform/tokens"
+	"altalune.id/openwa/mailer"
 )
 
 // NanoIDFunc mints a URL-safe nanoid of the requested length.

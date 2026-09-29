@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/testutil/fakes"
-	"altalune.id/template/internal/user"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/testutil/fakes"
+	"altalune.id/openwa/internal/user"
 )
 
 func TestService_Create_HappyPath(t *testing.T) {

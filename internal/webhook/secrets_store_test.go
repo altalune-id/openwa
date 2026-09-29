@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/platform/events"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/webhook"
+	"altalune.id/openwa/internal/platform/events"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/webhook"
 )
 
 func assertSaveKeepsStoredSecrets(t *testing.T, store webhook.Store, tc tenant.Context) {
@@ -91,39 +91,4 @@ func assertSaveSecretsRefusesAStaleExpected(t *testing.T, store webhook.Store, t
 
 	err = store.SaveSecrets(ctx, uuid.New(), e.Secrets, rotated)
 	assert.True(t, webhook.IsNotFoundError(err), "a missing endpoint: got %T: %v", err, err)
-}
-
-func assertSaveSecretsOfAnotherOrgIsNotFound(t *testing.T, store webhook.Store, a, b tenant.Context) {
-	t.Helper()
-	ownerCtx := tenant.Into(t.Context(), a)
-	victim := newSealedEndpoint(t, a)
-	require.NoError(t, store.Save(ownerCtx, victim))
-
-	err := store.SaveSecrets(tenant.Into(t.Context(), b), victim.ID, victim.Secrets,
-		webhook.SealedSecrets{Primary: []byte("attacker-primary")})
-	assert.True(t, webhook.IsNotFoundError(err), "org B must not rewrite org A's secrets, got %T: %v", err, err)
-
-	got, err := store.ByID(ownerCtx, victim.ID)
-	require.NoError(t, err)
-	assert.Equal(t, victim.Secrets, got.Secrets, "org A's secrets must be untouched")
-}
-
-func TestSQLite_SaveKeepsStoredSecrets(t *testing.T) {
-	store, _, tc := newSQLiteStore(t)
-	assertSaveKeepsStoredSecrets(t, store, tc)
-}
-
-func TestSQLite_SaveSecretsRotatesAndClearsSecondary(t *testing.T) {
-	store, _, tc := newSQLiteStore(t)
-	assertSaveSecretsRotatesAndClearsSecondary(t, store, tc)
-}
-
-func TestSQLite_SaveSecretsRefusesAStaleExpected(t *testing.T) {
-	store, _, tc := newSQLiteStore(t)
-	assertSaveSecretsRefusesAStaleExpected(t, store, tc)
-}
-
-func TestSQLite_Hijack_SaveSecretsOfAnotherOrgIsNotFound(t *testing.T) {
-	store, sqlDB, a := newSQLiteStore(t)
-	assertSaveSecretsOfAnotherOrgIsNotFound(t, store, a, seedTenant(t, sqlDB))
 }

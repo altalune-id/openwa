@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/blog/category"
+	"altalune.id/openwa/internal/blog/category"
 )
 
 func TestNew_Invariants(t *testing.T) {

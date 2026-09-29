@@ -15,13 +15,13 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 
-	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/queue"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/testutil/fakes"
-	"altalune.id/template/internal/todo"
+	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/queue"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/testutil/fakes"
+	"altalune.id/openwa/internal/todo"
 )
 
 func newSvc(t *testing.T, store todo.Store) (*todo.Service, *int) {
@@ -36,8 +36,8 @@ func newSvcWithQueue(t *testing.T, store todo.Store) (*todo.Service, *int, *fake
 	calls := 0
 	unexpected := func(_ context.Context, _ string, err error, _ ...any) *apperror.AppError {
 		calls++
-		return apperror.New("altempl.unexpected", err.Error(), codes.Internal,
-			&apperrorv1.ErrorDetail{Code: "altempl.unexpected"}).WithCause(err)
+		return apperror.New("openwa.unexpected", err.Error(), codes.Internal,
+			&apperrorv1.ErrorDetail{Code: "openwa.unexpected"}).WithCause(err)
 	}
 	q := &fakes.Queue{}
 	return todo.NewService(store, log, unexpected, q), &calls, q
@@ -49,8 +49,8 @@ func newSvcWithLog(t *testing.T, store todo.Store, w io.Writer) (*todo.Service, 
 	calls := 0
 	unexpected := func(_ context.Context, _ string, err error, _ ...any) *apperror.AppError {
 		calls++
-		return apperror.New("altempl.unexpected", err.Error(), codes.Internal,
-			&apperrorv1.ErrorDetail{Code: "altempl.unexpected"}).WithCause(err)
+		return apperror.New("openwa.unexpected", err.Error(), codes.Internal,
+			&apperrorv1.ErrorDetail{Code: "openwa.unexpected"}).WithCause(err)
 	}
 	return todo.NewService(store, log, unexpected, &fakes.Queue{}), &calls
 }
@@ -280,8 +280,8 @@ func TestService_Toggle(t *testing.T) {
 			mu.Lock()
 			messages = append(messages, msg)
 			mu.Unlock()
-			return apperror.New("altempl.unexpected", err.Error(), codes.Internal,
-				&apperrorv1.ErrorDetail{Code: "altempl.unexpected"}).WithCause(err)
+			return apperror.New("openwa.unexpected", err.Error(), codes.Internal,
+				&apperrorv1.ErrorDetail{Code: "openwa.unexpected"}).WithCause(err)
 		}
 		q := &fakes.Queue{Err: errors.New("nats down")}
 		svc := todo.NewService(store, log, unexpected, q)

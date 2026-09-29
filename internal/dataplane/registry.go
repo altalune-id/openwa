@@ -4,7 +4,7 @@ import (
 	"maps"
 	"slices"
 
-	"altalune.id/template/internal/platform/surfaces"
+	"altalune.id/openwa/internal/platform/surfaces"
 )
 
 // VerbTable names the domain verb every route this surface registers exposes, keyed by method and path suffix.

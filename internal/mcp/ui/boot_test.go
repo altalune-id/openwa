@@ -16,7 +16,7 @@ func settleFor(resolve bool) string {
 	if !resolve {
 		return "reject(new Error('denied'))"
 	}
-	return "resolve({structuredContent:{posts:[{id:'p1',title:'Shipped',status:'published'}]}})"
+	return "resolve({structuredContent:{projects:[{id:'p1',name:'Shipped',slug:'shipped'}]}})"
 }
 
 func bootVMSettling(t *testing.T, settle string) *goja.Runtime {
@@ -38,7 +38,7 @@ func bootVMSettling(t *testing.T, settle string) *goja.Runtime {
 					globalThis.recorded.caps = caps;
 					globalThis.__app = this;
 					this.connect = function () { return Promise.resolve(); };
-					this.getHostContext = function () { return { toolInfo: { tool: { name: "blog_list" } } }; };
+					this.getHostContext = function () { return { toolInfo: { tool: { name: "project_list" } } }; };
 					this.callServerTool = function (req) {
 						globalThis.recorded.calls.push(req);
 						return new Promise(function (resolve, reject) { ` + settle + `; });
@@ -84,8 +84,8 @@ func lastArgs(t *testing.T, vm *goja.Runtime) string {
 
 func TestBootMountsTheAppElement(t *testing.T) {
 	vm := bootVM(t, true)
-	if got := jsString(t, vm, `__root.children[0].tagName`); got != "altempl-app" {
-		t.Errorf("root holds %q, want altempl-app", got)
+	if got := jsString(t, vm, `__root.children[0].tagName`); got != "openwa-app" {
+		t.Errorf("root holds %q, want openwa-app", got)
 	}
 	if got := jsString(t, vm, `typeof __appEl.onaction`); got != "function" {
 		t.Errorf("boot.js did not wire the app element's action channel, got %q", got)
@@ -95,8 +95,8 @@ func TestBootMountsTheAppElement(t *testing.T) {
 func TestBootMergesToolInputAndFormOverDeclaredArgs(t *testing.T) {
 	vm := bootVM(t, true)
 	if _, err := vm.RunString(`
-		__toolInput({ arguments: { target: { org: "acme" }, projectId: "prj_1", status: "draft" } }, "blog_list");
-		current = { actions: { refresh: { tool: "blog_list", args: { status: "published" } } } };
+		__toolInput({ arguments: { target: { org: "acme" }, projectId: "prj_1", status: "draft" } }, "project_list");
+		current = { actions: { refresh: { tool: "project_list", args: { status: "published" } } } };
 		const form = { children: [ { attrs: { name: "projectId" }, value: "prj_2", getAttribute(k){ return this.attrs[k] || null; } } ],
 		               querySelectorAll(){ return this.children; } };
 		__dispatchAction("refresh", __mkEl({}), form);
@@ -104,7 +104,7 @@ func TestBootMergesToolInputAndFormOverDeclaredArgs(t *testing.T) {
 		t.Fatalf("dispatch: %v", err)
 	}
 	got := jsString(t, vm, `JSON.stringify(recorded.calls[0])`)
-	const want = `{"name":"blog_list","arguments":{"target":{"org":"acme"},"projectId":"prj_2","status":"published"}}`
+	const want = `{"name":"project_list","arguments":{"target":{"org":"acme"},"projectId":"prj_2","status":"published"}}`
 	if got != want {
 		t.Errorf("callServerTool got\n %s\nwant\n %s", got, want)
 	}
@@ -114,21 +114,21 @@ func TestBootMergesToolInputAndFormOverDeclaredArgs(t *testing.T) {
 func TestBootFormFieldCannotOverrideADeclaredArgument(t *testing.T) {
 	vm := bootVM(t, true)
 	if _, err := vm.RunString(`
-		current = { actions: { publish: { tool: "blog_publish", args: { postId: "declared" } } } };
+		current = { actions: { publish: { tool: "project_write", args: { projectId: "declared" } } } };
 		__dispatchAction(
 			"publish",
 			__mkEl({}),
 			{
 				querySelectorAll: function (sel) {
 					if (sel !== "[name]") return [];
-					return [__mkEl({ name: "postId" })].map(function (el) { el.value = "someone-elses-post"; return el; });
+					return [__mkEl({ name: "projectId" })].map(function (el) { el.value = "someone-elses-post"; return el; });
 				},
 			}
 		);
 	`); err != nil {
 		t.Fatalf("dispatch: %v", err)
 	}
-	if got := lastArgs(t, vm); !strings.Contains(got, `"postId":"declared"`) {
+	if got := lastArgs(t, vm); !strings.Contains(got, `"projectId":"declared"`) {
 		t.Errorf("a form field overrode the declared argument: %s", got)
 	}
 }
@@ -136,8 +136,8 @@ func TestBootFormFieldCannotOverrideADeclaredArgument(t *testing.T) {
 func TestBootIgnoresToolInputFromADifferentTool(t *testing.T) {
 	vm := bootVM(t, true)
 	if _, err := vm.RunString(`
-		__toolInput({ arguments: { postId: "from-another-tool", status: "stale" } }, "blog_list");
-		current = { actions: { publish: { tool: "blog_publish", args: {} } } };
+		__toolInput({ arguments: { projectId: "from-another-tool", status: "stale" } }, "project_list");
+		current = { actions: { publish: { tool: "project_write", args: {} } } };
 		__dispatchAction("publish", __mkEl({}), null);
 	`); err != nil {
 		t.Fatalf("dispatch: %v", err)
@@ -150,10 +150,10 @@ func TestBootIgnoresToolInputFromADifferentTool(t *testing.T) {
 // TestBootSubjectReadsTheViewsOwnAnswersNotTheHostAnnouncement: the tool-input notification carries no tool name, so a late host announcement must not become the view's own state.
 func TestBootSubjectReadsTheViewsOwnAnswersNotTheHostAnnouncement(t *testing.T) {
 	vm := bootVM(t, true)
-	hostNamed(t, vm, "blog_publish")
+	hostNamed(t, vm, "project_write")
 	if _, err := vm.RunString(`
-		answers = { tool: "blog_publish", args: { postId: "the-view-s-own" } };
-		__app.ontoolinput({ arguments: { postId: "from-the-host" } });
+		answers = { tool: "project_write", args: { projectId: "the-view-s-own" } };
+		__app.ontoolinput({ arguments: { projectId: "from-the-host" } });
 	`); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -161,12 +161,12 @@ func TestBootSubjectReadsTheViewsOwnAnswersNotTheHostAnnouncement(t *testing.T) 
 		t.Errorf("capturedArgs surfaced the host announcement instead of the view's answers: %s", got)
 	}
 	if _, err := vm.RunString(`
-		current = { actions: { publish: { tool: "blog_publish", args: {} } } };
+		current = { actions: { publish: { tool: "project_write", args: {} } } };
 		__dispatchAction("publish", __mkEl({}), null);
 	`); err != nil {
 		t.Fatalf("dispatch: %v", err)
 	}
-	if got := lastArgs(t, vm); !strings.Contains(got, `"postId":"the-view-s-own"`) {
+	if got := lastArgs(t, vm); !strings.Contains(got, `"projectId":"the-view-s-own"`) {
 		t.Errorf("the write used the host announcement instead of the view's own answers: %s", got)
 	}
 }
@@ -175,7 +175,7 @@ func TestBootSubjectReadsTheViewsOwnAnswersNotTheHostAnnouncement(t *testing.T) 
 func TestBootWriteCannotFireTwiceWhileACallIsInflight(t *testing.T) {
 	vm := bootVM(t, true)
 	if _, err := vm.RunString(`
-		const decl = { tool: "blog_publish", args: { postId: "p1" } };
+		const decl = { tool: "project_write", args: { projectId: "p1" } };
 		current = { actions: { publish: decl } };
 		const btn = __mkEl({});
 		__dispatchAction("publish", btn, null);
@@ -193,7 +193,7 @@ func TestBootWriteCannotFireTwiceWhileACallIsInflight(t *testing.T) {
 func TestBootWriteCannotFireTwiceOnceTheActionIsConsumed(t *testing.T) {
 	vm := bootVM(t, true)
 	if _, err := vm.RunString(`
-		current = { actions: { publish: { tool: "blog_publish", args: { postId: "p1" } } } };
+		current = { actions: { publish: { tool: "project_write", args: { projectId: "p1" } } } };
 		const btn = __mkEl({});
 		__dispatchAction("publish", btn, null);
 		inflight = null;
@@ -209,13 +209,13 @@ func TestBootWriteCannotFireTwiceOnceTheActionIsConsumed(t *testing.T) {
 // TestBootFormFieldCannotPoisonALaterCall: a field name is attacker-controlled whenever a view renders one from tool output, so a dotted path must never reach Object.prototype.
 func TestBootFormFieldCannotPoisonALaterCall(t *testing.T) {
 	for _, tc := range []struct{ name, field, value string }{
-		{"proto segment", "__proto__.postId", `"attacker-owned"`},
-		{"constructor prototype segment", "constructor.prototype.postId", `"attacker-owned"`},
+		{"proto segment", "__proto__.projectId", `"attacker-owned"`},
+		{"constructor prototype segment", "constructor.prototype.projectId", `"attacker-owned"`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			vm := bootVM(t, true)
 			if _, err := vm.RunString(`
-				current = { actions: { forge: { tool: "blog_list", args: {} } } };
+				current = { actions: { forge: { tool: "project_list", args: {} } } };
 				__dispatchAction("forge", __mkEl({}), {
 					querySelectorAll: function (sel) {
 						if (sel !== "[name]") return [];
@@ -225,7 +225,7 @@ func TestBootFormFieldCannotPoisonALaterCall(t *testing.T) {
 					},
 				});
 				inflight = null;
-				current = { actions: { publish: { tool: "blog_publish", args: {} } } };
+				current = { actions: { publish: { tool: "project_write", args: {} } } };
 				__dispatchAction("publish", __mkEl({}), null);
 			`); err != nil {
 				t.Fatalf("dispatch: %v", err)
@@ -233,10 +233,10 @@ func TestBootFormFieldCannotPoisonALaterCall(t *testing.T) {
 			if got := jsString(t, vm, `String(recorded.calls.length)`); got != "2" {
 				t.Fatalf("recorded %s calls, want 2", got)
 			}
-			if got := jsString(t, vm, `JSON.stringify(recorded.calls)`); strings.Contains(got, "attacker-owned") || strings.Contains(got, "postId") {
+			if got := jsString(t, vm, `JSON.stringify(recorded.calls)`); strings.Contains(got, "attacker-owned") || strings.Contains(got, "projectId") {
 				t.Errorf("a forged form field reached a tool call's arguments: %s", got)
 			}
-			if got := jsString(t, vm, `String(({}).postId)`); got != "undefined" {
+			if got := jsString(t, vm, `String(({}).projectId)`); got != "undefined" {
 				t.Errorf("a forged form field wrote %q onto Object.prototype", got)
 			}
 		})
@@ -247,11 +247,11 @@ func TestBootFormFieldCannotPoisonALaterCall(t *testing.T) {
 func TestBootToolInputCannotPoisonALaterCall(t *testing.T) {
 	vm := bootVM(t, true)
 	if _, err := vm.RunString(`
-		__toolInput({ arguments: JSON.parse('{"__proto__":{"postId":"attacker-owned"}}') }, "blog_list");
-		current = { actions: { list: { tool: "blog_list", args: {} } } };
+		__toolInput({ arguments: JSON.parse('{"__proto__":{"projectId":"attacker-owned"}}') }, "project_list");
+		current = { actions: { list: { tool: "project_list", args: {} } } };
 		__dispatchAction("list", __mkEl({}), null);
 		inflight = null;
-		current = { actions: { publish: { tool: "blog_publish", args: {} } } };
+		current = { actions: { publish: { tool: "project_write", args: {} } } };
 		__dispatchAction("publish", __mkEl({}), null);
 	`); err != nil {
 		t.Fatalf("dispatch: %v", err)
@@ -259,10 +259,10 @@ func TestBootToolInputCannotPoisonALaterCall(t *testing.T) {
 	if got := jsString(t, vm, `String(recorded.calls.length)`); got != "2" {
 		t.Fatalf("recorded %s calls, want 2", got)
 	}
-	if got := jsString(t, vm, `JSON.stringify(recorded.calls)`); strings.Contains(got, "attacker-owned") || strings.Contains(got, "postId") {
+	if got := jsString(t, vm, `JSON.stringify(recorded.calls)`); strings.Contains(got, "attacker-owned") || strings.Contains(got, "projectId") {
 		t.Errorf("a forged tool-input key reached a tool call's arguments: %s", got)
 	}
-	if got := jsString(t, vm, `String(({}).postId)`); got != "undefined" {
+	if got := jsString(t, vm, `String(({}).projectId)`); got != "undefined" {
 		t.Errorf("a forged tool-input key wrote %q onto Object.prototype", got)
 	}
 }
@@ -274,11 +274,11 @@ func TestBootIgnoresAnActionNamedLikeAnInheritedMember(t *testing.T) {
 		resolve bool
 		seed    string
 	}{
-		{"a rendered view", true, `current = renderTool("blog_list", { posts: [] });`},
+		{"a rendered view", true, `current = renderTool("project_list", { projects: [] });`},
 		{"a result with no tool name", true, `paint("", {});`},
-		{"a failed result", true, `paintResult("blog_list", { isError: true });`},
+		{"a failed result", true, `paintResult("project_list", { isError: true });`},
 		{"a cancelled call", true, `paintCancelled("nope");`},
-		{"a rejected call", false, `current = { actions: { go: { tool: "blog_list", args: {} } } }; __dispatchAction("go", __mkEl({}), null);`},
+		{"a rejected call", false, `current = { actions: { go: { tool: "project_list", args: {} } } }; __dispatchAction("go", __mkEl({}), null);`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			vm := bootVMSettling(t, settleFor(tc.resolve))
@@ -301,7 +301,7 @@ func TestBootIgnoresAnActionNamedLikeAnInheritedMember(t *testing.T) {
 func TestBootPaintsFromTheCallToolPromise(t *testing.T) {
 	vm := bootVM(t, true)
 	if _, err := vm.RunString(`
-		current = { actions: { go: { tool: "blog_list", args: {} } } };
+		current = { actions: { go: { tool: "project_list", args: {} } } };
 		__dispatchAction("go", __mkEl({}), null);
 	`); err != nil {
 		t.Fatalf("dispatch: %v", err)
@@ -317,7 +317,7 @@ func TestBootPaintsFromTheCallToolPromise(t *testing.T) {
 func TestBootShowsARejectedState(t *testing.T) {
 	vm := bootVM(t, false)
 	if _, err := vm.RunString(`
-		current = { actions: { go: { tool: "blog_list", args: {} } } };
+		current = { actions: { go: { tool: "project_list", args: {} } } };
 		__dispatchAction("go", __mkEl({}), null);
 	`); err != nil {
 		t.Fatalf("dispatch: %v", err)
@@ -330,7 +330,7 @@ func TestBootShowsARejectedState(t *testing.T) {
 func TestBootIgnoresAnActionItNeverDeclared(t *testing.T) {
 	vm := bootVM(t, true)
 	if _, err := vm.RunString(`
-		current = { actions: { publish: { tool: "blog_publish", args: { postId: "p1" } } } };
+		current = { actions: { publish: { tool: "project_write", args: { projectId: "p1" } } } };
 		__dispatchAction("forged", __mkEl({}), null);
 	`); err != nil {
 		t.Fatalf("dispatch: %v", err)
@@ -345,14 +345,14 @@ func TestBootSetInRejectsAWholeNameProto(t *testing.T) {
 	vm := bootVM(t, true)
 	if _, err := vm.RunString(`
 		globalThis.__out = {};
-		setIn(__out, "__proto__", { postId: "attacker-owned" });
+		setIn(__out, "__proto__", { projectId: "attacker-owned" });
 	`); err != nil {
 		t.Fatalf("setIn: %v", err)
 	}
 	if got := jsString(t, vm, `String(Object.getPrototypeOf(__out) === Object.prototype)`); got != "true" {
 		t.Error("setIn replaced the target's prototype")
 	}
-	if got := jsString(t, vm, `String(__out.postId)`); got != "undefined" {
+	if got := jsString(t, vm, `String(__out.projectId)`); got != "undefined" {
 		t.Errorf("setIn leaked %q onto the target through its prototype", got)
 	}
 }
@@ -361,20 +361,20 @@ func TestBootSetInRejectsAWholeNameProto(t *testing.T) {
 func TestBootInheritedKeysNeverReachToolArguments(t *testing.T) {
 	vm := bootVM(t, true)
 	if _, err := vm.RunString(`
-		Object.defineProperty(Object.prototype, "postId", {
+		Object.defineProperty(Object.prototype, "projectId", {
 			value: "inherited", enumerable: true, configurable: true, writable: true,
 		});
 		try {
-			__toolInput({ arguments: {} }, "blog_publish");
-			current = { actions: { publish: { tool: "blog_publish", args: {} } } };
+			__toolInput({ arguments: {} }, "project_write");
+			current = { actions: { publish: { tool: "project_write", args: {} } } };
 			__dispatchAction("publish", __mkEl({}), null);
 		} finally {
-			delete Object.prototype.postId;
+			delete Object.prototype.projectId;
 		}
 	`); err != nil {
 		t.Fatalf("dispatch: %v", err)
 	}
-	if got := lastArgs(t, vm); strings.Contains(got, "inherited") || strings.Contains(got, "postId") {
+	if got := lastArgs(t, vm); strings.Contains(got, "inherited") || strings.Contains(got, "projectId") {
 		t.Errorf("an inherited key reached a tool call's arguments: %s", got)
 	}
 }

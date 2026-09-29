@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/events"
-	"altalune.id/template/internal/webhook"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/events"
+	"altalune.id/openwa/internal/webhook"
 )
 
 const validURL = "https://example.com/hook"

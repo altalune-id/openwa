@@ -36,27 +36,19 @@ list. Add a guard test pinning that, and register the table in `schema.RequiredT
 (`schema/table_guard.go`) if boot should verify it exists. What stops protecting you when both guards
 go at once: [`howto/module.md`](../../../../docs/howto/module.md#tenancy).
 
-## SQLite counterpart
-
-Same tables, `TEXT` for ids and timestamps, no `{{.Schema}}` prefix, no RLS block. Keep the
-`{{.TablePrefix}}` literal on table _and_ index names. SQLite has no RLS, which is why the
-adapter's explicit `org_id` predicates are load-bearing there.
-
 ## Jet bindings
 
-Adapters use hand-written go-jet bindings, not raw SQL. One file per dialect per table:
+Adapters use hand-written go-jet bindings, not raw SQL. One file per table:
 
 ```
 internal/platform/db/entity/postgres/<table>.go   New<Table>(schema, tablePrefix string)
-internal/platform/db/entity/sqlite/<table>.go     New<Table>(tablePrefix string)
 ```
 
 Copy `entity/postgres/orgs.go` for the shape: typed columns, an `AllColumns` list, a constructor.
 
 - **Do not add a `MutableColumns` field** — it was removed repo-wide because nothing read it.
-- **SQLite timestamp columns are `ColumnString`**, not a time type.
-- A migration that only adds a column (`009_blog_version.sql`) still needs that column in both
-  bindings _and_ in `AllColumns`
+- A migration that only adds a column (`009_blog_version.sql`) still needs that column in the
+  binding _and_ in `AllColumns`
   ([`howto/module.md`](../../../../docs/howto/module.md#gotchas)).
-- Nullable columns go through the `Null*` helpers in the same packages, never a wrapped jet
+- Nullable columns go through the `Null*` helpers in the same package, never a wrapped jet
   `NULL` — see [`persistence.md`](persistence.md#sql-null).

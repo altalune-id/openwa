@@ -7,8 +7,8 @@ import (
 
 	"connectrpc.com/connect"
 
-	authv1 "altalune.id/template/gen/go/auth/v1"
-	"altalune.id/template/internal/controlplane"
+	authv1 "altalune.id/openwa/gen/go/auth/v1"
+	"altalune.id/openwa/internal/controlplane"
 )
 
 func TestNewClient_SetsAuthHeaderOnCall(t *testing.T) {

@@ -4,7 +4,7 @@ package middleware
 import (
 	"net/http"
 
-	"altalune.id/template/reqid"
+	"altalune.id/openwa/reqid"
 )
 
 // RequestID ensures every request carries an X-Request-Id, echoed on the response header.

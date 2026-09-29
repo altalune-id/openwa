@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/platform/sealer"
-	"altalune.id/template/internal/webhook"
+	"altalune.id/openwa/internal/platform/sealer"
+	"altalune.id/openwa/internal/webhook"
 )
 
 func newSealer(t *testing.T) sealer.Sealer {

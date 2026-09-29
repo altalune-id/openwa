@@ -82,23 +82,23 @@ Source of truth: `internal/platform/events` (`catalog.go`, `payloads.go`, golden
 
 ## Headers
 
-| Header                  | Value                                                                |
-| ----------------------- | -------------------------------------------------------------------- |
-| `Content-Type`          | `application/json`                                                   |
-| `User-Agent`            | `Altempl-Webhooks/1`                                                 |
-| `X-Altempl-Event-Id`    | `evt_<uuid>`, equal to the envelope `id`                             |
-| `X-Altempl-Event-Type`  | the envelope `type`                                                  |
-| `X-Altempl-Delivery-Id` | `dlv_<uuid>`, one per event per endpoint, stable across retries      |
-| `X-Altempl-Timestamp`   | decimal Unix seconds of **this attempt**                             |
-| `X-Altempl-Signature`   | `v1=<hex>`, or `v1=<hex-primary> v1=<hex-secondary>` during rotation |
+| Header                 | Value                                                                |
+| ---------------------- | -------------------------------------------------------------------- |
+| `Content-Type`         | `application/json`                                                   |
+| `User-Agent`           | `OpenWA-Webhooks/1`                                                  |
+| `X-Openwa-Event-Id`    | `evt_<uuid>`, equal to the envelope `id`                             |
+| `X-Openwa-Event-Type`  | the envelope `type`                                                  |
+| `X-Openwa-Delivery-Id` | `dlv_<uuid>`, one per event per endpoint, stable across retries      |
+| `X-Openwa-Timestamp`   | decimal Unix seconds of **this attempt**                             |
+| `X-Openwa-Signature`   | `v1=<hex>`, or `v1=<hex-primary> v1=<hex-secondary>` during rotation |
 
 ## Signature
 
 1. Take the secret string exactly as shown, `whsec_` prefix included, as UTF-8 bytes. No decoding.
 2. Compute `HMAC-SHA256(secret, timestamp + "." + raw_body)`, where `timestamp` is the
-   `X-Altempl-Timestamp` string and `raw_body` is the bytes received, before any JSON parsing.
+   `X-Openwa-Timestamp` string and `raw_body` is the bytes received, before any JSON parsing.
 3. Render lowercase hex and prefix `v1=`.
-4. Accept when any space-separated value in `X-Altempl-Signature` matches, compared in constant time.
+4. Accept when any space-separated value in `X-Openwa-Signature` matches, compared in constant time.
 5. Reject a timestamp more than 5 minutes from your clock, either way.
 
 Test vector: secret `whsec_test`, timestamp `1758153600`, body the exact bytes `{"a":1}` →
@@ -108,7 +108,7 @@ Go:
 
 ```go
 func Verify(secret string, h http.Header, body []byte, now time.Time) bool {
-	ts := h.Get("X-Altempl-Timestamp")
+	ts := h.Get("X-Openwa-Timestamp")
 	sec, err := strconv.ParseInt(ts, 10, 64)
 	if err != nil {
 		return false
@@ -120,7 +120,7 @@ func Verify(secret string, h http.Header, body []byte, now time.Time) bool {
 	mac.Write([]byte(ts + "."))
 	mac.Write(body)
 	want := []byte("v1=" + hex.EncodeToString(mac.Sum(nil)))
-	for _, got := range strings.Fields(h.Get("X-Altempl-Signature")) {
+	for _, got := range strings.Fields(h.Get("X-Openwa-Signature")) {
 		if hmac.Equal([]byte(got), want) {
 			return true
 		}
@@ -135,7 +135,7 @@ Node (`rawBody` is a `Buffer` of the unparsed body, e.g. from `express.raw()`):
 import crypto from "node:crypto";
 
 export function verify(secret, headers, rawBody, nowMs = Date.now()) {
-  const ts = headers["x-altempl-timestamp"] ?? "";
+  const ts = headers["x-openwa-timestamp"] ?? "";
   if (!/^\d+$/.test(ts) || Math.abs(nowMs / 1000 - Number(ts)) > 300)
     return false;
   const mac = crypto
@@ -143,7 +143,7 @@ export function verify(secret, headers, rawBody, nowMs = Date.now()) {
     .update(`${ts}.`)
     .update(rawBody);
   const want = Buffer.from(`v1=${mac.digest("hex")}`);
-  return (headers["x-altempl-signature"] ?? "").split(" ").some((sig) => {
+  return (headers["x-openwa-signature"] ?? "").split(" ").some((sig) => {
     const got = Buffer.from(sig);
     return got.length === want.length && crypto.timingSafeEqual(got, want);
   });
@@ -153,7 +153,7 @@ export function verify(secret, headers, rawBody, nowMs = Date.now()) {
 ## Delivery semantics
 
 - **At least once.** The same delivery can arrive twice (a lost 2xx, a worker lease expiry).
-- **Dedupe on `X-Altempl-Delivery-Id`.** Correlate on `X-Altempl-Event-Id`: two endpoints get one
+- **Dedupe on `X-Openwa-Delivery-Id`.** Correlate on `X-Openwa-Event-Id`: two endpoints get one
   event id and two delivery ids.
 - **Success is a 2xx only.** A 3xx is a failure: redirects are never followed. So is a timeout
   (10s) or a refused connection. The response body is ignored.
@@ -186,7 +186,7 @@ After attempt 8 the delivery is `failed` and stays in the console. Source: `outb
 
 - Rotating again during a rotation drops the old secondary; the current primary becomes the secondary.
 - A rotate or retire that races another secret change is refused with `WHK008`: reload and retry.
-- If the server's encryption key was ephemeral and the process restarted, secrets cannot be opened:
+- If the server's encryption key changed, secrets cannot be opened:
   deliveries fail with `webhook: signing secret unavailable: rotate the endpoint secret to recover` until you rotate. See [`config`](../config/README.md#encryption-at-rest).
 
 ## Versioning

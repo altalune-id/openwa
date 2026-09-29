@@ -106,11 +106,11 @@ linters:
           allow:
             - $gostd
             - github.com/google/uuid
-            - altalune.id/template/internal/platform/tenant
-            - altalune.id/template/internal/platform/events
-            - altalune.id/template/internal/apperror
-            - altalune.id/template/gen/go/apperror/v1
-            - altalune.id/template/reqid
+            - altalune.id/openwa/internal/platform/tenant
+            - altalune.id/openwa/internal/platform/events
+            - altalune.id/openwa/internal/apperror
+            - altalune.id/openwa/gen/go/apperror/v1
+            - altalune.id/openwa/reqid
             - google.golang.org/grpc/codes
         scheduler-purity:
           list-mode: strict
@@ -121,7 +121,7 @@ linters:
             - $gostd
             - go.opentelemetry.io/otel
             - github.com/robfig/cron/v3
-            - altalune.id/template/reqid
+            - altalune.id/openwa/reqid
         httpclient-purity:
           list-mode: strict
           files:
@@ -148,25 +148,25 @@ linters:
           files:
             - "**/internal/platform/**"
           deny:
-            - pkg: "altalune.id/template/internal/todo"
+            - pkg: "altalune.id/openwa/internal/todo"
               desc: "platform must not import domain packages"
-            - pkg: "altalune.id/template/internal/user"
+            - pkg: "altalune.id/openwa/internal/user"
               desc: "platform must not import domain packages"
-            - pkg: "altalune.id/template/internal/org"
+            - pkg: "altalune.id/openwa/internal/org"
               desc: "platform must not import domain packages"
-            - pkg: "altalune.id/template/internal/project"
+            - pkg: "altalune.id/openwa/internal/project"
               desc: "platform must not import domain packages"
-            - pkg: "altalune.id/template/internal/invite"
+            - pkg: "altalune.id/openwa/internal/invite"
               desc: "platform must not import domain packages"
-            - pkg: "altalune.id/template/internal/auth"
+            - pkg: "altalune.id/openwa/internal/auth"
               desc: "platform must not import domain packages"
-            - pkg: "altalune.id/template/internal/api"
+            - pkg: "altalune.id/openwa/internal/api"
               desc: "platform must not import interfaces"
-            - pkg: "altalune.id/template/internal/web"
+            - pkg: "altalune.id/openwa/internal/web"
               desc: "platform must not import interfaces"
-            - pkg: "altalune.id/template/internal/cli"
+            - pkg: "altalune.id/openwa/internal/cli"
               desc: "platform must not import interfaces"
-            - pkg: "altalune.id/template/internal/boot"
+            - pkg: "altalune.id/openwa/internal/boot"
               desc: "platform must not import boot"
         platform-boundary-root:
           list-mode: lax
@@ -184,7 +184,7 @@ linters:
             # Only the root mcp/ package is in scope here.
             - "!**/internal/mcp/**"
           deny:
-            - pkg: "altalune.id/template/internal"
+            - pkg: "altalune.id/openwa/internal"
               desc: "root-level shared packages must NOT depend on any internal/ package (import inversion)"
         mcp-purity:
           list-mode: strict
@@ -195,6 +195,14 @@ linters:
           allow:
             - $gostd
             - github.com/modelcontextprotocol/go-sdk
+        whatsmeow-purity:
+          list-mode: lax
+          files:
+            - "$all"
+            - "!**/internal/whatsapp/meow/**"
+          deny:
+            - pkg: "go.mau.fi/"
+              desc: "whatsmeow is imported only by internal/whatsapp/meow"
     forbidigo:
       forbid:
         - pattern: 'fmt\.Print(f|ln|)\('
@@ -221,7 +229,7 @@ linters:
       - path: _templ\.go
         linters:
           - all
-      - path: cmd/altempl/main\.go
+      - path: cmd/openwa/main\.go
         linters:
           - forbidigo
           - gochecknoglobals
@@ -229,6 +237,10 @@ linters:
         linters:
           - forbidigo
         text: "fmt\\.Print"
+      # NOTE: todo and blog commands are detached from the root until the device commands replace them; they stay compiled.
+      - path: internal/cli/(blog|todo|prerun)\.go
+        linters:
+          - unused
       # NOTE: -ldflags -X can only stamp package-level vars.
       - path: version/version\.go
         linters:
@@ -245,7 +257,7 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - altalune.id/template
+        - altalune.id/openwa
 
 issues:
   # 0 means no cap on reported issues.

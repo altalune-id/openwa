@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"altalune.id/template/telemetry"
+	"altalune.id/openwa/telemetry"
 )
 
 func TestConfig_Validate_Valid(t *testing.T) {

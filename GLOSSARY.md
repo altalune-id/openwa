@@ -136,7 +136,7 @@ Receiver contract: [`webhooks`](docs/webhooks/README.md).
 | endpoint       | `webhook.Endpoint`, `webhook_endpoints`    | A tenant's HTTPS URL on one project, subscribed to a set of event types. At most 10 per project.                                 |
 | delivery       | `outbox.Entry`, `webhook.Delivery`         | One event bound for one endpoint: `dlv_<outbox entry id>`. The unit receivers dedupe on and the console retries.                 |
 | attempt        | `webhook.Attempt`, `webhook_deliveries`    | One POST of a delivery, with status code, error and duration. Up to `outbox.MaxAttempts` (8) per delivery.                       |
-| signing secret | `whsec_…`, sealed in `secret_primary`      | The HMAC key for `X-Altempl-Signature`. Shown once; a rotation keeps the old one as secondary until retired.                     |
+| signing secret | `whsec_…`, sealed in `secret_primary`      | The HMAC key for `X-Openwa-Signature`. Shown once; a rotation keeps the old one as secondary until retired.                      |
 
 NOTE: the table `webhook_deliveries` holds **attempts**, one row per POST. "Delivery" always
 means the outbox row.
@@ -191,8 +191,8 @@ structurally, with no adapter and no import of `worker`.
 
 | Term        | What it is                                                                                                                                                                           |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| module path | `altalune.id/template`                                                                                                                                                               |
-| binary      | `altempl`                                                                                                                                                                            |
+| module path | `altalune.id/openwa`                                                                                                                                                                 |
+| binary      | `openwa`                                                                                                                                                                             |
 | fork        | Downstream services fork this repo and swap the domain modules. Signatures under the exported roots and `internal/platform/` are copied verbatim, so changing them costs every fork. |
 
 ## Business terms

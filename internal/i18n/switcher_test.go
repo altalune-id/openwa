@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/i18n"
+	"altalune.id/openwa/internal/i18n"
 )
 
 func TestSanitizeRedirect(t *testing.T) {

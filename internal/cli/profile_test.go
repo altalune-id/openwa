@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"altalune.id/template/internal/platform/config"
+	"altalune.id/openwa/internal/platform/config"
 )
 
 func TestURLPrecedence(t *testing.T) {
-	// --url > ALT_URL > saved profile > http.baseURL from config.
+	// --url > OPENWA_URL > saved profile > http.baseURL from config.
 	tests := []struct{ name, flag, env, profile, config, want string }{
 		{"flag wins", "https://flag.example", "https://env.example", "https://prof.example", "https://cfg.example", "https://flag.example"},
 		{"env over profile", "", "https://env.example", "https://prof.example", "https://cfg.example", "https://env.example"},
@@ -28,7 +28,7 @@ func TestURLPrecedence(t *testing.T) {
 				}
 			}
 			if tt.env != "" {
-				t.Setenv("ALT_URL", tt.env)
+				t.Setenv("OPENWA_URL", tt.env)
 			}
 
 			cfg := &config.Config{

@@ -6,25 +6,25 @@ import (
 	"strings"
 	"time"
 
-	"altalune.id/template/internal/apikey"
-	"altalune.id/template/internal/auth"
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/blog/category"
-	"altalune.id/template/internal/blog/tag"
-	"altalune.id/template/internal/invite"
-	"altalune.id/template/internal/onboard"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/password"
-	"altalune.id/template/internal/platform"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/capabilities"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/platform/tokens"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/todo"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/webhook"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/auth"
+	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/blog/category"
+	"altalune.id/openwa/internal/blog/tag"
+	"altalune.id/openwa/internal/invite"
+	"altalune.id/openwa/internal/onboard"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/password"
+	"altalune.id/openwa/internal/platform"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/capabilities"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/platform/tokens"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/todo"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/webhook"
 )
 
 const apiKeyUsageFlushInterval = 30 * time.Second
@@ -77,7 +77,7 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 	projects := project.NewService(projectStore, log, reporter.Unexpected)
 	todos := todo.NewService(todoStore, log, reporter.Unexpected, k.Queue)
 	onboards := onboard.NewService(onboardStore, log, reporter.Unexpected)
-	uow := tenant.NewUnitOfWork(cfg.DB, pool, pgConn)
+	uow := tenant.NewUnitOfWork(pgConn)
 	webhookStore := webhook.NewStore(cfg.DB, pool, pgConn)
 	webhooks := webhook.NewService(webhookStore, log, reporter.Unexpected, k.Sealer, k.Outbox, projectSlugs{svc: projects})
 	posts := blog.NewService(blog.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected, uow, webhooks)

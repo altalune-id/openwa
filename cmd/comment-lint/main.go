@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	"altalune.id/template/cmd/comment-lint/internal/comments"
+	"altalune.id/openwa/cmd/comment-lint/internal/comments"
 )
 
 func main() {

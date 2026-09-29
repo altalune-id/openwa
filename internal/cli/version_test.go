@@ -18,8 +18,8 @@ func TestVersion_TextOutput(t *testing.T) {
 	if err := root.ExecuteContext(context.Background()); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	if !strings.Contains(buf.String(), "altempl") {
-		t.Errorf("expected altempl in output, got %q", buf.String())
+	if !strings.Contains(buf.String(), "openwa") {
+		t.Errorf("expected openwa in output, got %q", buf.String())
 	}
 }
 

@@ -8,14 +8,26 @@ Defined in `internal/platform/authn/scope.go`, one `catalog` row per scope with 
 
 ## Catalog
 
-| Scope           | Level   | Grants                                 |
-| --------------- | ------- | -------------------------------------- |
-| `posts:read`    | project | Read posts and todos; list projects    |
-| `posts:write`   | project | Create, update, publish, unpublish     |
-| `posts:admin`   | project | Delete a post or todo                  |
-| `apikeys:read`  | project | List keys; `Whoami`                    |
-| `apikeys:write` | project | **Retired.** Validates, grants nothing |
-| `members:read`  | org     | List the org's members (`member_list`) |
+| Scope            | Level   | Grants                                 |
+| ---------------- | ------- | -------------------------------------- |
+| `posts:read`     | project | Read posts and todos                   |
+| `posts:write`    | project | Create, update, publish, unpublish     |
+| `posts:admin`    | project | Delete a post or todo                  |
+| `apikeys:read`   | project | List keys; `Whoami`                    |
+| `apikeys:write`  | project | **Retired.** Validates, grants nothing |
+| `members:read`   | org     | List the org's members (`member_list`) |
+| `projects:read`  | project | List projects (`project_list`)         |
+| `devices:read`   | project | Read devices                           |
+| `devices:write`  | project | Manage devices                         |
+| `messages:read`  | project | Read messages                          |
+| `messages:write` | project | Send messages                          |
+| `chats:read`     | project | Read chats                             |
+| `chats:write`    | project | Manage chats and groups                |
+| `contacts:read`  | project | Read contacts                          |
+
+Pre-release exception (2026-09): `project_list` and `ListProjects` moved from `posts:read` to
+`projects:read` before any key was minted. This is the only non-additive change in the catalog's
+history besides retiring `apikeys:write` (retired, not removed).
 
 - **Levels.** A `project` scope acts on data inside the projects a key reaches. An `org` scope acts
   on the org itself. A project key refuses an org scope (`APK003`); an org key may hold one; a
@@ -26,9 +38,6 @@ Defined in `internal/platform/authn/scope.go`, one `catalog` row per scope with 
 - **No implication.** `posts:admin` does not grant `posts:write`. The check is
   `slices.Contains`. A key needing read + delete holds both strings.
 - **`posts:*` spans `blog` and `todo`.** A fork splitting them adds its own strings.
-- **`project_list` rides on `posts:read`** rather than a `projects:read` of its own. A new scope
-  string obliges every operator to extend an external authorization server's catalog and re-attach
-  the client before project discovery works at all.
 
 ## Enforcement
 

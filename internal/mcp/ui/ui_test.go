@@ -164,7 +164,7 @@ func TestVendorMatchesPinnedDigest(t *testing.T) {
 }
 
 func TestResourceURIMatchesBufPrefix(t *testing.T) {
-	const want = "ui://altempl/app"
+	const want = "ui://openwa/app"
 	if ResourceURI != want {
 		t.Errorf("ResourceURI = %q, want %q — it must match buf.gen.yaml's ui_prefix plus the proto's ui name", ResourceURI, want)
 	}
@@ -187,7 +187,7 @@ func TestScriptPartsLoadTheirDependenciesFirst(t *testing.T) {
 			}
 		}
 	}
-	for _, after := range []string{"src/app.js", "src/views/blog_list.js"} {
+	for _, after := range []string{"src/app.js", "src/views/project_list.js"} {
 		if slices.Index(scriptParts, after) < slices.Index(scriptParts, "src/lit.js") {
 			t.Errorf("%s loads before src/lit.js", after)
 		}

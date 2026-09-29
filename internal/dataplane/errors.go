@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"altalune.id/template/internal/blog"
+	"altalune.id/openwa/internal/blog"
 )
 
 // NotFoundError is the single opaque "does not exist" outcome for an unresolvable scope, a missing resource or a denied authorization.

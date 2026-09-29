@@ -12,11 +12,11 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/outbox"
-	"altalune.id/template/internal/platform/queue"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/user"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/outbox"
+	"altalune.id/openwa/internal/platform/queue"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/user"
 )
 
 type stubConsumerProvider struct{}

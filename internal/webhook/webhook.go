@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/platform/events"
+	"altalune.id/openwa/internal/platform/events"
 )
 
 // MaxEndpointsPerProject bounds the fan-out of one event.

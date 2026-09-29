@@ -17,12 +17,11 @@ The file set, the layering rules and the anti-patterns are the contract:
 
 1. `.agents/skills/altalune-go-convention/scripts/scaffold.sh <name>` copies `internal/todo/` and
    renames the package, type and identifiers. A starting point, not a finished module.
-2. Migrations: `schema/migrations/postgres/NNN_<name>.sql` **and** the SQLite mirror. Bump both
-   `VERSION` files — the dialects are pinned independently. RLS block per
+2. Migrations: `schema/migrations/postgres/NNN_<name>.sql`. Bump the `VERSION` file. RLS block per
    [`multitenancy`](../multitenancy/README.md#adding-a-tenant-scoped-table).
 3. `make tenant-tables`, then confirm the table appears in `schema/tenant_tables_gen.go`.
-4. Jet bindings, hand-written, one per dialect:
-   `internal/platform/db/entity/{postgres,sqlite}/<table>.go`. Copy `entity/postgres/orgs.go`.
+4. Jet bindings, hand-written, one per table:
+   `internal/platform/db/entity/postgres/<table>.go`. Copy `entity/postgres/orgs.go`.
 5. Error codes: constants in `internal/apperror/codes.go` **and** rows in
    [`error codes`](../errors/README.md). `TestCodes_EveryRefIsDocumented` checks both directions.
 6. Domain files — `<name>.go`, `store.go`, `errors.go`, `service.go`, `factory.go`. Shape and
@@ -33,7 +32,7 @@ The file set, the layering rules and the anti-patterns are the contract:
 9. Pick the surfaces. Every route belongs to exactly one — [`surfaces`](../surfaces/README.md).
 10. Extend the `domain-purity` file globs in `.golangci.yaml` if the domain file names differ from
     `<name>.go` / `store.go` / `errors.go`.
-11. `make check`, then `make test-integration`, then
+11. `make check`, then
     `.agents/skills/altalune-go-convention/scripts/verify.sh`.
 
 ## Tenancy

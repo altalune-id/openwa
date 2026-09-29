@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/user"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/user"
 )
 
 func TestNotFoundError_Error(t *testing.T) {

@@ -5,9 +5,9 @@ import (
 	"slices"
 	"sync"
 
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/platform/db"
-	"altalune.id/template/internal/platform/events"
+	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/platform/db"
+	"altalune.id/openwa/internal/platform/events"
 )
 
 var _ blog.Webhooks = (*Webhooks)(nil)

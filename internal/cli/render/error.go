@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"altalune.id/template/internal/apperror"
+	"altalune.id/openwa/internal/apperror"
 )
 
 // Error writes appErr to w: multi-line human under text; single-line "error" envelope under json/ndjson.

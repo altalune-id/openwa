@@ -17,15 +17,15 @@ import (
 	"github.com/google/uuid"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"altalune.id/template/internal/apikey"
-	"altalune.id/template/internal/apperror"
-	mcpinternal "altalune.id/template/internal/mcp"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tokens"
-	"altalune.id/template/internal/testutil/fakes"
-	rootmcp "altalune.id/template/mcp"
-	"altalune.id/template/reqid"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/apperror"
+	mcpinternal "altalune.id/openwa/internal/mcp"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tokens"
+	"altalune.id/openwa/internal/testutil/fakes"
+	rootmcp "altalune.id/openwa/mcp"
+	"altalune.id/openwa/reqid"
 )
 
 const (

@@ -1,43 +1,33 @@
-.PHONY: help build test test-race test-cover vet fmt check generate templ-normalize templ-normalize-check buf migrate docker clean install-tools lint dev test-integration test-all comment-check comment-list ui-vendor ui-verify ui-vendor-check mcp-ui-vendor
+.PHONY: help build test test-race test-cover vet fmt check generate templ-normalize templ-normalize-check buf migrate docker clean install-tools lint dev test-integration comment-check comment-list ui-vendor ui-verify ui-vendor-check mcp-ui-vendor
 
 GO      ?= go
-BIN     := bin/altempl
-INTEGRATION_TIMEOUT  ?= 30m
+BIN     := bin/openwa
 VERSION := $(shell cat version/VERSION 2>/dev/null || echo dev)
 COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD   := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -s -w \
-	-X altalune.id/template/version.Version=$(VERSION) \
-	-X altalune.id/template/version.Commit=$(COMMIT) \
-	-X altalune.id/template/version.BuildTime=$(BUILD)
+	-X altalune.id/openwa/version.Version=$(VERSION) \
+	-X altalune.id/openwa/version.Commit=$(COMMIT) \
+	-X altalune.id/openwa/version.BuildTime=$(BUILD)
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-16s %s\n", $$1, $$2}'
 
-build: generate ## Build the altempl binary into bin/
-	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/altempl
+build: generate ## Build the openwa binary into bin/
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/openwa
 
-test: ## Run unit tests (fast; no external services)
-	$(GO) test ./...
+test: ## Run every test on Postgres (TEST_PG_DSN from `make compose-up`, or Docker with postgres:17-alpine)
+	@# NOTE: -p 1 under a shared TEST_PG_DSN stays until two parallel CI runs prove pgtest.CreateRole removed the catalog race (tracker item).
+	$(GO) test $$([ -n "$$TEST_PG_DSN" ] && echo -p 1) ./...
 
-test-race: ## Run unit tests with -race
-	$(GO) test -race ./...
+test-race: ## Run every test with -race
+	$(GO) test -race $$([ -n "$$TEST_PG_DSN" ] && echo -p 1) ./...
 
-test-cover: ## Run tests with coverage report
-	$(GO) test -cover ./...
+test-cover: ## Coverage report with a 70% total gate
+	$(GO) test -race -coverprofile=coverage.out -covermode=atomic $$([ -n "$$TEST_PG_DSN" ] && echo -p 1) ./...
+	@bash scripts/coverage-gate.sh coverage.out 70
 
-test-integration: ## Run integration tests. Uses TEST_PG_DSN if set, else spins ephemeral Postgres via testcontainers (docker or podman socket required).
-	@if [ -n "$$TEST_PG_DSN" ]; then \
-		echo "→ using TEST_PG_DSN=$$TEST_PG_DSN (-p 1: packages share one cluster)"; \
-	else \
-		echo "→ TEST_PG_DSN unset — testcontainers will spin ephemeral Postgres (needs docker/podman socket)"; \
-	fi
-	@# NOTE: -p 1 under a shared TEST_PG_DSN — parallel packages racing CREATE/DROP ROLE on one
-	@# cluster fail cleanup with "tuple concurrently updated". Own-container runs have no such contention.
-	$(GO) test -race -tags integration -timeout $(INTEGRATION_TIMEOUT) \
-		$$([ -n "$$TEST_PG_DSN" ] && echo -p 1) ./...
-
-test-all: test test-integration ## Unit + integration
+test-integration: test ## Alias kept for one release; every test is a Postgres test now
 
 vet: ## Run go vet
 	$(GO) vet ./...
@@ -119,12 +109,12 @@ icons-add: ## Add a Lucide icon: make icons-add NAME=trash-2
 	@curl -fsSL -o internal/web/icons/svg/$(NAME).svg "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/$(NAME).svg" && echo "  added $(NAME)"
 
 migrate: ## Run pending migrations against the configured DB
-	$(GO) run ./cmd/altempl migrate up
+	$(GO) run ./cmd/openwa migrate up
 
 docker: ## Build the docker image
-	docker build --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) --build-arg BUILD_TIME=$(BUILD) -t altempl:dev .
+	docker build --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) --build-arg BUILD_TIME=$(BUILD) -t openwa:dev .
 
-compose-up: ## Start local dev stack (postgres + mailpit + altempl) via compose.yaml
+compose-up: ## Start local dev stack (postgres + mailpit + openwa) via compose.yaml
 	@mkdir -p docker/data/pg
 	@if command -v docker >/dev/null 2>&1; then docker compose up -d --build; \
 	elif command -v podman-compose >/dev/null 2>&1; then podman-compose up -d --build; \

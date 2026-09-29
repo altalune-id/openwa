@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"testing"
 
-	"altalune.id/template/slug"
+	"altalune.id/openwa/slug"
 )
 
 var shape = regexp.MustCompile(`^[a-z]{3,8}-[a-z]{3,8}-[1-9][0-9]{3}$`)

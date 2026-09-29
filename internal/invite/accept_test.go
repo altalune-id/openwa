@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/invite"
-	"altalune.id/template/internal/testutil/fakes"
+	"altalune.id/openwa/internal/invite"
+	"altalune.id/openwa/internal/testutil/fakes"
 )
 
 type fakeUsers struct {

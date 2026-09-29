@@ -39,8 +39,8 @@ factory, one field on `Kernel`.
 | `config.go`             | If cfg-driven         | `Config` + defaults, `Validate()` when non-trivial |
 | `errors.go`             | If ≥ 1 typed error    | Typed structs + `Is<TypeName>` + `ToAppError`      |
 | `options.go`            | If functional options | `type Option func(*settings)` + `With*` builders   |
-| `factory.go`            | If > 1 backend        | `New…` dispatching on `cfg.Driver` / `cfg.Kind`    |
-| `<backend>.go` + test   | Per backend           | `postgres.go`, `sqlite.go`, `memory.go`            |
+| `factory.go`            | If > 1 backend        | `New…` choosing among backends by `cfg.Kind`       |
+| `<backend>.go` + test   | Per backend           | `postgres.go`, `memory.go`                         |
 
 ## Conventions
 
@@ -58,7 +58,7 @@ factory, one field on `Kernel`.
 
 - Each cfg-driven package owns its `Config` in `config.go`; `internal/platform/config.Config`
   embeds them.
-- **Env binding is automatic** from the yaml path — `http.baseURL` ← `ALT_HTTP_BASE_URL`, walked by
+- **Env binding is automatic** from the yaml path — `http.baseURL` ← `OPENWA_HTTP_BASE_URL`, walked by
   `BindEnv` in `internal/platform/config/`.
 - **Every field carries an `awareness:"..."` tag** (`required`/`bootstrap`/`secret`/`mode:<x>`).
 - `make config-examples` regenerates `.env.example` and `config.example.yaml`; CI fails on drift.
@@ -99,7 +99,7 @@ one errgroup and returns the first non-nil error.
 
 | Choose          | When                                                                                                                                           |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| scheduler `Job` | At most one replica does the work per tick, or an operator triggers it by name (`altempl scheduler run <job>`)                                 |
+| scheduler `Job` | At most one replica does the work per tick, or an operator triggers it by name (`openwa scheduler run <job>`)                                  |
 | `worker.Worker` | Every replica needs its own result (per-process state, a health snapshot), or per-tick failures must not reach the scheduler's `ErrorReporter` |
 
 ## Import boundary
@@ -109,7 +109,7 @@ depguard in `.golangci.yaml` is the source of truth.
 | Rule                     | Scope                                                                             | Effect                                                                 |
 | ------------------------ | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | `platform-boundary`      | `internal/platform/**`                                                            | Denies `internal/{todo,user,org,project,invite,auth,api,web,cli,boot}` |
-| `platform-boundary-root` | `authl/ httpclient/ logger/ mailer/ mcp/ nanoid/ reqid/ slug/ telemetry/ worker/` | Denies all of `altalune.id/template/internal`                          |
+| `platform-boundary-root` | `authl/ httpclient/ logger/ mailer/ mcp/ nanoid/ reqid/ slug/ telemetry/ worker/` | Denies all of `altalune.id/openwa/internal`                            |
 | `mcp-purity`             | root `mcp/` only                                                                  | Allows only stdlib + the MCP Go SDK                                    |
 | `scheduler-purity`       | `scheduler/`                                                                      | stdlib, otel, `robfig/cron/v3`, `reqid`                                |
 | `httpclient-purity`      | `httpclient/`                                                                     | stdlib, `resty/v2`, `otelhttp`                                         |
@@ -120,13 +120,14 @@ A platform package MAY import stdlib, the third-party library its adapter needs,
 
 ## Adapters
 
-One port, several backends, one factory. Reference: `internal/platform/session/`.
+One port, a Postgres backend and, where a test or a dev run needs one, an in-memory backend.
+Reference: `internal/platform/session/`.
 
-- `session.go` declares `type Store`; `factory.go` switches on `cfg.Driver`; `memory.go`,
-  `postgres.go` and `sqlite.go` implement it.
+- `session.go` declares `type Store`; `factory.go` builds the Postgres store; `memory.go` and
+  `postgres.go` implement it.
 - **One contract suite, run against every backend** — `store_contract_test.go` exports
-  `runStoreContract(t, newStore func(t *testing.T) session.Store)`, called once per backend (memory
-  there, plus `sqlite_test.go` and `postgres_integration_test.go`).
+  `runStoreContract(t, newStore func(t *testing.T) session.Store)`, called once per backend
+  (`memory_test.go` and `postgres_test.go`).
 - A divergence between backends is a bug or a documented difference, never a second suite.
 
 ## Shape variants
@@ -159,7 +160,7 @@ Every primitive is one field on `platform.Kernel` (`internal/platform/platform.g
 
 ```mermaid
 flowchart TB
-  SIG["SIGTERM / SIGINT"] --> M["cmd/altempl/main.go<br/>signal.NotifyContext cancels the root ctx"]
+  SIG["SIGTERM / SIGINT"] --> M["cmd/openwa/main.go<br/>signal.NotifyContext cancels the root ctx"]
   M --> SUP["Supervisor.Run returns<br/>worker.HTTP drains in 10s; every other worker exits on ctx.Done()"]
   SUP --> R["internal/cli/serve.go RunE returns — deferred s.Close() fires"]
   R --> C["boot.Server.Close()<br/>shutdownOTel flushes spans + metrics, then Kernel.Close runs the closers in reverse"]

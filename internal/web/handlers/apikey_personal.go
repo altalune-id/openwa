@@ -3,10 +3,10 @@ package handlers
 import (
 	"net/http"
 
-	"altalune.id/template/internal/apikey"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/templates"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/templates"
 )
 
 // GetPersonalTokens renders the caller's personal access tokens across every org they belong to.

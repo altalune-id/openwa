@@ -1,13 +1,13 @@
 package controlplane
 
 import (
-	apikeyv1connect "altalune.id/template/gen/go/apikey/v1/apikeyv1connect"
-	authv1connect "altalune.id/template/gen/go/auth/v1/authv1connect"
-	blogv1connect "altalune.id/template/gen/go/blog/v1/blogv1connect"
-	orgv1connect "altalune.id/template/gen/go/org/v1/orgv1connect"
-	projectv1connect "altalune.id/template/gen/go/project/v1/projectv1connect"
-	todov1connect "altalune.id/template/gen/go/todo/v1/todov1connect"
-	"altalune.id/template/internal/platform/authn"
+	apikeyv1connect "altalune.id/openwa/gen/go/apikey/v1/apikeyv1connect"
+	authv1connect "altalune.id/openwa/gen/go/auth/v1/authv1connect"
+	blogv1connect "altalune.id/openwa/gen/go/blog/v1/blogv1connect"
+	orgv1connect "altalune.id/openwa/gen/go/org/v1/orgv1connect"
+	projectv1connect "altalune.id/openwa/gen/go/project/v1/projectv1connect"
+	todov1connect "altalune.id/openwa/gen/go/todo/v1/todov1connect"
+	"altalune.id/openwa/internal/platform/authn"
 )
 
 // ScopeTable declares the scope a key principal must hold for every mounted procedure. SECURITY: a procedure missing from this map is denied to key principals, not admitted.
@@ -23,7 +23,7 @@ func ScopeTable() authn.ScopeTable {
 		blogv1connect.BlogServicePublishPostProcedure:        authn.ScopePostsWrite,
 		blogv1connect.BlogServiceUnpublishPostProcedure:      authn.ScopePostsWrite,
 		blogv1connect.BlogServiceDeletePostProcedure:         authn.ScopePostsAdmin,
-		projectv1connect.ProjectServiceListProjectsProcedure: authn.ScopePostsRead,
+		projectv1connect.ProjectServiceListProjectsProcedure: authn.ScopeProjectsRead,
 		orgv1connect.MemberServiceListMembersProcedure:       authn.ScopeMembersRead,
 		todov1connect.TodoServiceListProcedure:               authn.ScopePostsRead,
 		todov1connect.TodoServiceCreateProcedure:             authn.ScopePostsWrite,

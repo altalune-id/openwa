@@ -480,8 +480,8 @@ const file_apikey_v1_apikey_proto_rawDesc = "" +
 	"\rAPIKeyService\x127\n" +
 	"\x04List\x12\x16.apikey.v1.ListRequest\x1a\x17.apikey.v1.ListResponse\x12=\n" +
 	"\x06Create\x12\x18.apikey.v1.CreateRequest\x1a\x19.apikey.v1.CreateResponse\x12=\n" +
-	"\x06Revoke\x12\x18.apikey.v1.RevokeRequest\x1a\x19.apikey.v1.RevokeResponseB\x91\x01\n" +
-	"\rcom.apikey.v1B\vApikeyProtoP\x01Z.altalune.id/template/gen/go/apikey/v1;apikeyv1\xa2\x02\x03AXX\xaa\x02\tApikey.V1\xca\x02\tApikey\\V1\xe2\x02\x15Apikey\\V1\\GPBMetadata\xea\x02\n" +
+	"\x06Revoke\x12\x18.apikey.v1.RevokeRequest\x1a\x19.apikey.v1.RevokeResponseB\x8f\x01\n" +
+	"\rcom.apikey.v1B\vApikeyProtoP\x01Z,altalune.id/openwa/gen/go/apikey/v1;apikeyv1\xa2\x02\x03AXX\xaa\x02\tApikey.V1\xca\x02\tApikey\\V1\xe2\x02\x15Apikey\\V1\\GPBMetadata\xea\x02\n" +
 	"Apikey::V1b\x06proto3"
 
 var (

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/boot"
+	"altalune.id/openwa/internal/boot"
 )
 
 func statusOf(t *testing.T, h http.Handler, path string) int {

@@ -98,7 +98,7 @@ For a large sweep, give each package to a subagent with this file as its instruc
 - Tutorial or example code whose comments are the point.
 - A public library whose godoc is its main documentation — still aim for one sentence.
 
-## In altempl
+## In openwa
 
 `make comment-check` (`cmd/comment-lint`) is the gate — **Go files only**; `make comment-list`
 lists violations without failing. Rules: `multiline-doc` (any second content line, markers

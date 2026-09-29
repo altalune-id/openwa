@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/web/middleware"
+	"altalune.id/openwa/internal/web/middleware"
 )
 
 func serveWithCSP(t *testing.T, opts middleware.CSPOptions) (*httptest.ResponseRecorder, string) {

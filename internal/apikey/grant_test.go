@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/apikey"
-	"altalune.id/template/internal/platform/authn"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/platform/authn"
 )
 
 func mintOrg(t *testing.T, grant apikey.ProjectGrant) *apikey.APIKey {

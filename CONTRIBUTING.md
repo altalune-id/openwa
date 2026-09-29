@@ -1,4 +1,4 @@
-# Contributing to altempl
+# Contributing to openwa
 
 ## Workflow
 
@@ -27,26 +27,27 @@ verbatim into forks, so signature changes here are expensive to propagate.
 ## Testing
 
 ```bash
-make test               # unit (fast, no external deps)
-make test-race          # unit + -race (also run by `make check`)
-make test-cover         # unit + coverage summary
-make test-integration   # integration (ephemeral PG via testcontainers, or TEST_PG_DSN)
-make test-all           # both
+make test               # every test, on Postgres
+make test-race          # every test with -race (also run by `make check`)
+make test-cover         # -race + coverage, fails below 70% total
+make test-integration   # alias of `make test`
 ```
 
-Integration tests carry `//go:build integration`, so `go test ./...` never
-touches them. Bare `make test-integration` spins ephemeral Postgres through
-`pgtest.New(t)` and needs a docker or podman socket; set `TEST_PG_DSN` to
-reuse a running cluster instead, which is faster:
+There is one tier of tests and all of it runs on Postgres. `pgtest.New(t)` uses
+`TEST_PG_DSN` when set (the DSN user needs `CREATEDB`; every test gets its own
+schema) and otherwise starts a `postgres:17-alpine` container through
+testcontainers, which needs a docker or podman socket. A shared DSN is much
+faster:
 
 ```bash
-TEST_PG_DSN='postgres://altempl:altempl@localhost:5432/altempl_test?sslmode=disable' \
-    make test-integration
+TEST_PG_DSN='postgres://openwa:openwa@localhost:5432/openwa_test?sslmode=disable' \
+    make test
 ```
 
-Integration tests live beside their unit counterparts
-(`postgres_integration_test.go` next to `postgres.go`); the full per-module
-file set is [`modules`](docs/modules/README.md).
+Podman users export `TESTCONTAINERS_RYUK_DISABLED=true`.
+
+Store tests live beside the store (`postgres_test.go` next to `postgres.go`);
+the full per-module file set is [`modules`](docs/modules/README.md).
 
 ## Releasing
 

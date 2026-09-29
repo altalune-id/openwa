@@ -10,13 +10,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/platform/events"
-	"altalune.id/template/internal/platform/outbox"
-	"altalune.id/template/internal/platform/sealer"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/templates"
-	"altalune.id/template/internal/webhook"
+	"altalune.id/openwa/internal/platform/events"
+	"altalune.id/openwa/internal/platform/outbox"
+	"altalune.id/openwa/internal/platform/sealer"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/templates"
+	"altalune.id/openwa/internal/webhook"
 )
 
 // WebhookHandler owns the project-scoped outbound webhook console pages.

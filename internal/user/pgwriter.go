@@ -9,7 +9,7 @@ import (
 	"github.com/go-jet/jet/v2/postgres"
 	"github.com/google/uuid"
 
-	pgent "altalune.id/template/internal/platform/db/entity/postgres"
+	pgent "altalune.id/openwa/internal/platform/db/entity/postgres"
 )
 
 func (s *postgresStore) Save(ctx context.Context, u *User) error {

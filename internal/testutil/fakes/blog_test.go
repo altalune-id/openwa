@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/testutil/fakes"
+	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/testutil/fakes"
 )
 
 // TestBlogSaveMatchesTheRealStoresVersionContract pins the fake to the version contract both real stores hold.

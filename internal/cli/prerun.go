@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"altalune.id/template/internal/controlplane"
-	"altalune.id/template/internal/platform/config"
+	"altalune.id/openwa/internal/controlplane"
+	"altalune.id/openwa/internal/platform/config"
 )
 
 func withCfg(cmd *cobra.Command) (*config.Config, error) {

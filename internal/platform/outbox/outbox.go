@@ -1,4 +1,4 @@
-// Package outbox is the durable at-least-once delivery queue that outbound dispatch claims from, with Postgres as the multi-node adapter and SQLite as the single-node development one.
+// Package outbox is the durable, tenant-scoped delivery queue on Postgres.
 package outbox
 
 import (

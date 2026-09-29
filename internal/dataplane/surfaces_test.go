@@ -10,14 +10,14 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/controlplane"
-	"altalune.id/template/internal/dataplane"
-	"altalune.id/template/internal/platform/surfaces"
+	"altalune.id/openwa/internal/controlplane"
+	"altalune.id/openwa/internal/dataplane"
+	"altalune.id/openwa/internal/platform/surfaces"
 )
 
 // TestOneVerbOnePlane enforces R1: a verb lives on exactly one machine plane, S2 or S3.
 func TestOneVerbOnePlane(t *testing.T) {
-	allowed := map[string]bool{"blog": true}
+	allowed := map[string]bool{"blog": true, "device": true, "message": true, "chat": true, "contact": true}
 
 	seen := map[surfaces.Verb]string{}
 	for _, v := range controlplane.Verbs() {
@@ -40,7 +40,7 @@ func TestOneVerbOnePlane(t *testing.T) {
 			}
 			t.Errorf("R1: a verb lives on exactly one machine plane, but %+v is registered on "+
 				"both the %s plane and the data plane. Either drop one, or add %q to the "+
-				"allowlist in this test and say why in ../../docs/surfaces/README.md.", v, plane, v.Module)
+				"allowlist in this test and say why in ../../docs/surfaces/plane-rules.md.", v, plane, v.Module)
 		})
 	}
 }

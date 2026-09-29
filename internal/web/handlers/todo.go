@@ -6,10 +6,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/todo"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/templates"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/todo"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/templates"
 )
 
 // TodoHandler wraps the projects/todos services for the org-scoped todo routes.
@@ -24,60 +24,13 @@ func NewTodoHandler(d Deps, projects *project.Service, todos *todo.Service) *Tod
 	return &TodoHandler{Deps: d, Todos: todos}
 }
 
-func (h *TodoHandler) remember(sc ProjectScope) {
-	if sc.principal.ActiveOrgID == sc.org.ID && sc.principal.ActiveProjectID == sc.project.ID {
-		return
-	}
-	updated := sc.principal
-	updated.ActiveOrgID = sc.org.ID
-	updated.ActiveProjectID = sc.project.ID
-	if err := h.UpdateSession(sc.req, sc.sid, updated); err != nil {
-		h.LogErr("web todo: update session", err)
-	}
-}
-
-// GetOverview renders the project overview page.
-func (h *TodoHandler) GetOverview(w http.ResponseWriter, r *http.Request) {
-	sc, ok := h.RequireProject(w, r)
-	if !ok {
-		return
-	}
-	h.remember(sc)
-	items, err := h.Todos.List(sc.req.Context(), todo.ListOpts{})
-	if err != nil {
-		h.LogErr("web overview: list", err)
-		h.ErrorPage(w, sc.req, http.StatusInternalServerError, "Load failed", "Could not load project overview.", err)
-		return
-	}
-	var open, done int
-	for _, t := range items {
-		if t.Done {
-			done++
-		} else {
-			open++
-		}
-	}
-	Render(w, sc.req, templates.OverviewLayout(
-		h.LayoutForProject(sc.req, "Overview · "+sc.project.Name, sc.org.Slug, sc.project, "overview"),
-		templates.OverviewView{
-			OrgSlug:     sc.org.Slug,
-			ProjectID:   sc.project.ID.String(),
-			ProjectSlug: sc.project.Slug,
-			ProjectName: sc.project.Name,
-			TotalTodos:  len(items),
-			OpenTodos:   open,
-			DoneTodos:   done,
-		},
-	))
-}
-
 // GetTodos renders the full page.
 func (h *TodoHandler) GetTodos(w http.ResponseWriter, r *http.Request) {
 	sc, ok := h.RequireProject(w, r)
 	if !ok {
 		return
 	}
-	h.remember(sc)
+	h.rememberProject(sc)
 	items, err := h.Todos.List(sc.req.Context(), todo.ListOpts{})
 	if err != nil {
 		h.LogErr("web todo: list", err)
@@ -192,7 +145,6 @@ func (h *TodoHandler) writeListFragment(w http.ResponseWriter, sc ProjectScope) 
 
 // Register wires the todo routes onto mux.
 func (h *TodoHandler) Register(mux web.Mux) {
-	mux.HandleFunc("GET /orgs/{org}/projects/{project}/overview", h.GetOverview)
 	mux.HandleFunc("GET /orgs/{org}/projects/{project}/todos", h.GetTodos)
 	mux.HandleFunc("POST /orgs/{org}/projects/{project}/todos", h.PostCreate)
 	mux.HandleFunc("POST /orgs/{org}/projects/{project}/todos/clear", h.PostClear)

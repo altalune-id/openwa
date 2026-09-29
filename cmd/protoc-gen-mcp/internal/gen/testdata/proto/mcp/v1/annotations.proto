@@ -4,7 +4,7 @@ package mcp.v1;
 
 import "google/protobuf/descriptor.proto";
 
-option go_package = "altalune.id/template/gen/go/mcp/v1;mcpv1";
+option go_package = "altalune.id/openwa/gen/go/mcp/v1;mcpv1";
 
 extend google.protobuf.MethodOptions {
   Tool tool = 51001;

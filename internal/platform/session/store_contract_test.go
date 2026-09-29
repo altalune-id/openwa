@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 // NOTE: newPrincipal is a seam because sessions.user_id has a foreign key to users: a hardcoded Principal{} (uuid.Nil) fails with SQLSTATE 23503 on the Postgres backend.

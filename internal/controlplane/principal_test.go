@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 func TestPrincipal(t *testing.T) {

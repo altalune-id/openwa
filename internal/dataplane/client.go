@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"altalune.id/template/httpclient"
+	"altalune.id/openwa/httpclient"
 )
 
 // ClientMountPath is the path S3 is mounted under, appended to the instance base URL.
@@ -74,7 +74,7 @@ type Client struct {
 	http    *http.Client
 }
 
-// NewClient returns a Client for the altempl instance at baseURL, authenticating with apiKey.
+// NewClient returns a Client for the openwa instance at baseURL, authenticating with apiKey.
 func NewClient(baseURL, apiKey string) *Client {
 	return &Client{
 		baseURL: strings.TrimRight(baseURL, "/"),

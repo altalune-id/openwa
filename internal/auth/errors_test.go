@@ -7,8 +7,8 @@ import (
 
 	"google.golang.org/grpc/codes"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/auth"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/auth"
 )
 
 func TestInvalidCredentialsError(t *testing.T) {

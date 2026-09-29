@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"altalune.id/template/internal/boot"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/user"
+	"altalune.id/openwa/internal/boot"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/user"
 )
 
 func TestBoot_Bootstrap_UnclaimedGenesisSeedsNothing(t *testing.T) {

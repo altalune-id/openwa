@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package openwatest.v1;
+
+option go_package = "altalune.id/openwa/cmd/protoc-gen-mcp/internal/gen/testdata/gen/openwatest/v1;openwatestv1";
+
+service PlainService {
+  rpc Plain(PlainRequest) returns (PlainResponse);
+}
+
+message PlainRequest {}
+
+message PlainResponse {}

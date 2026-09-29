@@ -5,7 +5,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"altalune.id/template/internal/apperror"
+	"altalune.id/openwa/internal/apperror"
 )
 
 func TestTruncateCause(t *testing.T) {

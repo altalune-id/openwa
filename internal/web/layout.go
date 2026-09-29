@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strings"
 
-	"altalune.id/template/internal/i18n"
-	"altalune.id/template/internal/platform/capabilities"
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/i18n"
+	"altalune.id/openwa/internal/platform/capabilities"
+	"altalune.id/openwa/internal/platform/session"
 
 	"github.com/a-h/templ"
 )
@@ -104,6 +104,8 @@ func (d LayoutData) Tr(key string, args ...any) string {
 	}
 	return d.Translator.T(key, args...)
 }
+
+//i18n:use dashboard.projects_count
 
 // TrN returns the pluralized translation with Count auto-injected, with extra args as key/value pairs.
 func (d LayoutData) TrN(key string, n int, args ...any) string {

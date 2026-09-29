@@ -1,23 +1,20 @@
 #!/usr/bin/env bash
 # Run the module gates in dependency order, explaining each failure.
 #
-#   scripts/verify.sh                 unit gates; regenerates and gofmt -w's files
+#   scripts/verify.sh                 gates; regenerates and gofmt -w's files
 #   scripts/verify.sh --check         read-only: never writes a file (use during review)
-#   scripts/verify.sh --integration   also run the Postgres suite (combines with --check)
 #
-# TEST_PG_DSN should point at a throwaway database. Without it every pgtest.New
-# starts its own container and the suite takes ~25 minutes instead of ~2.
+# Every test runs on Postgres. TEST_PG_DSN should point at a throwaway database;
+# without it each pgtest.New starts its own container.
 set -uo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 cd "$root" || exit 1
 fail=0
 readonly_mode=0
-integration=0
 for a in "$@"; do
   case "$a" in
     --check) readonly_mode=1 ;;
-    --integration) integration=1 ;;
     *) printf 'unknown flag: %s\n' "$a" >&2; exit 2 ;;
   esac
 done
@@ -43,7 +40,7 @@ if [ "$readonly_mode" -eq 1 ]; then
   fi
   if ! { make vet && make test-race; } >/tmp/altalune-go-convention-check.log 2>&1; then
     tail -20 /tmp/altalune-go-convention-check.log
-    why "a failing unit test or vet. Full log: /tmp/altalune-go-convention-check.log"
+    why "a failing test or vet. Full log: /tmp/altalune-go-convention-check.log"
   fi
 else
   step "generated code is current"
@@ -55,10 +52,10 @@ else
     git diff --stat -- schema/tenant_tables_gen.go .env.example config.example.yaml
   fi
 
-  step "make check (fmt + vet + unit tests)"
+  step "make check (fmt + vet + race tests)"
   if ! make check >/tmp/altalune-go-convention-check.log 2>&1; then
     tail -20 /tmp/altalune-go-convention-check.log
-    why "a failing unit test, or gofmt/vet. Full log: /tmp/altalune-go-convention-check.log"
+    why "a failing test, or gofmt/vet. Full log: /tmp/altalune-go-convention-check.log"
   fi
 fi
 
@@ -103,17 +100,6 @@ step "comment discipline"
 if ! make comment-check >/tmp/altalune-go-convention-comments.log 2>&1; then
   tail -10 /tmp/altalune-go-convention-comments.log
   why "rationale prose in a comment — keep godoc one-liners and SECURITY/NOTE/TODO markers only"
-fi
-
-if [ "$integration" -eq 1 ]; then
-  step "integration suite"
-  if [ -z "${TEST_PG_DSN:-}" ]; then
-    printf '    TEST_PG_DSN unset — this will start a container per pgtest.New and take ~25 min\n'
-  fi
-  if ! make test-integration >/tmp/altalune-go-convention-integration.log 2>&1; then
-    grep -E "^(FAIL|--- FAIL)" /tmp/altalune-go-convention-integration.log | head -10
-    why "full log: /tmp/altalune-go-convention-integration.log"
-  fi
 fi
 
 printf '\n'

@@ -8,7 +8,6 @@
 #   errors.go     typed domain errors
 #   factory.go    NewStoreFactory dispatch
 #   postgres.go   Postgres implementation
-#   sqlite.go     SQLite implementation
 #
 # `auth` is stateless (delegates to `user` store) so it has no store/factory/
 # driver files -- exempted below.
@@ -20,7 +19,7 @@ fail=0
 declare -a missing_notes
 
 # List of modules that follow the full store-backed shape.
-STORE_BACKED=(todo user org project invite)
+STORE_BACKED=(todo user org project invite apikey blog onboard webhook)
 
 # Modules exempt from store-backed conventions.
 STATELESS=(auth)
@@ -37,18 +36,14 @@ check_file() {
 check_store_backed() {
     local mod="$1"
     local local_fail=0
-    for f in "${mod}.go" store.go service.go errors.go factory.go postgres.go sqlite.go; do
+    for f in "${mod}.go" store.go service.go errors.go factory.go postgres.go; do
         check_file "$mod" "$f" || local_fail=1
     done
-    # Test files -- at minimum a service_test.go and a driver test.
+    # Test files -- at minimum a service_test.go and postgres_test.go.
     for f in service_test.go; do
         check_file "$mod" "$f" || local_fail=1
     done
-    # One of sqlite_test.go or postgres_integration_test.go is required.
-    if [ ! -f "internal/${mod}/sqlite_test.go" ] && [ ! -f "internal/${mod}/postgres_integration_test.go" ]; then
-        missing_notes+=("internal/${mod}/{sqlite_test.go,postgres_integration_test.go} both missing")
-        local_fail=1
-    fi
+    check_file "$mod" postgres_test.go || local_fail=1
     return "$local_fail"
 }
 
@@ -86,5 +81,5 @@ if [ "$fail" -ne 0 ]; then
     exit 1
 fi
 
-echo "OK: every module under internal/{todo,user,org,project,invite,auth}/ has its canonical file set"
+echo "OK: every module under internal/{todo,user,org,project,invite,apikey,blog,onboard,webhook,auth}/ has its canonical file set"
 exit 0

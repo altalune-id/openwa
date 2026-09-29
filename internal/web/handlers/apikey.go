@@ -10,12 +10,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/apikey"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/templates"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/templates"
 )
 
 // APIKeyHandler owns the project, org and personal API key console pages.

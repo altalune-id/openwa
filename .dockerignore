@@ -19,9 +19,6 @@ out/
 docs/superpowers/
 
 # Local dev artifacts
-*.db
-*.db-journal
-*.sqlite
 .env
 .env.local
 docker/data/

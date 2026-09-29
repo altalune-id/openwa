@@ -10,30 +10,26 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"altalune.id/template/internal/apikey"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/auth"
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/blog/category"
-	blogtag "altalune.id/template/internal/blog/tag"
-	"altalune.id/template/internal/controlplane"
-	"altalune.id/template/internal/dataplane"
-	i18npkg "altalune.id/template/internal/i18n"
-	"altalune.id/template/internal/ingest"
-	"altalune.id/template/internal/invite"
-	"altalune.id/template/internal/onboard"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform"
-	"altalune.id/template/internal/platform/capabilities"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/todo"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/web"
-	webhandlers "altalune.id/template/internal/web/handlers"
-	webmw "altalune.id/template/internal/web/middleware"
-	"altalune.id/template/internal/webhook"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/auth"
+	"altalune.id/openwa/internal/controlplane"
+	"altalune.id/openwa/internal/dataplane"
+	i18npkg "altalune.id/openwa/internal/i18n"
+	"altalune.id/openwa/internal/ingest"
+	"altalune.id/openwa/internal/invite"
+	"altalune.id/openwa/internal/onboard"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform"
+	"altalune.id/openwa/internal/platform/capabilities"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/web"
+	webhandlers "altalune.id/openwa/internal/web/handlers"
+	webmw "altalune.id/openwa/internal/web/middleware"
+	"altalune.id/openwa/internal/webhook"
 )
 
 func buildAPIHandler(cfg *config.Config, k *platform.Kernel, s *Services) (*controlplane.Server, http.Handler) {
@@ -82,12 +78,8 @@ func buildWebHandler(
 	users *user.Service,
 	orgs *org.Service,
 	projects *project.Service,
-	todos *todo.Service,
 	invites *invite.Service,
 	onboards *onboard.Service,
-	posts *blog.Service,
-	cats *category.Service,
-	tags *blogtag.Service,
 	apiKeys *apikey.Service,
 	webhooks *webhook.Service,
 	required *atomic.Bool,
@@ -110,8 +102,7 @@ func buildWebHandler(
 	homeHandler := webhandlers.NewHomeHandler(deps, orgs, projects)
 	orgHandler := webhandlers.NewOrgHandler(deps, orgs)
 	projectHandler := webhandlers.NewProjectHandler(deps, projects)
-	todoHandler := webhandlers.NewTodoHandler(deps, projects, todos)
-	blogHandler := webhandlers.NewBlogHandler(deps, projects, posts, cats, tags)
+	overviewHandler := webhandlers.NewProjectOverviewHandler(deps, projects)
 	apiKeyHandler := webhandlers.NewAPIKeyHandler(deps, projects, apiKeys)
 	webhookHandler := webhandlers.NewWebhookHandler(deps, projects, webhooks)
 	inviteHandler := webhandlers.NewInviteHandler(deps, orgs, invites)
@@ -126,7 +117,7 @@ func buildWebHandler(
 		BasePath: cfg.HTTP.BasePath,
 		HealthOK: healthOK,
 		AppHandlers: []web.Register{
-			authHandler, onboardingHandler, onboardHandler, homeHandler, orgHandler, projectHandler, todoHandler, blogHandler, apiKeyHandler, webhookHandler, inviteHandler, localeHandler, welcomeHandler, signupHandler, legalHandler,
+			authHandler, onboardingHandler, onboardHandler, homeHandler, orgHandler, projectHandler, overviewHandler, apiKeyHandler, webhookHandler, inviteHandler, localeHandler, welcomeHandler, signupHandler, legalHandler,
 		},
 		APIHandler:         apiHandler,
 		DataHandler:        dataHandler,

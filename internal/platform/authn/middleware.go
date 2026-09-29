@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"slices"
 
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 // RequireScope rejects a request whose principal lacks scope.

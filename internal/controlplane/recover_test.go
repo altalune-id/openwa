@@ -12,13 +12,13 @@ import (
 
 	"connectrpc.com/connect"
 
-	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
-	authv1 "altalune.id/template/gen/go/auth/v1"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tokens"
+	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	authv1 "altalune.id/openwa/gen/go/auth/v1"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tokens"
 )
 
 type recoverTestSink struct {

@@ -10,7 +10,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"altalune.id/template/mcp"
+	"altalune.id/openwa/mcp"
 )
 
 // NOTE: mirrors the append-only registry shape in internal/apperror/codes.go.

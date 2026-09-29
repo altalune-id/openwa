@@ -4,13 +4,13 @@ import (
 	"maps"
 	"slices"
 
-	apikeyv1connect "altalune.id/template/gen/go/apikey/v1/apikeyv1connect"
-	authv1connect "altalune.id/template/gen/go/auth/v1/authv1connect"
-	blogv1connect "altalune.id/template/gen/go/blog/v1/blogv1connect"
-	orgv1connect "altalune.id/template/gen/go/org/v1/orgv1connect"
-	projectv1connect "altalune.id/template/gen/go/project/v1/projectv1connect"
-	todov1connect "altalune.id/template/gen/go/todo/v1/todov1connect"
-	"altalune.id/template/internal/platform/surfaces"
+	apikeyv1connect "altalune.id/openwa/gen/go/apikey/v1/apikeyv1connect"
+	authv1connect "altalune.id/openwa/gen/go/auth/v1/authv1connect"
+	blogv1connect "altalune.id/openwa/gen/go/blog/v1/blogv1connect"
+	orgv1connect "altalune.id/openwa/gen/go/org/v1/orgv1connect"
+	projectv1connect "altalune.id/openwa/gen/go/project/v1/projectv1connect"
+	todov1connect "altalune.id/openwa/gen/go/todo/v1/todov1connect"
+	"altalune.id/openwa/internal/platform/surfaces"
 )
 
 // VerbTable names the domain verb every mounted procedure exposes, keyed by procedure path.

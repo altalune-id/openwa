@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/middleware"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/middleware"
 )
 
 func TestSession_LoadsPrincipal(t *testing.T) {

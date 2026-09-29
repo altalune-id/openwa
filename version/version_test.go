@@ -49,3 +49,24 @@ func TestDefault_PrefersLdflagsStamp(t *testing.T) {
 		t.Errorf("Default() = %q, want ldflags value", got)
 	}
 }
+
+func TestTriple(t *testing.T) {
+	tests := []struct {
+		in   string
+		want [3]uint32
+	}{
+		{"v1.2.3", [3]uint32{1, 2, 3}},
+		{"0.1.0-dev", [3]uint32{0, 1, 0}},
+		{"garbage", [3]uint32{0, 0, 0}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			orig := Version
+			t.Cleanup(func() { Version = orig })
+			Version = tt.in
+			if got := Triple(); got != tt.want {
+				t.Fatalf("Triple() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

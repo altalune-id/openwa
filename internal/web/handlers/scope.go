@@ -5,10 +5,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/project"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/project"
 )
 
 // OrgScope is the org an org-scoped route acts on, with a request already carrying the tenant scope.
@@ -84,4 +84,16 @@ func (d Deps) RequireProject(w http.ResponseWriter, r *http.Request) (ProjectSco
 		return ProjectScope{}, false
 	}
 	return ProjectScope{principal: sc.principal, sid: sc.sid, org: sc.org, project: proj, req: req}, true
+}
+
+func (d Deps) rememberProject(sc ProjectScope) {
+	if sc.principal.ActiveOrgID == sc.org.ID && sc.principal.ActiveProjectID == sc.project.ID {
+		return
+	}
+	updated := sc.principal
+	updated.ActiveOrgID = sc.org.ID
+	updated.ActiveProjectID = sc.project.ID
+	if err := d.UpdateSession(sc.req, sc.sid, updated); err != nil {
+		d.LogErr("web project: update session", err)
+	}
 }

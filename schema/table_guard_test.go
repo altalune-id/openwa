@@ -4,37 +4,24 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io"
-	"log/slog"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
-	pcfg "altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/db"
+	pcfg "altalune.id/openwa/internal/platform/config"
 )
 
-func migratedSQLite(t *testing.T) (*sql.DB, *pcfg.Config) {
+func migratedPostgres(t *testing.T) (*sql.DB, *pcfg.Config) {
 	t.Helper()
-	cfg := pcfg.Defaults()
-	cfg.DB.Driver = db.DriverSQLite
-	cfg.DB.DSN = filepath.Join(t.TempDir(), "altempl.db")
-
-	conn, err := db.Open(t.Context(), cfg.DB, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	t.Cleanup(func() { _ = conn.Close() })
-
+	conn, cfg := pgMigrationEnv(t)
 	if err := MigrateUp(t.Context(), conn, cfg); err != nil {
 		t.Fatalf("MigrateUp: %v", err)
 	}
 	return conn, cfg
 }
 
-func TestAssertRequiredTables_SQLiteMigratedDatabaseIsComplete(t *testing.T) {
-	conn, cfg := migratedSQLite(t)
+func TestAssertRequiredTables_MigratedDatabaseIsComplete(t *testing.T) {
+	conn, cfg := migratedPostgres(t)
 
 	if len(RequiredTableSuffixes) == 0 {
 		t.Fatal("RequiredTableSuffixes is empty; the guard would pass vacuously")
@@ -44,11 +31,11 @@ func TestAssertRequiredTables_SQLiteMigratedDatabaseIsComplete(t *testing.T) {
 	}
 }
 
-func TestAssertRequiredTables_SQLiteMissingTableIsStale(t *testing.T) {
-	conn, cfg := migratedSQLite(t)
+func TestAssertRequiredTables_MissingTableIsStale(t *testing.T) {
+	conn, cfg := migratedPostgres(t)
 	missing := cfg.DB.TablePrefix + "sessions"
 
-	if _, err := conn.ExecContext(t.Context(), `DROP TABLE `+missing); err != nil {
+	if _, err := conn.ExecContext(t.Context(), `DROP TABLE `+missing+` CASCADE`); err != nil {
 		t.Fatalf("drop %s: %v", missing, err)
 	}
 
@@ -72,7 +59,7 @@ func TestAssertRequiredTables_SQLiteMissingTableIsStale(t *testing.T) {
 }
 
 func TestAssertRequiredTables_HonoursTablePrefix(t *testing.T) {
-	conn, cfg := migratedSQLite(t)
+	conn, cfg := migratedPostgres(t)
 	cfg.DB.TablePrefix = "other_"
 
 	err := AssertRequiredTables(t.Context(), conn, &cfg.DB)
@@ -99,11 +86,11 @@ func TestAssertRequiredTables_NilConfig(t *testing.T) {
 	}
 }
 
-// TestExistingTables_EmptyWant pins the SQLite placeholder builder against a negative strings.Repeat count.
+// TestExistingTables_EmptyWant pins the empty-want short circuit.
 func TestExistingTables_EmptyWant(t *testing.T) {
-	conn, _ := migratedSQLite(t)
+	conn, _ := migratedPostgres(t)
 
-	present, err := existingTables(t.Context(), conn, db.DriverSQLite, nil)
+	present, err := existingTables(t.Context(), conn, nil)
 	if err != nil {
 		t.Fatalf("existingTables with no wanted tables: %v", err)
 	}

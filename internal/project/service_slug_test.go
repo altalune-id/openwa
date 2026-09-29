@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/testutil/fakes"
-	"altalune.id/template/slug"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/testutil/fakes"
+	"altalune.id/openwa/slug"
 )
 
 func TestNew_AcceptsGeneratedSlugs(t *testing.T) {

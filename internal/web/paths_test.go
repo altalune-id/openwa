@@ -3,7 +3,7 @@ package web_test
 import (
 	"testing"
 
-	"altalune.id/template/internal/web"
+	"altalune.id/openwa/internal/web"
 )
 
 func TestPath(t *testing.T) {

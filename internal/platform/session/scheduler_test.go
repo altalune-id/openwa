@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/scheduler"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/scheduler"
 )
 
 type sweepStore struct {

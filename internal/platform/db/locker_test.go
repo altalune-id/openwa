@@ -1,39 +1,70 @@
 package db_test
 
 import (
+	"io"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/platform/db"
+	"altalune.id/openwa/internal/platform/db"
+	"altalune.id/openwa/internal/testutil/pgtest"
 )
 
-func TestNoopLocker_AlwaysAcquires(t *testing.T) {
-	release, acquired, err := db.NoopLocker{}.TryLock(t.Context(), "any")
-	require.NoError(t, err)
-	require.True(t, acquired)
-	require.NotNil(t, release)
-	release()
-}
-
-func TestNewLocker_DispatchesByDriver(t *testing.T) {
-	tests := []struct {
-		name   string
-		driver db.Driver
-		want   any
-	}{
-		{"sqlite gets noop", db.DriverSQLite, db.NoopLocker{}},
-		{"postgres gets pg", db.DriverPostgres, &db.PgLocker{}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := db.NewLocker(db.DBConfig{Driver: tt.driver}, db.Pool{}, nil)
-			require.IsType(t, tt.want, got)
-		})
-	}
+func TestNewLocker_ReturnsPgLocker(t *testing.T) {
+	var _ = db.NewLocker(db.Pool{}, nil)
 }
 
 func TestLockKey_IsStableAndDistinct(t *testing.T) {
 	require.Equal(t, db.LockKey("todo-autocomplete-stale"), db.LockKey("todo-autocomplete-stale"))
 	require.NotEqual(t, db.LockKey("a"), db.LockKey("b"))
+}
+
+func TestPgLocker_SecondAcquireIsRefusedThenSucceedsAfterRelease(t *testing.T) {
+	h := pgtest.New(t)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	// Distinct pools so each holds its own backend session, as two replicas would.
+	poolA, err := db.OpenPool(t.Context(), db.DBConfig{DSN: h.DSN}, log)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = poolA.Close() })
+	poolB, err := db.OpenPool(t.Context(), db.DBConfig{DSN: h.DSN}, log)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = poolB.Close() })
+
+	a := db.NewPgLocker(poolA, log)
+	b := db.NewPgLocker(poolB, log)
+
+	release, acquired, err := a.TryLock(t.Context(), "contended-job")
+	require.NoError(t, err)
+	require.True(t, acquired)
+
+	_, acquiredB, err := b.TryLock(t.Context(), "contended-job")
+	require.NoError(t, err)
+	require.False(t, acquiredB, "a second process must not acquire a held lock")
+
+	release()
+
+	releaseB, acquiredB2, err := b.TryLock(t.Context(), "contended-job")
+	require.NoError(t, err)
+	require.True(t, acquiredB2, "the lock must be available after release")
+	releaseB()
+}
+
+func TestPgLocker_DifferentJobsDoNotContend(t *testing.T) {
+	h := pgtest.New(t)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pool, err := db.OpenPool(t.Context(), db.DBConfig{DSN: h.DSN}, log)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pool.Close() })
+
+	l := db.NewPgLocker(pool, log)
+	r1, ok1, err := l.TryLock(t.Context(), "job-one")
+	require.NoError(t, err)
+	require.True(t, ok1)
+	r2, ok2, err := l.TryLock(t.Context(), "job-two")
+	require.NoError(t, err)
+	require.True(t, ok2)
+	r1()
+	r2()
 }

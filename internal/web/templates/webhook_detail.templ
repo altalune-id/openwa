@@ -3,8 +3,8 @@ package templates
 import (
 	"strconv"
 
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/icons"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
 )
 
 // WebhookSecretMask is what the detail page shows in place of a signing secret after its one-time reveal.
@@ -352,7 +352,6 @@ templ WebhookDetailPage(d web.LayoutData, v WebhookDetailView) {
 				@webhookEventBadges(d, v.Endpoint.EventLabelKeys)
 			</p>
 		</header>
-		@webhookEphemeralBanner(d)
 		if v.Secret != "" {
 			@webhookSecretBanner(d, v.Secret)
 		}

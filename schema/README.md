@@ -1,18 +1,16 @@
 # schema
 
-Embedded goose migrations for Postgres and SQLite, the runtime migrator, the
+Embedded goose Postgres migrations, the runtime migrator, the
 RLS boot-time guard, and the tenant-table registry consumed by `tenant.PgConn`.
 
 Migrations are `.sql` templates rendered with `{{.Schema}}`, `{{.TablePrefix}}`,
-and `{{.Role}}` before goose applies them. Both dialects satisfy the same
-domain interfaces — SQLite is dev/demo, Postgres is production.
+and `{{.Role}}` before goose applies them. Postgres is the only database.
 
 ## Layout
 
 ```
 schema/
 ├── migrations/postgres/    # 001_init … 014_org_api_keys, VERSION
-├── migrations/sqlite/      # 001_init … 011_org_api_keys, VERSION
 ├── migrator.go             # goose runner, template rendering, embed FS
 ├── migrator_templatefs.go  # per-boot template-rendered file system
 ├── rls_guard.go            # boot-time BYPASSRLS assertion
@@ -20,8 +18,7 @@ schema/
 └── tenant_tables_gen.go    # generated from RLS migrations (make tenant-tables)
 ```
 
-The two dialects number independently — SQLite has no RLS or definer
-migrations — so each `VERSION` pins its own highest `NNN`.
+`VERSION` pins the highest `NNN`.
 
 `TenantTableSuffixes` (in `tenant_tables_gen.go`) drives RLS policy
 enforcement — every table in this list carries `org_id` and gets
@@ -86,7 +83,7 @@ Also tenant-scoped: `blog_categories`, `blog_tags`, `outbox_entries`, `bootstrap
   `created_by` is its owner. `api_keys_kind_shape` refuses any other mix.
 - **A grant row cannot cross orgs.** Both foreign keys on `api_key_projects`
   are composite, `(org_id, key_id)` and `(org_id, project_id)`. RLS only
-  checks the row's own `org_id`, and SQLite has no RLS at all.
+  checks the row's own `org_id`.
 - **Grants only widen.** The domain has no verb that removes a project; moving to
   all projects deletes the named rows in the same write.
 - **New keys expire within a year** (`apikey.MaxLifetime`). `expires_at` may be
@@ -110,19 +107,13 @@ pinned by `TestMigrateUp_DefinerFunctionsAreOwnedByTheMigrationRole`.
 
 ## Adding a migration
 
-1. Add `NNN_<name>.sql` under `migrations/postgres/` and
-   `migrations/sqlite/`, each at its own next number. Use goose
-   `-- +goose Up` / `-- +goose Down` markers and `{{.Schema}}` /
+1. Add `NNN_<name>.sql` under `migrations/postgres/` at the next number.
+   Use goose `-- +goose Up` / `-- +goose Down` markers and `{{.Schema}}` /
    `{{.TablePrefix}}` template variables.
-2. Bump `VERSION` in each dialect to its highest `NNN`.
+2. Bump `VERSION` to the highest `NNN`.
 3. If the new table carries `org_id`, add its RLS policy in the Postgres
    migration and run `make tenant-tables` to regenerate the registry.
 4. A join table between tenant rows takes composite `(org_id, …)` foreign
    keys, so a row cannot pair one org's parent with another org's child.
 5. If the migration must run as owner (DDL), prefix the block with
    `{{if .Role}}SET ROLE {{.Role}};{{end}}`.
-6. SQLite cannot alter a column, so a change there rebuilds the table
-   (`<t>_new`, copy, drop, rename). **Dropping the old table fires every
-   child's `ON DELETE` action**. Save and restore those links, as
-   `011_org_api_keys.sql` does for `todos.created_by_key_id`, and cover it
-   with a migration test that runs with `foreign_keys(1)`.

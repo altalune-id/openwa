@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Store is the driven port. Adapters (postgres.go, sqlite.go, fakes.Invite) implement it.
+// Store is the driven port. Adapters (postgres.go, fakes.Invite) implement it.
 type Store interface {
 	Save(ctx context.Context, i *Invite) error
 	ByID(ctx context.Context, id uuid.UUID) (*Invite, error)

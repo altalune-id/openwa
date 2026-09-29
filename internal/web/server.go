@@ -8,8 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 //go:embed all:static

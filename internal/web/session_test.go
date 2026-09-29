@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/web"
+	"altalune.id/openwa/internal/web"
 )
 
 func TestSignVerifyCookie_Roundtrip(t *testing.T) {

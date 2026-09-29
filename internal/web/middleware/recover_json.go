@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"altalune.id/template/internal/apperror"
+	"altalune.id/openwa/internal/apperror"
 )
 
 // SECURITY: a machine surface must never fall back to the SSR error page, and the body carries no detail beyond "internal".

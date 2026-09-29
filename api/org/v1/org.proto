@@ -5,7 +5,7 @@ package org.v1;
 import "google/protobuf/timestamp.proto";
 import "mcp/v1/annotations.proto";
 
-option go_package = "altalune.id/template/gen/go/org/v1;orgv1";
+option go_package = "altalune.id/openwa/gen/go/org/v1;orgv1";
 
 service MemberService {
   rpc ListMembers(ListMembersRequest) returns (ListMembersResponse) {

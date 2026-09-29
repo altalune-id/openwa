@@ -8,10 +8,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/boot"
-	mcpinternal "altalune.id/template/internal/mcp"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/tokens"
+	"altalune.id/openwa/internal/boot"
+	mcpinternal "altalune.id/openwa/internal/mcp"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/tokens"
 )
 
 const challengeToken = "tok_boot_challenge"

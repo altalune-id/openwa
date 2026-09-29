@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/tenant"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 // SECURITY: RequireManager is the one owner/admin gate every surface asks, so each denial must be the same typed error.

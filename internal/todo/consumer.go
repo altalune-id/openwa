@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/platform/queue"
+	"altalune.id/openwa/internal/platform/queue"
 )
 
 // Consumer adapts *Service to queue.Provider.

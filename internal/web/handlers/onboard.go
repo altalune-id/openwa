@@ -12,16 +12,16 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/onboard"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/templates"
-	slugs "altalune.id/template/slug"
+	"altalune.id/openwa/internal/onboard"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/templates"
+	slugs "altalune.id/openwa/slug"
 )
 
 const (
@@ -30,7 +30,7 @@ const (
 )
 
 // SetupCookieName carries the /onboard setup token across the OIDC round-trip.
-const SetupCookieName = "altempl_setup"
+const SetupCookieName = "openwa_setup"
 
 const setupCookieTTL = 30 * time.Minute
 

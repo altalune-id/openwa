@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 // Sessions is a session.Store that delegates to Store and fails Save with SaveErr when set.

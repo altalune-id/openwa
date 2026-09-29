@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/apperror"
+	"altalune.id/openwa/internal/apperror"
 )
 
 func TestFormatEmailBody_UserValueCannotForgeReportLines(t *testing.T) {

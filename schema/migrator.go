@@ -14,20 +14,17 @@ import (
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/database"
 
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/db"
+	"altalune.id/openwa/internal/platform/config"
 )
 
-//go:embed migrations/sqlite/VERSION migrations/postgres/VERSION migrations/sqlite/*.sql migrations/postgres/*.sql
+//go:embed migrations/postgres/VERSION migrations/postgres/*.sql
 var migrationsFS embed.FS
 
-// TargetVersion reads migrations/<driver>/VERSION and returns the pinned goose target for that driver. Each dialect pins independently since postgres and sqlite may have different migration counts.
-func TargetVersion(driver db.Driver) (int64, error) {
-	_, dir, err := gooseDialect(driver)
-	if err != nil {
-		return 0, err
-	}
-	path := dir + "/VERSION"
+const migrationsDir = "migrations/postgres"
+
+// TargetVersion reads migrations/postgres/VERSION and returns the pinned goose target.
+func TargetVersion() (int64, error) {
+	const path = migrationsDir + "/VERSION"
 	b, err := fs.ReadFile(migrationsFS, path)
 	if err != nil {
 		return 0, fmt.Errorf("migrator: read %s: %w — pin the target migration version (a single integer, one line)", path, err)
@@ -46,48 +43,30 @@ func TargetVersion(driver db.Driver) (int64, error) {
 	return v, nil
 }
 
-func gooseDialect(d db.Driver) (database.Dialect, string, error) {
-	switch d {
-	case db.DriverSQLite:
-		return database.DialectSQLite3, "migrations/sqlite", nil
-	case db.DriverPostgres:
-		return database.DialectPostgres, "migrations/postgres", nil
-	default:
-		return "", "", fmt.Errorf("migrator: unknown driver %q", d)
-	}
-}
-
 func migrationsBookkeepingTable(cfg *config.Config) string {
-	if cfg.DB.Driver == db.DriverPostgres {
-		return cfg.DB.TablePrefix + "goose_db_version"
-	}
-	return "altempl_goose_db_version"
+	return cfg.DB.TablePrefix + "goose_db_version"
 }
 
 func migrationProvider(sqldb *sql.DB, cfg *config.Config) (*goose.Provider, error) {
-	dbDialect, dir, err := gooseDialect(cfg.DB.Driver)
+	sub, err := fs.Sub(migrationsFS, migrationsDir)
 	if err != nil {
-		return nil, err
-	}
-	sub, err := fs.Sub(migrationsFS, dir)
-	if err != nil {
-		return nil, fmt.Errorf("migrator: sub-fs %s: %w", dir, err)
+		return nil, fmt.Errorf("migrator: sub-fs %s: %w", migrationsDir, err)
 	}
 	tpl := newTemplatedFS(sub, templateVars{
 		Schema:      cfg.DB.Schema,
 		TablePrefix: cfg.DB.TablePrefix,
 		RLSEnforce:  cfg.Tenant.RLSEnforce,
 	})
-	store, err := database.NewStore(dbDialect, migrationsBookkeepingTable(cfg))
+	store, err := database.NewStore(database.DialectPostgres, migrationsBookkeepingTable(cfg))
 	if err != nil {
 		return nil, fmt.Errorf("migrator: store: %w", err)
 	}
 	return goose.NewProvider("", sqldb, tpl, goose.WithStore(store))
 }
 
-// MigrateUp applies pending migrations up to the version pinned in migrations/<driver>/VERSION. Newer migration files sitting beyond the pinned version are ignored.
+// MigrateUp applies pending migrations up to the version pinned in migrations/postgres/VERSION. Newer migration files sitting beyond the pinned version are ignored.
 func MigrateUp(ctx context.Context, sqldb *sql.DB, cfg *config.Config) error {
-	target, err := TargetVersion(cfg.DB.Driver)
+	target, err := TargetVersion()
 	if err != nil {
 		return err
 	}
@@ -142,3 +121,6 @@ func MigrateDownTo(ctx context.Context, sqldb *sql.DB, cfg *config.Config, versi
 	}
 	return nil
 }
+
+// MigrationsFS returns the embedded migration files.
+func MigrationsFS() fs.FS { return migrationsFS }

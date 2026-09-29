@@ -5,7 +5,7 @@
 package projectv1connect
 
 import (
-	v1 "altalune.id/template/gen/go/project/v1"
+	v1 "altalune.id/openwa/gen/go/project/v1"
 	connect "connectrpc.com/connect"
 	context "context"
 	errors "errors"

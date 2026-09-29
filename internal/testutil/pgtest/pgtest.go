@@ -1,6 +1,4 @@
-//go:build integration
-
-// Package pgtest spins up ephemeral Postgres via testcontainers for integration tests.
+// Package pgtest provides a Postgres handle for tests.
 package pgtest
 
 import (
@@ -20,7 +18,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"altalune.id/template/nanoid"
+	"altalune.id/openwa/nanoid"
 )
 
 const (
@@ -51,23 +49,22 @@ func (h *Handle) Close() error {
 	return h.container.Terminate(ctx)
 }
 
-// New returns a fresh Postgres for the test, reusing TEST_PG_DSN when that is set. NOTE: Ryuk cannot boot on macOS+podman (https://golang.testcontainers.org/system_requirements/using_podman/), so containers are labelled and stale ones swept here.
+// New returns a fresh Postgres for the test, reusing TEST_PG_DSN when that is set. NOTE: the environment decides TESTCONTAINERS_RYUK_DISABLED; with Ryuk off the label sweep below is the reaper.
 func New(t *testing.T) *Handle {
 	t.Helper()
 	if dsn := os.Getenv(envDSN); dsn != "" {
 		return &Handle{DSN: dsn, Schema: uniqueSchema(t)}
 	}
 
-	t.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
 	sweepOnce.Do(func() { sweepStale(t) })
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
 	c, err := postgres.Run(ctx, "postgres:17-alpine",
-		postgres.WithDatabase("altempl_test"),
-		postgres.WithUsername("altempl"),
-		postgres.WithPassword("altempl"),
+		postgres.WithDatabase("openwa_test"),
+		postgres.WithUsername("openwa"),
+		postgres.WithPassword("openwa"),
 		testcontainers.WithLabels(map[string]string{labelOwner: "true"}),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
@@ -76,7 +73,7 @@ func New(t *testing.T) *Handle {
 		),
 	)
 	if err != nil {
-		t.Skipf("pgtest: cannot start Postgres container (need docker or podman socket): %v", err)
+		t.Fatalf("pgtest: cannot start Postgres (set TEST_PG_DSN, e.g. from `make compose-up`, or provide a Docker/podman socket with postgres:17-alpine pulled; podman users export TESTCONTAINERS_RYUK_DISABLED=true): %v", err)
 		return nil
 	}
 
@@ -141,9 +138,28 @@ func DSNWithUser(t *testing.T, baseDSN, user, pass string) string {
 	return u.String()
 }
 
+// SearchPathDSN creates the handle's schema and returns a DSN whose search_path is pinned to it, for callers that open their own pool.
+func (h *Handle) SearchPathDSN(t *testing.T) string {
+	t.Helper()
+	_ = h.OpenDB(t)
+	u, err := url.Parse(h.DSN)
+	if err != nil {
+		t.Fatalf("pgtest: parse DSN %q: %v", h.DSN, err)
+	}
+	q := u.Query()
+	q.Set("search_path", h.Schema)
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
 // OpenDB returns a *sql.DB whose search_path is pinned to the handle's own schema, dropped when the test ends. NOTE: isolating per handle instead of resetting the public schema is what lets packages run in parallel against one shared TEST_PG_DSN.
 func (h *Handle) OpenDB(t *testing.T) *sql.DB {
 	t.Helper()
+	if h.Schema == "public" {
+		sqlDB := openRaw(t, h.DSN)
+		t.Cleanup(func() { _ = sqlDB.Close() })
+		return sqlDB
+	}
 	if h.Schema == "" {
 		h.Schema = uniqueSchema(t)
 	}

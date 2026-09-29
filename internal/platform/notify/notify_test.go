@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/mailer"
+	"altalune.id/openwa/mailer"
 )
 
 type noopMailer struct{}

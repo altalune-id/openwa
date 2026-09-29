@@ -8,14 +8,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
-	blogv1 "altalune.id/template/gen/go/blog/v1"
-	projectv1 "altalune.id/template/gen/go/project/v1"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/blog/category"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/project"
+	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	blogv1 "altalune.id/openwa/gen/go/blog/v1"
+	projectv1 "altalune.id/openwa/gen/go/project/v1"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/blog/category"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/project"
 )
 
 type discoveryFixture struct {

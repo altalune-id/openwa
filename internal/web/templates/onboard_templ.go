@@ -11,7 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"net/url"
 
-	"altalune.id/template/internal/web"
+	"altalune.id/openwa/internal/web"
 )
 
 type OnboardView struct {
@@ -964,7 +964,7 @@ func slugEditScript(nonce string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "\">\n\tif (!window.altemplSlugEditBound) {\n\twindow.altemplSlugEditBound = true;\n\tdocument.addEventListener('click', function(e) {\n\t\tif (!e.target || !e.target.closest) return;\n\t\tvar btn = e.target.closest('[data-slug-edit]');\n\t\tif (!btn) return;\n\t\tvar input = document.getElementById(btn.getAttribute('data-slug-edit'));\n\t\tif (!input) return;\n\t\tinput.readOnly = false;\n\t\tinput.classList.remove('bg-muted/50', 'text-muted-foreground');\n\t\tinput.classList.add('bg-card', 'text-foreground');\n\t\tbtn.hidden = true;\n\t\tvar hint = document.getElementById(input.id + '-hint');\n\t\tif (hint) hint.hidden = true;\n\t\tinput.removeAttribute('aria-describedby');\n\t\tinput.focus();\n\t\tinput.select();\n\t});\n\t}\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "\">\n\tif (!window.openwaSlugEditBound) {\n\twindow.openwaSlugEditBound = true;\n\tdocument.addEventListener('click', function(e) {\n\t\tif (!e.target || !e.target.closest) return;\n\t\tvar btn = e.target.closest('[data-slug-edit]');\n\t\tif (!btn) return;\n\t\tvar input = document.getElementById(btn.getAttribute('data-slug-edit'));\n\t\tif (!input) return;\n\t\tinput.readOnly = false;\n\t\tinput.classList.remove('bg-muted/50', 'text-muted-foreground');\n\t\tinput.classList.add('bg-card', 'text-foreground');\n\t\tbtn.hidden = true;\n\t\tvar hint = document.getElementById(input.id + '-hint');\n\t\tif (hint) hint.hidden = true;\n\t\tinput.removeAttribute('aria-describedby');\n\t\tinput.focus();\n\t\tinput.select();\n\t});\n\t}\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

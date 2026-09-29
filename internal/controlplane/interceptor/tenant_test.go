@@ -7,9 +7,9 @@ import (
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/controlplane/interceptor"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
+	"altalune.id/openwa/internal/controlplane/interceptor"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 func TestTenant_ExtractsFromPrincipal(t *testing.T) {

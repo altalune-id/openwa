@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/httpclient"
+	"altalune.id/openwa/httpclient"
 )
 
 func TestNewResty_Defaults(t *testing.T) {

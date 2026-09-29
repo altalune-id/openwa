@@ -8,9 +8,9 @@ import (
 
 	"connectrpc.com/connect"
 
-	authv1connect "altalune.id/template/gen/go/auth/v1/authv1connect"
-	blogv1connect "altalune.id/template/gen/go/blog/v1/blogv1connect"
-	todov1connect "altalune.id/template/gen/go/todo/v1/todov1connect"
+	authv1connect "altalune.id/openwa/gen/go/auth/v1/authv1connect"
+	blogv1connect "altalune.id/openwa/gen/go/blog/v1/blogv1connect"
+	todov1connect "altalune.id/openwa/gen/go/todo/v1/todov1connect"
 )
 
 // DefaultClientTimeout is applied to the http.Client used by NewClient.

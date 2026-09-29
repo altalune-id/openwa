@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/mailer"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/mailer"
 )
 
 const (

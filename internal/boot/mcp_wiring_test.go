@@ -10,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/controlplane"
-	rootmcp "altalune.id/template/mcp"
+	"altalune.id/openwa/internal/controlplane"
+	rootmcp "altalune.id/openwa/mcp"
 )
 
 var (
@@ -39,6 +39,11 @@ func TestEveryAnnotatedProtoToolIsRegistered(t *testing.T) {
 	}
 }
 
+func TestMCPToolDomains_IsOrgAndProject(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, []string{"org.v1", "project.v1"}, mcpToolDomains())
+}
+
 func TestAssertMCPWiringFailsOnAMissingOrUndeclaredSlot(t *testing.T) {
 	full := mcpToolManifest()
 	require.NoError(t, assertMCPWiring(full), "the real manifest must pass, or the cases below prove nothing")
@@ -53,19 +58,19 @@ func TestAssertMCPWiringFailsOnAMissingOrUndeclaredSlot(t *testing.T) {
 			name: "a dropped domain",
 			manifest: func() map[string]mcpToolRegistrar {
 				m := mcpToolManifest()
-				delete(m, "blog.v1")
+				delete(m, "org.v1")
 				return m
 			},
-			missing: []string{"blog.v1"},
+			missing: []string{"org.v1"},
 		},
 		{
 			name: "a nil registrar",
 			manifest: func() map[string]mcpToolRegistrar {
 				m := mcpToolManifest()
-				m["todo.v1"] = nil
+				m["org.v1"] = nil
 				return m
 			},
-			missing: []string{"todo.v1"},
+			missing: []string{"org.v1"},
 		},
 		{
 			name: "a registrar nobody declared",
@@ -102,7 +107,7 @@ func TestAssertMCPToolsFailsOnAnUnregisteredCatalogTool(t *testing.T) {
 	require.True(t, IsMCPToolUnregisteredError(err), "want an *MCPToolUnregisteredError, got %T", err)
 	var unreg *MCPToolUnregisteredError
 	require.ErrorAs(t, err, &unreg)
-	require.Contains(t, unreg.Tools, "blog_list")
+	require.Contains(t, unreg.Tools, "project_list")
 }
 
 func annotatedToolNames(t *testing.T) []string {

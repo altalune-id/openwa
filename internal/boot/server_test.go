@@ -5,19 +5,27 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 	"time"
 
-	"altalune.id/template/internal/boot"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/db"
-	"altalune.id/template/logger"
+	"github.com/stretchr/testify/require"
+
+	"altalune.id/openwa/internal/boot"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/db"
+	"altalune.id/openwa/internal/testutil/pgtest"
+	"altalune.id/openwa/logger"
 )
+
+const testEncryptionKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 func newSmokeCfg(t *testing.T) *config.Config {
 	t.Helper()
-	dir := t.TempDir()
+	return smokeCfgFor(t, pgtest.NewDatabase(t))
+}
+
+func smokeCfgFor(t *testing.T, h *pgtest.Handle) *config.Config {
+	t.Helper()
 	return &config.Config{
 		Mode: config.ModeSelfhosted,
 		HTTP: config.HTTPConfig{
@@ -25,11 +33,11 @@ func newSmokeCfg(t *testing.T) *config.Config {
 			BaseURL: "http://127.0.0.1",
 		},
 		DB: db.DBConfig{
-			Driver:      db.DriverSQLite,
-			DSN:         filepath.Join(dir, "smoke.db"),
-			TablePrefix: "altempl_",
-			Schema:      "public",
-			AutoMigrate: true,
+			DSN:            h.DSN,
+			TablePrefix:    "openwa_",
+			Schema:         "public",
+			AutoMigrate:    true,
+			AllowBypassRLS: true,
 		},
 		Genesis: config.GenesisConfig{
 			Email:    "root@example.com",
@@ -44,10 +52,10 @@ func newSmokeCfg(t *testing.T) *config.Config {
 			Driver: "console",
 			From:   "no-reply@example.com",
 		},
+		Security: config.SecurityConfig{EncryptionKey: testEncryptionKey},
 	}
 }
-
-func TestBootServer_SQLite_WiresEveryService(t *testing.T) {
+func TestBootServer_WiresEveryService(t *testing.T) {
 	cfg := newSmokeCfg(t)
 	srv, err := boot.BootServer(context.Background(), cfg)
 	if err != nil {
@@ -138,6 +146,14 @@ func TestBootServer_SupervisorRunReturnsWhenCtxCanceled(t *testing.T) {
 	if runErr != nil && !errors.Is(runErr, context.DeadlineExceeded) && !errors.Is(runErr, context.Canceled) {
 		t.Fatalf("Run: unexpected err %v", runErr)
 	}
+}
+
+func TestBootServer_RefusesEmptyEncryptionKey(t *testing.T) {
+	cfg := newSmokeCfg(t)
+	cfg.Security.EncryptionKey = ""
+	_, err := boot.BootServer(t.Context(), cfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "security.encryptionKey")
 }
 
 func TestBootServer_CloseNilSafe(t *testing.T) {

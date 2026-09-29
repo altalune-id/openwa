@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/platform/events"
+	"altalune.id/openwa/internal/platform/events"
 )
 
 //nolint:gochecknoglobals // a -update flag for golden files has to be package level.

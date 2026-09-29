@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"altalune.id/template/internal/platform/db"
+	"altalune.id/openwa/internal/platform/db"
 )
 
 // StaleSchemaError reports required tables that the database does not have.
@@ -40,7 +40,7 @@ func AssertRequiredTables(ctx context.Context, conn *sql.DB, cfg *db.DBConfig) e
 		want = append(want, cfg.TablePrefix+s)
 	}
 
-	present, err := existingTables(ctx, conn, cfg.Driver, want)
+	present, err := existingTables(ctx, conn, want)
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func AssertRequiredTables(ctx context.Context, conn *sql.DB, cfg *db.DBConfig) e
 	return &StaleSchemaError{Missing: missing}
 }
 
-func existingTables(ctx context.Context, conn *sql.DB, driver db.Driver, want []string) (map[string]bool, error) {
+func existingTables(ctx context.Context, conn *sql.DB, want []string) (map[string]bool, error) {
 	if len(want) == 0 {
 		return map[string]bool{}, nil
 	}
@@ -70,15 +70,6 @@ func existingTables(ctx context.Context, conn *sql.DB, driver db.Driver, want []
 		  AND c.relname = ANY ($1)
 	`
 	args := []any{want}
-	if driver == db.DriverSQLite {
-		query = `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?` +
-			strings.Repeat(",?", len(want)-1) + `)`
-		args = make([]any, 0, len(want))
-		for _, name := range want {
-			args = append(args, name)
-		}
-	}
-
 	rows, err := conn.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("schema: required tables: %w", err)

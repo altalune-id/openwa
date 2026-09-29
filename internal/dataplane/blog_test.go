@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/authn"
 )
 
 func TestGetPostReturnsETagFromVersion(t *testing.T) {

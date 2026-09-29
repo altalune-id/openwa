@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/blog"
+	"altalune.id/openwa/internal/blog"
 )
 
 // Blog is an in-memory blog.Store.

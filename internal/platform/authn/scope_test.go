@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"altalune.id/template/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/authn"
 )
 
 func TestValidRejectsUnknownScope(t *testing.T) {
@@ -73,5 +73,21 @@ func TestEveryScopeHasALevel(t *testing.T) {
 	}
 	if level, _ := authn.LevelOf(authn.ScopePostsRead); level != authn.LevelProject {
 		t.Fatalf("posts:read is %q, want project", level)
+	}
+}
+
+func TestAllScopes_ContainsTheOpenwaCatalog(t *testing.T) {
+	t.Parallel()
+	for _, s := range []string{"projects:read", "devices:read", "devices:write", "messages:read", "messages:write", "chats:read", "chats:write", "contacts:read"} {
+		if !authn.Valid(s) {
+			t.Fatalf("%s not valid", s)
+		}
+		if !authn.Mintable(s) {
+			t.Fatalf("%s not mintable", s)
+		}
+		lvl, ok := authn.LevelOf(s)
+		if !ok || lvl != authn.LevelProject {
+			t.Fatalf("%s level = %q, %v", s, lvl, ok)
+		}
 	}
 }

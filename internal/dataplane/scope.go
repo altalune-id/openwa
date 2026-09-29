@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/platform/tenant"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 // Orgs resolves an org slug before any tenant scope exists.

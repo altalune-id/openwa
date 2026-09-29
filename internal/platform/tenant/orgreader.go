@@ -6,11 +6,9 @@ import (
 	"fmt"
 
 	jetpg "github.com/go-jet/jet/v2/postgres"
-	jetsqlite "github.com/go-jet/jet/v2/sqlite"
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/platform/db"
-	sqliteent "altalune.id/template/internal/platform/db/entity/sqlite"
+	"altalune.id/openwa/internal/platform/db"
 )
 
 // OrgReader lists every org id, across every tenant scope.
@@ -18,22 +16,17 @@ type OrgReader interface {
 	OrgIDs(ctx context.Context) ([]uuid.UUID, error)
 }
 
-// NewOrgReader returns the cross-tenant org reader for the configured driver.
-func NewOrgReader(pool db.Pool, driver db.Driver, schema, tablePrefix string) OrgReader {
-	if driver == db.DriverPostgres {
-		if schema == "" {
-			schema = "public"
-		}
-		// NOTE: RawStatement because go-jet has no builder for a set-returning function in FROM position. Only config-supplied identifiers are interpolated; bind any value as a named argument.
-		// NOTE: a SELECT without ORDER BY has no guaranteed row order, whatever ordering the wrapper body carries.
-		query, args := jetpg.RawStatement(
-			"SELECT o.id FROM " + schema + "." + tablePrefix + "list_org_ids() o" +
-				" ORDER BY o.created_at ASC, o.id ASC").Sql()
-		return &pgOrgReader{conn: pool.W, query: query, args: args}
+// NewOrgReader returns the cross-tenant Postgres org reader.
+func NewOrgReader(pool db.Pool, schema, tablePrefix string) OrgReader {
+	if schema == "" {
+		schema = "public"
 	}
-	orgs := sqliteent.NewOrgs(tablePrefix)
-	query, args := jetsqlite.SELECT(orgs.ID).FROM(orgs).ORDER_BY(orgs.CreatedAt.ASC(), orgs.ID.ASC()).Sql()
-	return &sqliteOrgReader{conn: pool.W, query: query, args: args}
+	// NOTE: RawStatement because go-jet has no builder for a set-returning function in FROM position. Only config-supplied identifiers are interpolated; bind any value as a named argument.
+	// NOTE: a SELECT without ORDER BY has no guaranteed row order, whatever ordering the wrapper body carries.
+	query, args := jetpg.RawStatement(
+		"SELECT o.id FROM " + schema + "." + tablePrefix + "list_org_ids() o" +
+			" ORDER BY o.created_at ASC, o.id ASC").Sql()
+	return &pgOrgReader{conn: pool.W, query: query, args: args}
 }
 
 // SECURITY: reads the SECURITY DEFINER wrapper, never the table — a direct read returns zero rows under FORCE row level security.
@@ -44,16 +37,6 @@ type pgOrgReader struct {
 }
 
 func (r *pgOrgReader) OrgIDs(ctx context.Context) ([]uuid.UUID, error) {
-	return scanOrgIDs(ctx, r.conn, r.query, r.args)
-}
-
-type sqliteOrgReader struct {
-	conn  *sql.DB
-	query string
-	args  []any
-}
-
-func (r *sqliteOrgReader) OrgIDs(ctx context.Context) ([]uuid.UUID, error) {
 	return scanOrgIDs(ctx, r.conn, r.query, r.args)
 }
 

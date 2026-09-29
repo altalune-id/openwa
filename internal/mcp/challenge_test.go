@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	mcpinternal "altalune.id/template/internal/mcp"
+	mcpinternal "altalune.id/openwa/internal/mcp"
 )
 
 func serveChallenge(t *testing.T, basePath, prefix, token, requestPath string) *httptest.ResponseRecorder {

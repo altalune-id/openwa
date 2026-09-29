@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	pdb "altalune.id/template/internal/platform/db"
-	pgent "altalune.id/template/internal/platform/db/entity/postgres"
-	"altalune.id/template/internal/platform/tenant"
+	pdb "altalune.id/openwa/internal/platform/db"
+	pgent "altalune.id/openwa/internal/platform/db/entity/postgres"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 // NOTE: the definer wrappers are set-returning functions in FROM position, which go-jet cannot build; the column aliases mirror what jet emits for a real table so pgOrgRow still maps.

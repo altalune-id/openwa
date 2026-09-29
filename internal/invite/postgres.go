@@ -11,9 +11,9 @@ import (
 	"github.com/go-jet/jet/v2/qrm"
 	"github.com/google/uuid"
 
-	pdb "altalune.id/template/internal/platform/db"
-	pgent "altalune.id/template/internal/platform/db/entity/postgres"
-	"altalune.id/template/internal/platform/tenant"
+	pdb "altalune.id/openwa/internal/platform/db"
+	pgent "altalune.id/openwa/internal/platform/db/entity/postgres"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 type postgresStore struct {

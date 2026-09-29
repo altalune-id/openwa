@@ -148,9 +148,9 @@ const file_mcp_v1_annotations_proto_rawDesc = "" +
 	"\x02ui\x18\x05 \x01(\tR\x02ui\x12 \n" +
 	"\vdestructive\x18\x06 \x01(\bR\vdestructive\x12\x14\n" +
 	"\x05title\x18\a \x01(\tR\x05title:B\n" +
-	"\x04tool\x12\x1e.google.protobuf.MethodOptions\x18\xb9\x8e\x03 \x01(\v2\f.mcp.v1.ToolR\x04toolB\x81\x01\n" +
+	"\x04tool\x12\x1e.google.protobuf.MethodOptions\x18\xb9\x8e\x03 \x01(\v2\f.mcp.v1.ToolR\x04toolB\x7f\n" +
 	"\n" +
-	"com.mcp.v1B\x10AnnotationsProtoP\x01Z(altalune.id/template/gen/go/mcp/v1;mcpv1\xa2\x02\x03MXX\xaa\x02\x06Mcp.V1\xca\x02\x06Mcp\\V1\xe2\x02\x12Mcp\\V1\\GPBMetadata\xea\x02\aMcp::V1b\x06proto3"
+	"com.mcp.v1B\x10AnnotationsProtoP\x01Z&altalune.id/openwa/gen/go/mcp/v1;mcpv1\xa2\x02\x03MXX\xaa\x02\x06Mcp.V1\xca\x02\x06Mcp\\V1\xe2\x02\x12Mcp\\V1\\GPBMetadata\xea\x02\aMcp::V1b\x06proto3"
 
 var (
 	file_mcp_v1_annotations_proto_rawDescOnce sync.Once

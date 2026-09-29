@@ -4,7 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/controlplane"
+	projectv1connect "altalune.id/openwa/gen/go/project/v1/projectv1connect"
+	"altalune.id/openwa/internal/controlplane"
+	"altalune.id/openwa/internal/platform/authn"
 )
 
 // TestEveryRPCHasAScope guards the fail-closed rule: a mounted procedure with no scope entry is callable unchecked.
@@ -30,5 +32,12 @@ func TestEveryRPCHasAScope(t *testing.T) {
 		if !strings.HasPrefix(procedure, "/") {
 			t.Errorf("scope table key %q must be a full procedure path starting with /", procedure)
 		}
+	}
+}
+
+func TestScopeTable_ProjectListRequiresProjectsRead(t *testing.T) {
+	t.Parallel()
+	if got := controlplane.ScopeTable()[projectv1connect.ProjectServiceListProjectsProcedure]; got != authn.ScopeProjectsRead {
+		t.Fatalf("ListProjects scope = %q", got)
 	}
 }

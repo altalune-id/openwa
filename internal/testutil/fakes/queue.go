@@ -5,7 +5,7 @@ import (
 	"slices"
 	"sync"
 
-	"altalune.id/template/internal/platform/queue"
+	"altalune.id/openwa/internal/platform/queue"
 )
 
 // QueueCall is one recorded Queue.Submit.

@@ -14,17 +14,17 @@ func TestEnvVarName(t *testing.T) {
 	tests := []struct {
 		key, want string
 	}{
-		{"http.addr", "ALT_HTTP_ADDR"},
-		{"http.baseURL", "ALT_HTTP_BASE_URL"},
-		{"telemetry.otlp.endpoint", "ALT_TELEMETRY_OTLP_ENDPOINT"},
-		{"tokens.jwksURL", "ALT_TOKENS_JWKS_URL"},
-		{"db.autoMigrate", "ALT_DB_AUTO_MIGRATE"},
-		{"db.AutoMigrate", "ALT_DB_AUTO_MIGRATE"},
-		{"api.openapi.requireBasicAuth", "ALT_API_OPENAPI_REQUIRE_BASIC_AUTH"},
-		{"observability.reporter.minSeverity", "ALT_OBSERVABILITY_REPORTER_MIN_SEVERITY"},
+		{"http.addr", "OPENWA_HTTP_ADDR"},
+		{"http.baseURL", "OPENWA_HTTP_BASE_URL"},
+		{"telemetry.otlp.endpoint", "OPENWA_TELEMETRY_OTLP_ENDPOINT"},
+		{"tokens.jwksURL", "OPENWA_TOKENS_JWKS_URL"},
+		{"db.autoMigrate", "OPENWA_DB_AUTO_MIGRATE"},
+		{"db.AutoMigrate", "OPENWA_DB_AUTO_MIGRATE"},
+		{"api.openapi.requireBasicAuth", "OPENWA_API_OPENAPI_REQUIRE_BASIC_AUTH"},
+		{"observability.reporter.minSeverity", "OPENWA_OBSERVABILITY_REPORTER_MIN_SEVERITY"},
 	}
 	for _, tc := range tests {
-		got := envVarName("ALT", tc.key)
+		got := envVarName(EnvPrefix, tc.key)
 		if got != tc.want {
 			t.Errorf("envVarName(%q): want %q, got %q", tc.key, tc.want, got)
 		}
@@ -32,10 +32,11 @@ func TestEnvVarName(t *testing.T) {
 }
 
 func TestLoad_NestedEnvOverride_OTLPEndpoint(t *testing.T) {
+	withRequiredEnv(t)
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("ALT_TELEMETRY_OTLP_ENDPOINT", "http://collector:4318")
-	t.Setenv("ALT_GENESIS_EMAIL", "root@example.com")
-	t.Setenv("ALT_GENESIS_PASSWORD", "x")
+	t.Setenv("OPENWA_TELEMETRY_OTLP_ENDPOINT", "http://collector:4318")
+	t.Setenv("OPENWA_GENESIS_EMAIL", "root@example.com")
+	t.Setenv("OPENWA_GENESIS_PASSWORD", "x")
 
 	dir := t.TempDir()
 	old, _ := os.Getwd()
@@ -54,12 +55,13 @@ func TestLoad_NestedEnvOverride_OTLPEndpoint(t *testing.T) {
 }
 
 func TestLoad_TypedEnvConversions(t *testing.T) {
+	withRequiredEnv(t)
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("ALT_GENESIS_EMAIL", "root@example.com")
-	t.Setenv("ALT_GENESIS_PASSWORD", "x")
-	t.Setenv("ALT_DB_AUTO_MIGRATE", "false")
-	t.Setenv("ALT_OIDC_REDIRECT_PORT", "8123")
-	t.Setenv("ALT_TOKENS_CLOCK_SKEW", "45s")
+	t.Setenv("OPENWA_GENESIS_EMAIL", "root@example.com")
+	t.Setenv("OPENWA_GENESIS_PASSWORD", "x")
+	t.Setenv("OPENWA_DB_AUTO_MIGRATE", "false")
+	t.Setenv("OPENWA_OIDC_REDIRECT_PORT", "8123")
+	t.Setenv("OPENWA_TOKENS_CLOCK_SKEW", "45s")
 
 	dir := t.TempDir()
 	old, _ := os.Getwd()
@@ -84,7 +86,7 @@ func TestLoad_TypedEnvConversions(t *testing.T) {
 }
 
 func TestWalkEnvKeys_IncludesKnownLeaves(t *testing.T) {
-	keys := WalkEnvKeys("ALT")
+	keys := WalkEnvKeys(EnvPrefix)
 
 	byEnv := map[string]EnvKey{}
 	for _, k := range keys {
@@ -94,14 +96,14 @@ func TestWalkEnvKeys_IncludesKnownLeaves(t *testing.T) {
 	expect := []struct {
 		env, yaml, kind string
 	}{
-		{"ALT_MODE", "mode", "string"},
-		{"ALT_HTTP_ADDR", "http.addr", "string"},
-		{"ALT_HTTP_BASE_URL", "http.baseURL", "string"},
-		{"ALT_HTTP_STATE_SECRET", "http.stateSecret", "string"},
-		{"ALT_TELEMETRY_OTLP_ENDPOINT", "telemetry.otlp.endpoint", "string"},
-		{"ALT_TOKENS_CLOCK_SKEW", "tokens.clockSkew", "duration"},
-		{"ALT_TOKENS_SUPPORTED_ALGS", "tokens.supportedAlgs", "[]string"},
-		{"ALT_OIDC_REDIRECT_PORT", "oidc.redirectPort", "int"},
+		{"OPENWA_MODE", "mode", "string"},
+		{"OPENWA_HTTP_ADDR", "http.addr", "string"},
+		{"OPENWA_HTTP_BASE_URL", "http.baseURL", "string"},
+		{"OPENWA_HTTP_STATE_SECRET", "http.stateSecret", "string"},
+		{"OPENWA_TELEMETRY_OTLP_ENDPOINT", "telemetry.otlp.endpoint", "string"},
+		{"OPENWA_TOKENS_CLOCK_SKEW", "tokens.clockSkew", "duration"},
+		{"OPENWA_TOKENS_SUPPORTED_ALGS", "tokens.supportedAlgs", "[]string"},
+		{"OPENWA_OIDC_REDIRECT_PORT", "oidc.redirectPort", "int"},
 	}
 	for _, want := range expect {
 		got, ok := byEnv[want.env]
@@ -119,7 +121,7 @@ func TestWalkEnvKeys_IncludesKnownLeaves(t *testing.T) {
 }
 
 func TestWalkEnvKeys_Defaults(t *testing.T) {
-	keys := WalkEnvKeys("ALT")
+	keys := WalkEnvKeys(EnvPrefix)
 	byEnv := map[string]EnvKey{}
 	for _, k := range keys {
 		byEnv[k.Key] = k
@@ -128,10 +130,9 @@ func TestWalkEnvKeys_Defaults(t *testing.T) {
 	withDefaults := []struct {
 		env, want string
 	}{
-		{"ALT_HTTP_ADDR", ":5150"},
-		{"ALT_DB_DRIVER", "sqlite"},
-		{"ALT_LOG_LEVEL", "info"},
-		{"ALT_TOKENS_AUDIENCE", "urn:altempl:api"},
+		{"OPENWA_HTTP_ADDR", ":5150"},
+		{"OPENWA_LOG_LEVEL", "info"},
+		{"OPENWA_TOKENS_AUDIENCE", "urn:openwa:api"},
 	}
 	for _, tc := range withDefaults {
 		got, ok := byEnv[tc.env]
@@ -149,10 +150,10 @@ func TestWalkEnvKeys_Defaults(t *testing.T) {
 	}
 
 	withoutDefaults := []string{
-		"ALT_HTTP_STATE_SECRET",
-		"ALT_TELEMETRY_OTLP_ENDPOINT",
-		"ALT_OIDC_ISSUER",
-		"ALT_MAIL_SMTP_PASS",
+		"OPENWA_HTTP_STATE_SECRET",
+		"OPENWA_TELEMETRY_OTLP_ENDPOINT",
+		"OPENWA_OIDC_ISSUER",
+		"OPENWA_MAIL_SMTP_PASS",
 	}
 	for _, env := range withoutDefaults {
 		got, ok := byEnv[env]
@@ -196,7 +197,7 @@ func TestEnvKey_FormatDefault_TypeCoverage(t *testing.T) {
 }
 
 func TestWalkEnvKeys_Awareness(t *testing.T) {
-	keys := WalkEnvKeys("ALT")
+	keys := WalkEnvKeys(EnvPrefix)
 	byEnv := map[string]EnvKey{}
 	for _, k := range keys {
 		byEnv[k.Key] = k
@@ -207,13 +208,12 @@ func TestWalkEnvKeys_Awareness(t *testing.T) {
 		mustHave  []string
 		mustMatch []string
 	}{
-		{env: "ALT_HTTP_STATE_SECRET", mustHave: []string{"required", "secret", "bootstrap"}},
-		{env: "ALT_DB_DSN", mustHave: []string{"required", "secret"}},
-		{env: "ALT_DB_DRIVER", mustHave: []string{"required", "bootstrap"}},
-		{env: "ALT_OIDC_CLIENT_SECRET", mustHave: []string{"required", "mode:cloud", "secret"}},
-		{env: "ALT_ONBOARD_SETUP_TOKEN", mustHave: []string{"secret"}},
-		{env: "ALT_GENESIS_PASSWORD", mustHave: []string{"bootstrap", "secret"}},
-		{env: "ALT_MAIL_SMTP_PASS", mustHave: []string{"secret"}},
+		{env: "OPENWA_HTTP_STATE_SECRET", mustHave: []string{"required", "secret", "bootstrap"}},
+		{env: "OPENWA_DB_DSN", mustHave: []string{"required", "secret"}},
+		{env: "OPENWA_OIDC_CLIENT_SECRET", mustHave: []string{"required", "mode:cloud", "secret"}},
+		{env: "OPENWA_ONBOARD_SETUP_TOKEN", mustHave: []string{"secret"}},
+		{env: "OPENWA_GENESIS_PASSWORD", mustHave: []string{"bootstrap", "secret"}},
+		{env: "OPENWA_MAIL_SMTP_PASS", mustHave: []string{"secret"}},
 	}
 	for _, tc := range tests {
 		got, ok := byEnv[tc.env]
@@ -241,14 +241,14 @@ func TestLoad_RequireFile_PathProvided(t *testing.T) {
 
 func TestWalkEnvKeys_SkipsStructValuedMapsOnly(t *testing.T) {
 	byEnv := map[string]struct{}{}
-	for _, k := range WalkEnvKeys("ALT") {
+	for _, k := range WalkEnvKeys(EnvPrefix) {
 		byEnv[k.Key] = struct{}{}
 	}
-	_, hasSchedulerJobs := byEnv["ALT_SCHEDULER_JOBS"]
+	_, hasSchedulerJobs := byEnv["OPENWA_SCHEDULER_JOBS"]
 	require.False(t, hasSchedulerJobs,
 		"struct-valued map config is not env-addressable and must not appear in .env.example")
 
-	_, hasTelemetryHeaders := byEnv["ALT_TELEMETRY_OTLP_HEADERS"]
+	_, hasTelemetryHeaders := byEnv["OPENWA_TELEMETRY_OTLP_HEADERS"]
 	require.True(t, hasTelemetryHeaders,
 		"scalar-valued map config is env-addressable and must still appear in .env.example")
 }
@@ -268,6 +268,7 @@ func containsAll(haystack, needles []string) bool {
 
 // TestLoad_SchemaDefaultAndOptOut covers db.schema's default, which an empty env var cannot clear.
 func TestLoad_SchemaDefaultAndOptOut(t *testing.T) {
+	withRequiredEnv(t)
 	cfg, err := Load("")
 	if err != nil {
 		t.Fatal(err)
@@ -276,7 +277,7 @@ func TestLoad_SchemaDefaultAndOptOut(t *testing.T) {
 		t.Errorf("default schema = %q, want public", cfg.DB.Schema)
 	}
 
-	t.Setenv("ALT_DB_SCHEMA", "")
+	t.Setenv("OPENWA_DB_SCHEMA", "")
 	envCfg, err := Load("")
 	if err != nil {
 		t.Fatal(err)
@@ -300,25 +301,27 @@ func TestLoad_SchemaDefaultAndOptOut(t *testing.T) {
 
 // NOTE: with a config type set, viper would match the extensionless compiled binary and parse it as YAML.
 func TestLoad_SearchPathIgnoresExtensionlessBinary(t *testing.T) {
+	withRequiredEnv(t)
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 	t.Chdir(dir)
 
-	if err := os.WriteFile(filepath.Join(dir, "altempl"), []byte("\x7fELF\x02\x01\x01not yaml"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "openwa"), []byte("\x7fELF\x02\x01\x01not yaml"), 0o600); err != nil {
 		t.Fatalf("write fake binary: %v", err)
 	}
 
 	if _, err := Load(""); err != nil {
-		t.Fatalf("Load must ignore an extensionless file named altempl, got %v", err)
+		t.Fatalf("Load must ignore an extensionless file named openwa, got %v", err)
 	}
 }
 
 func TestLoad_SearchPathStillFindsExtensionedConfig(t *testing.T) {
+	withRequiredEnv(t)
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 	t.Chdir(dir)
 
-	if err := os.WriteFile(filepath.Join(dir, "altempl.yaml"), []byte("mode: selfhosted\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "openwa.yaml"), []byte("mode: selfhosted\n"), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
@@ -329,4 +332,10 @@ func TestLoad_SearchPathStillFindsExtensionedConfig(t *testing.T) {
 	if cfg.Mode != ModeSelfhosted {
 		t.Fatalf("Mode = %q, want %q — the extensioned config was not read", cfg.Mode, ModeSelfhosted)
 	}
+}
+
+func TestEnvVar_UsesEnvPrefix(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, "OPENWA_DB_MIGRATOR_DSN", EnvVar("db.migrator.dsn"))
+	require.Equal(t, "OPENWA", EnvPrefix)
 }

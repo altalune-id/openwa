@@ -18,24 +18,24 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 
-	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/auth"
-	"altalune.id/template/internal/i18n"
-	"altalune.id/template/internal/invite"
-	"altalune.id/template/internal/onboard"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/capabilities"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/testutil/fakes"
-	"altalune.id/template/internal/todo"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/handlers"
-	"altalune.id/template/mailer"
+	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/auth"
+	"altalune.id/openwa/internal/i18n"
+	"altalune.id/openwa/internal/invite"
+	"altalune.id/openwa/internal/onboard"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/capabilities"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/testutil/fakes"
+	"altalune.id/openwa/internal/todo"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/handlers"
+	"altalune.id/openwa/mailer"
 )
 
 func discardLogger() *slog.Logger   { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
@@ -43,8 +43,8 @@ func discardStdLogger() *log.Logger { return log.New(io.Discard, "", 0) }
 
 func passthroughUnexpected() apperror.UnexpectedFunc {
 	return func(_ context.Context, _ string, cause error, _ ...any) *apperror.AppError {
-		return apperror.New("altempl.unexpected", "unexpected", codes.Internal,
-			&apperrorv1.ErrorDetail{Code: "altempl.unexpected"}).WithCause(cause)
+		return apperror.New("openwa.unexpected", "unexpected", codes.Internal,
+			&apperrorv1.ErrorDetail{Code: "openwa.unexpected"}).WithCause(cause)
 	}
 }
 
@@ -461,10 +461,6 @@ func TestTodoHandler_HappyPath(t *testing.T) {
 	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodGet, "/orgs/acme/projects/alpha/todos", "", p))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, rec.Body.String(), "milk")
-
-	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodGet, "/orgs/acme/projects/alpha/overview", "", p))
-	assert.Equal(t, http.StatusOK, rec.Code)
 
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodPost, "/orgs/acme/projects/alpha/todos/clear", "", p))
@@ -1043,7 +1039,7 @@ func (a *authUserStore) ByEmail(ctx context.Context, email string) (*auth.UserRe
 	return &auth.UserRef{ID: u.ID, Email: u.Email, Name: u.Name, Source: u.Source, IsAdmin: u.IsAdmin, Locale: u.Locale, PasswordHash: u.PasswordHash}, nil
 }
 
-// NOTE: mirrors the write-time rule both real stores apply (internal/user/pgwriter.go, internal/user/sqlite.go); fakes.User does not.
+// NOTE: mirrors the write-time rule both real stores apply (internal/user/pgwriter.go); fakes.User does not.
 func (a *authUserStore) Save(ctx context.Context, u *auth.UserRef) error {
 	isAdmin := u.IsAdmin || u.Source == user.SourceGenesis || u.Source == user.SourceLocal
 	return a.store.Save(ctx, &user.User{ID: u.ID, Email: u.Email, Name: u.Name, Source: u.Source, IsAdmin: isAdmin, PasswordHash: u.PasswordHash, Locale: u.Locale})

@@ -7,11 +7,11 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 
-	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
-	authv1 "altalune.id/template/gen/go/auth/v1"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/session"
+	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	authv1 "altalune.id/openwa/gen/go/auth/v1"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 // AuthService implements auth.v1.AuthService by reflecting the caller's Principal back to the client.

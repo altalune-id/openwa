@@ -12,8 +12,8 @@ import (
 
 	"google.golang.org/grpc/codes"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/web/middleware"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/web/middleware"
 )
 
 type stubReporter struct{ calls int }

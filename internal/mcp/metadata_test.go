@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	mcpinternal "altalune.id/template/internal/mcp"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/db"
+	mcpinternal "altalune.id/openwa/internal/mcp"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/db"
 )
 
 type metadataDoc struct {
@@ -186,9 +186,10 @@ func mcpConfig(t *testing.T, basePath string) *config.Config {
 	t.Helper()
 	c := &config.Config{
 		Mode:     config.ModeSelfhosted,
-		DB:       db.DBConfig{Driver: db.DriverSQLite, DSN: ":memory:"},
+		DB:       db.DBConfig{DSN: "postgres://openwa:openwa@localhost:5432/openwa?sslmode=disable"},
 		Genesis:  config.GenesisConfig{Email: "root@example.com", Password: "x"},
 		Security: config.SecurityConfig{EncryptionKey: strings.Repeat("ab", 32)},
+		WhatsApp: config.WhatsAppConfig{Engine: "whatsmeow", ClientName: "OpenWA"},
 	}
 	c.Tenant.SingletonOrg.Slug = "default"
 	c.Tenant.SingletonOrg.Name = "Default Organization"

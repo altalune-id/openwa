@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/project"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/project"
 )
 
 func TestService_BootstrapSystem_CreatesFreshDefault(t *testing.T) {

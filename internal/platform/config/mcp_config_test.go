@@ -12,6 +12,7 @@ func mcpTestConfig() *Config {
 		DB:       validDB(),
 		Genesis:  GenesisConfig{Email: "root@example.com", Password: "x"},
 		Security: validSecurity(),
+		WhatsApp: validWhatsApp(),
 	}
 	c.Tenant.SingletonOrg.Slug = "default"
 	c.Tenant.SingletonOrg.Name = "Default Organization"
@@ -49,13 +50,13 @@ func TestValidate_MCPInvariants(t *testing.T) {
 			name:     "enabled without tokens.issuer is refused",
 			mutate:   func(c *Config) { c.Tokens.Issuer = "" },
 			is:       IsMCPIssuerRequiredError,
-			wantSubs: []string{"mcp.enabled", "tokens.issuer", "ALT_TOKENS_ISSUER"},
+			wantSubs: []string{"mcp.enabled", "tokens.issuer", "OPENWA_TOKENS_ISSUER"},
 		},
 		{
 			name:     "enabled without http.baseURL and no explicit audience is refused",
 			mutate:   func(c *Config) { c.HTTP.BaseURL = "" },
 			is:       IsMCPBaseURLRequiredError,
-			wantSubs: []string{"http.baseURL", "ALT_HTTP_BASE_URL", "ALT_MCP_AUDIENCE"},
+			wantSubs: []string{"http.baseURL", "OPENWA_HTTP_BASE_URL", "OPENWA_MCP_AUDIENCE"},
 		},
 		{
 			name:    "empty audience defaults to the mounted endpoint",
@@ -81,7 +82,7 @@ func TestValidate_MCPInvariants(t *testing.T) {
 			name:     "a mismatched audience without the override is refused",
 			mutate:   func(c *Config) { c.MCP.Audience = "https://someone-elses-proxy.example.com/mcp" },
 			is:       IsMCPAudienceMismatchError,
-			wantSubs: []string{"someone-elses-proxy", "https://app.example.com/mcp", "ALT_MCP_AUDIENCE_OVERRIDE"},
+			wantSubs: []string{"someone-elses-proxy", "https://app.example.com/mcp", "OPENWA_MCP_AUDIENCE_OVERRIDE"},
 		},
 		{
 			name: "a mismatched audience with the override is accepted",
@@ -98,7 +99,7 @@ func TestValidate_MCPInvariants(t *testing.T) {
 				c.MCP.AudienceOverride = true
 			},
 			is:       IsMCPAudienceInvalidError,
-			wantSubs: []string{"/relative/path", "not absolute", "ALT_MCP_AUDIENCE"},
+			wantSubs: []string{"/relative/path", "not absolute", "OPENWA_MCP_AUDIENCE"},
 		},
 		{
 			name: "a scheme-relative audience is refused",
@@ -198,22 +199,23 @@ func TestValidate_MCPErrorHelpersRejectOtherErrors(t *testing.T) {
 }
 
 func TestLoad_MCPKeysBindFromEnv(t *testing.T) {
+	withRequiredEnv(t)
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
-	t.Setenv("ALT_HTTP_BASE_URL", "https://app.example.com")
-	t.Setenv("ALT_TOKENS_ISSUER", "https://issuer.example.com")
-	t.Setenv("ALT_MCP_ENABLED", "true")
-	t.Setenv("ALT_MCP_APPS_UI", "true")
+	t.Setenv("OPENWA_HTTP_BASE_URL", "https://app.example.com")
+	t.Setenv("OPENWA_TOKENS_ISSUER", "https://issuer.example.com")
+	t.Setenv("OPENWA_MCP_ENABLED", "true")
+	t.Setenv("OPENWA_MCP_APPS_UI", "true")
 
 	cfg, err := Load("")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 	if !cfg.MCP.Enabled {
-		t.Fatal("ALT_MCP_ENABLED=true did not reach Config.MCP.Enabled")
+		t.Fatal("OPENWA_MCP_ENABLED=true did not reach Config.MCP.Enabled")
 	}
 	if !cfg.MCP.AppsUI {
-		t.Fatal("ALT_MCP_APPS_UI=true did not reach Config.MCP.AppsUI")
+		t.Fatal("OPENWA_MCP_APPS_UI=true did not reach Config.MCP.AppsUI")
 	}
 	if cfg.MCP.Audience != "https://app.example.com/mcp" {
 		t.Fatalf("MCP.Audience = %q, want the derived mount", cfg.MCP.Audience)
@@ -221,6 +223,7 @@ func TestLoad_MCPKeysBindFromEnv(t *testing.T) {
 }
 
 func TestLoad_MCPDefaultsOff(t *testing.T) {
+	withRequiredEnv(t)
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
@@ -235,15 +238,15 @@ func TestLoad_MCPDefaultsOff(t *testing.T) {
 
 func TestEnvKeys_MCPKeysAreRuntime(t *testing.T) {
 	want := map[string][]string{
-		"ALT_MCP_ENABLED":           nil,
-		"ALT_MCP_AUDIENCE":          nil,
-		"ALT_MCP_AUDIENCE_OVERRIDE": nil,
-		"ALT_MCP_APPS_UI":           nil,
-		"ALT_MCP_CHALLENGE_TOKEN":   nil,
-		"ALT_MCP_CHALLENGE_PREFIX":  nil,
+		"OPENWA_MCP_ENABLED":           nil,
+		"OPENWA_MCP_AUDIENCE":          nil,
+		"OPENWA_MCP_AUDIENCE_OVERRIDE": nil,
+		"OPENWA_MCP_APPS_UI":           nil,
+		"OPENWA_MCP_CHALLENGE_TOKEN":   nil,
+		"OPENWA_MCP_CHALLENGE_PREFIX":  nil,
 	}
 	seen := map[string]bool{}
-	for _, k := range WalkEnvKeys("ALT") {
+	for _, k := range WalkEnvKeys(EnvPrefix) {
 		if !strings.HasPrefix(k.YAML, "mcp.") {
 			continue
 		}

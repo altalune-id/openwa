@@ -15,17 +15,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	apikeyv1 "altalune.id/template/gen/go/apikey/v1"
-	apikeyv1connect "altalune.id/template/gen/go/apikey/v1/apikeyv1connect"
-	"altalune.id/template/internal/apikey"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/controlplane"
-	"altalune.id/template/internal/platform"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tokens"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/testutil/fakes"
+	apikeyv1 "altalune.id/openwa/gen/go/apikey/v1"
+	apikeyv1connect "altalune.id/openwa/gen/go/apikey/v1/apikeyv1connect"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/controlplane"
+	"altalune.id/openwa/internal/platform"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tokens"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/testutil/fakes"
 )
 
 type apikeyFixture struct {

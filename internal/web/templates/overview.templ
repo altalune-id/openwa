@@ -3,7 +3,7 @@ package templates
 import (
 	"fmt"
 
-	"altalune.id/template/internal/web"
+	"altalune.id/openwa/internal/web"
 )
 
 type OverviewView struct {
@@ -11,9 +11,8 @@ type OverviewView struct {
 	ProjectID   string
 	ProjectSlug string
 	ProjectName string
-	TotalTodos  int
-	OpenTodos   int
-	DoneTodos   int
+	Devices       int
+	MessagesToday int
 }
 
 templ OverviewPage(d web.LayoutData, v OverviewView) {
@@ -30,27 +29,9 @@ templ OverviewPage(d web.LayoutData, v OverviewView) {
 			</div>
 			@copyScript(d.Nonce)
 		</header>
-		<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-			@statCard(d.Tr("nav.todos"), fmt.Sprintf("%d", v.TotalTodos))
-			@statCard(d.Tr("overview.stat_open"), fmt.Sprintf("%d", v.OpenTodos))
-			@statCard(d.Tr("overview.stat_done"), fmt.Sprintf("%d", v.DoneTodos))
-		</div>
-		<div class="rounded-lg border border-border bg-card p-6 shadow-sm">
-			<h2 class="text-sm font-semibold text-foreground">{ d.Tr("overview.quick_actions") }</h2>
-			<div class="mt-4 flex flex-wrap gap-2">
-				<a
-					href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/todos")) }
-					class="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-				>
-					{ d.Tr("overview.open_todos") }
-				</a>
-				<a
-					href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/posts")) }
-					class="inline-flex items-center rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground/90 shadow-sm hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-				>
-					{ d.Tr("overview.open_posts") }
-				</a>
-			</div>
+		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+			@statCard(d.Tr("overview.devices"), fmt.Sprintf("%d", v.Devices))
+			@statCard(d.Tr("overview.messages_today"), fmt.Sprintf("%d", v.MessagesToday))
 		</div>
 	</section>
 }
@@ -73,8 +54,8 @@ templ copyButton(d web.LayoutData, value, text, label string) {
 
 templ copyScript(nonce string) {
 	<script nonce={ nonce }>
-	if (!window.altemplCopyBound) {
-	window.altemplCopyBound = true;
+	if (!window.openwaCopyBound) {
+	window.openwaCopyBound = true;
 	document.addEventListener('click', function(e) {
 		if (!e.target || !e.target.closest) return;
 		var btn = e.target.closest('[data-copy]');

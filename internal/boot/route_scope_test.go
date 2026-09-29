@@ -15,15 +15,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/boot"
-	"altalune.id/template/internal/onboard"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/web"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/boot"
+	"altalune.id/openwa/internal/onboard"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/web"
 )
 
 type probeRoute struct {
@@ -60,12 +60,6 @@ func probeRoutes() []probeRoute {
 		{http.MethodGet, base + "/projects", nil},
 		{http.MethodGet, base + "/projects/new", nil},
 		{http.MethodGet, pbase + "/overview", nil},
-		{http.MethodGet, pbase + "/todos", nil},
-		{http.MethodGet, pbase + "/posts", nil},
-		{http.MethodGet, pbase + "/posts/new", nil},
-		{http.MethodGet, pbase + "/posts/" + id + "/edit", nil},
-		{http.MethodGet, pbase + "/categories", nil},
-		{http.MethodGet, pbase + "/tags", nil},
 		{http.MethodGet, pbase + "/apikeys", nil},
 		{http.MethodGet, pbase + "/webhooks", nil},
 		{http.MethodGet, pbase + "/webhooks/new", nil},
@@ -94,30 +88,6 @@ func probeRoutes() []probeRoute {
 		{http.MethodPost, base + "/members/" + id + "/remove", url.Values{}},
 		{http.MethodPost, base + "/projects", url.Values{"slug": {"probe-new-project"}, "name": {"Probe New Project"}}},
 		{http.MethodPost, pbase + "/rename", url.Values{"name": {"Renamed"}}},
-		{http.MethodPost, pbase + "/todos", url.Values{"title": {"probe"}}},
-		{http.MethodPost, pbase + "/todos/clear", url.Values{}},
-		{http.MethodPost, pbase + "/todos/" + id + "/toggle", url.Values{}},
-		{http.MethodPost, pbase + "/todos/" + id + "/delete", url.Values{}},
-		{http.MethodDelete, pbase + "/todos/" + id, nil},
-		{http.MethodPost, pbase + "/posts", url.Values{
-			"title": {"Probe Post"}, "slug": {"probe-post"},
-			"category_id": {id}, "body": {"# Probe"},
-		}},
-		{http.MethodPost, pbase + "/posts/preview", url.Values{"body": {"# Probe"}}},
-		{http.MethodPost, pbase + "/posts/" + id, url.Values{
-			"title": {"Probe Post"}, "slug": {"probe-post"},
-			"category_id": {id}, "body": {"# Probe"},
-		}},
-		{http.MethodPost, pbase + "/posts/" + id + "/publish", url.Values{}},
-		{http.MethodPost, pbase + "/posts/" + id + "/unpublish", url.Values{}},
-		{http.MethodPost, pbase + "/posts/" + id + "/delete", url.Values{}},
-		{http.MethodPost, pbase + "/categories", url.Values{"name": {"Probe Category"}, "slug": {"probe-category"}}},
-		{http.MethodPost, pbase + "/categories/" + id + "/rename", url.Values{"name": {"Renamed"}}},
-		{http.MethodPost, pbase + "/categories/" + id + "/delete", url.Values{}},
-		{http.MethodPost, pbase + "/tags", url.Values{"name": {"Probe Tag"}, "slug": {"probe-tag"}}},
-		{http.MethodPost, pbase + "/tags/quick", url.Values{"name": {"Probe Quick Tag"}}},
-		{http.MethodPost, pbase + "/tags/" + id + "/rename", url.Values{"name": {"Renamed"}}},
-		{http.MethodPost, pbase + "/tags/" + id + "/delete", url.Values{}},
 		{http.MethodPost, pbase + "/apikeys", url.Values{"name": {"Probe Key"}, "scopes": {"posts:read"}}},
 		{http.MethodPost, pbase + "/apikeys/" + id + "/revoke", url.Values{}},
 		{http.MethodPost, pbase + "/webhooks", url.Values{

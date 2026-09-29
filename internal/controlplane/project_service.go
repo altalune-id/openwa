@@ -6,9 +6,9 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	projectv1 "altalune.id/template/gen/go/project/v1"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/project"
+	projectv1 "altalune.id/openwa/gen/go/project/v1"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/project"
 )
 
 // ProjectService implements project.v1.ProjectService.

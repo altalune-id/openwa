@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"log/slog"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/db"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/todo"
-	"altalune.id/template/scheduler"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/db"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/todo"
+	"altalune.id/openwa/scheduler"
 )
 
 //nolint:gochecknoglobals // Immutable wiring manifest; not runtime state.
@@ -63,7 +63,7 @@ func buildScheduler(
 		Reporter:      reporterAdapter{report: k.Reporter.Unexpected, log: log},
 		Meter:         k.Meter,
 		Tenants:       orgEnumerator(cfg, k, log),
-		Locker:        db.NewLocker(cfg.DB, k.Pool, log),
+		Locker:        db.NewLocker(k.Pool, log),
 		ShutdownGrace: cfg.Scheduler.ShutdownGrace,
 	})
 	if err != nil {
@@ -142,5 +142,5 @@ func alreadyReported(err error) bool {
 
 func orgEnumerator(cfg *config.Config, k *platform.Kernel, log *slog.Logger) *tenant.Enumerator {
 	return tenant.NewEnumerator(
-		tenant.NewOrgReader(k.Pool, cfg.DB.Driver, cfg.DB.Schema, cfg.DB.TablePrefix), log)
+		tenant.NewOrgReader(k.Pool, cfg.DB.Schema, cfg.DB.TablePrefix), log)
 }

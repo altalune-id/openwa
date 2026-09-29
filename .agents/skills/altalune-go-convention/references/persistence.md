@@ -26,8 +26,7 @@ func (s *postgresStore) endTx(tx *sql.Tx, owned bool, err error) error
 - `pc.BeginTenanted(ctx, tc)` returns `(*sql.Tx, error)`. It takes no callback.
 - The `owned` bool is what tells `endTx` whether to commit or leave an outer transaction alone.
 - Nesting `RunInTx` returns `db.ErrNestedUnitOfWork`. A multi-statement write — a row plus its
-  join rows — must be one transaction on both drivers; SQLite deadlocks on `SQLITE_BUSY`
-  otherwise.
+  join rows — must be one transaction.
 
 ## Tenant predicates
 
@@ -46,7 +45,7 @@ stronger guard than a `WHERE` and satisfies the test.
 ## Optimistic concurrency
 
 `Save(ctx, p, ifVersion)` / `Delete(ctx, id, ifVersion)`, `0` unconditional, and the SECURITY
-bounds check in `pgVersionGuard` / `sqliteVersionGuard`:
+bounds check in `pgVersionGuard`:
 [`howto/store-method.md`](../../../../docs/howto/store-method.md#gotchas). The UPDATE branch bumps
 the column itself — `s.posts.Version.SET(s.posts.Version.ADD(postgres.Int32(1)))`.
 
@@ -57,14 +56,13 @@ Without that re-read a stale write reports "not found" and the client retries fo
 
 That a conditional write must be **one** write is
 [`howto/service-method.md`](../../../../docs/howto/service-method.md#hard-rules);
-`TestSQLite_UpdateWithTagsHonoursThePreconditionWhole` and its Postgres twin pin it here.
+`TestPostgres_UpdateWithTagsHonoursThePreconditionWhole` pins it here.
 
 ## SQL NULL
 
 Never wrap jet's `NULL` singleton — it is a package-level var and wrapping it races under
-`make check`. Use the `Null*` helpers in `internal/platform/db/entity/{postgres,sqlite}`:
-`NullText`, `NullDate`, `NullTimestampz`, `NullUUID`, `NullJSONB` on Postgres, `NullText` on
-SQLite. Each builds a fresh `CAST(NULL AS ...)`. Pick the one matching the column's **declared**
+`make check`. Use the `Null*` helpers in `internal/platform/db/entity/postgres`:
+`NullText`, `NullDate`, `NullTimestampz`, `NullUUID`, `NullJSONB`. Each builds a fresh `CAST(NULL AS ...)`. Pick the one matching the column's **declared**
 type ([`howto/store-method.md`](../../../../docs/howto/store-method.md#gotchas)).
 
 ## Constraint translation
@@ -72,43 +70,12 @@ type ([`howto/store-method.md`](../../../../docs/howto/store-method.md#gotchas))
 No driver error travels upward
 ([`howto/store-method.md`](../../../../docs/howto/store-method.md#gotchas)).
 
-**Postgres** — match on `*pgconn.PgError` SQLSTATE:
+Match on `*pgconn.PgError` SQLSTATE:
 
 | Condition                    | Code    |
 | ---------------------------- | ------- |
 | unique violation             | `23505` |
 | foreign key still referenced | `23503` |
-
-**SQLite** — match on the errcode, not the message. Follow `internal/project/sqlite.go`, not
-`internal/org/sqlite.go` which string-matches. The import alias matters: `sqlite` is already
-go-jet in every store file, so the driver must be aliased.
-
-```go
-import (
-	"github.com/go-jet/jet/v2/sqlite"
-	sqlitedrv "modernc.org/sqlite"
-	sqlite3 "modernc.org/sqlite/lib"
-)
-
-var sqliteErr *sqlitedrv.Error
-if errors.As(err, &sqliteErr) {
-	switch sqliteErr.Code() {
-	case sqlite3.SQLITE_CONSTRAINT_UNIQUE, sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY:
-		return &AlreadyExistsError{Slug: c.Slug}
-	// ON DELETE RESTRICT reports TRIGGER, not FOREIGNKEY — FK actions run as internal triggers;
-	// only insert-side violations report FOREIGNKEY.
-	case sqlite3.SQLITE_CONSTRAINT_FOREIGNKEY, sqlite3.SQLITE_CONSTRAINT_TRIGGER:
-		return &InUseError{ID: id.String()}
-	}
-}
-```
-
-## Timestamps
-
-Every SQLite timestamp write goes through `sqliteent.SQLiteTime(t)`, which zero-pads. Never
-`Format(time.RFC3339Nano)` — it trims trailing zeros, so text comparison disagrees with
-chronological comparison and ordering silently breaks. This applies to **bind sites too**: a
-sweep cutoff compared against padded rows must itself be padded, or stale rows are never swept.
 
 ## Ordering
 

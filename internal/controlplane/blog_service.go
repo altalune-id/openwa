@@ -10,14 +10,14 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
-	blogv1 "altalune.id/template/gen/go/blog/v1"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/blog/category"
-	"altalune.id/template/internal/blog/tag"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/project"
+	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	blogv1 "altalune.id/openwa/gen/go/blog/v1"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/blog/category"
+	"altalune.id/openwa/internal/blog/tag"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/project"
 )
 
 // BlogService implements blog.v1.BlogService.
