@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/device"
+	"altalune.id/openwa/internal/whatsapp"
 )
 
 // NotFoundError is the single opaque "does not exist" outcome for an unresolvable scope, a missing resource or a denied authorization.
@@ -118,7 +120,8 @@ type failure struct {
 //nolint:cyclop // a flat mapping table; splitting it hides the contract it states.
 func statusFor(err error) failure {
 	switch {
-	case IsNotFoundError(err), blog.IsNotFoundError(err):
+	case IsNotFoundError(err), blog.IsNotFoundError(err), device.IsNotFoundError(err),
+		whatsapp.IsSessionNotFoundError(err), whatsapp.IsSessionGoneError(err):
 		return failure{http.StatusNotFound, "not_found"}
 	case IsUnauthorizedError(err):
 		return failure{http.StatusUnauthorized, "unauthorized"}
@@ -126,14 +129,19 @@ func statusFor(err error) failure {
 		return failure{http.StatusMethodNotAllowed, "method_not_allowed"}
 	case IsPreconditionRequiredError(err):
 		return failure{http.StatusPreconditionRequired, "precondition_required"}
-	case IsPreconditionFailedError(err), blog.IsStaleVersionError(err):
+	case IsPreconditionFailedError(err), blog.IsStaleVersionError(err), device.IsStaleVersionError(err):
 		return failure{http.StatusPreconditionFailed, "precondition_failed"}
-	case IsConflictError(err), blog.IsAlreadyExistsError(err):
+	case IsConflictError(err), blog.IsAlreadyExistsError(err), device.IsNameTakenError(err),
+		whatsapp.IsAlreadyLinkedError(err), whatsapp.IsNotConnectedError(err), whatsapp.IsLinkTimeoutError(err):
 		return failure{http.StatusConflict, "conflict"}
 	case IsInProgressError(err):
 		return failure{http.StatusConflict, "in_progress"}
-	case IsBadRequestError(err), isInvalidPost(err):
+	case IsBadRequestError(err), isInvalidPost(err), isInvalidDevice(err):
 		return failure{http.StatusBadRequest, "bad_request"}
+	case whatsapp.IsNotOwnedError(err):
+		return failure{http.StatusServiceUnavailable, "unavailable"}
+	case whatsapp.IsUnsupportedError(err):
+		return failure{http.StatusNotImplemented, "not_implemented"}
 	}
 	return failure{http.StatusInternalServerError, "internal"}
 }
@@ -143,4 +151,8 @@ func isInvalidPost(err error) bool {
 		blog.IsInvalidSlugError(err) ||
 		blog.IsInvalidBodyError(err) ||
 		blog.IsCategoryRequiredError(err)
+}
+
+func isInvalidDevice(err error) bool {
+	return device.IsInvalidNameError(err) || device.IsInvalidRulesError(err) || whatsapp.IsInvalidPhoneError(err)
 }

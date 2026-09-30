@@ -79,7 +79,7 @@ func (s *BlogService) GetPost(ctx context.Context, req *connect.Request[blogv1.G
 
 // ListPosts returns the posts in the request's project, or in the principal's active project when project_id is omitted, optionally filtered by status and category.
 func (s *BlogService) ListPosts(ctx context.Context, req *connect.Request[blogv1.ListPostsRequest]) (*connect.Response[blogv1.ListPostsResponse], error) {
-	tctx, _, err := scopeToActiveProject(ctx, s.projects, req.Msg.GetProjectId())
+	tctx, err := scopeToActiveProject(ctx, s.projects, req.Msg.GetProjectId())
 	if err != nil {
 		return nil, err
 	}

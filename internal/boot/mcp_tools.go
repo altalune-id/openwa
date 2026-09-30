@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"altalune.id/openwa/gen/go/device/v1/devicev1mcp"
 	"altalune.id/openwa/gen/go/org/v1/orgv1mcp"
 	"altalune.id/openwa/gen/go/project/v1/projectv1mcp"
 	"altalune.id/openwa/internal/controlplane"
@@ -54,11 +55,14 @@ func IsMCPToolUnregisteredError(err error) bool {
 type mcpToolRegistrar func(*rootmcp.Registry, *controlplane.Server)
 
 // NOTE: add a row here when a .proto starts declaring an (mcp.v1.tool); assertMCPWiring fails boot on a slot nobody filled.
-func mcpToolDomains() []string { return []string{"org.v1", "project.v1"} }
+func mcpToolDomains() []string { return []string{"device.v1", "org.v1", "project.v1"} }
 
 // SECURITY: the generated registrations carry no scope of their own — mcpinternal.ScopeFor is the one catalog a tool's scope comes from, so the runtime check cannot drift from it.
 func mcpToolManifest() map[string]mcpToolRegistrar {
 	return map[string]mcpToolRegistrar{
+		"device.v1": func(reg *rootmcp.Registry, apiSrv *controlplane.Server) {
+			devicev1mcp.RegisterDeviceServiceTools(reg, apiSrv.DeviceSvc, mcpinternal.ScopeFor)
+		},
 		"org.v1": func(reg *rootmcp.Registry, apiSrv *controlplane.Server) {
 			orgv1mcp.RegisterMemberServiceTools(reg, apiSrv.MemberSvc, mcpinternal.ScopeFor)
 		},

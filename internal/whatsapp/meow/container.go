@@ -4,7 +4,6 @@ package meow
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -19,19 +18,6 @@ const dialect = "pgx"
 // Container wraps the whatsmeow store container so callers outside this package hold no go.mau.fi type.
 type Container struct {
 	inner *sqlstore.Container
-}
-
-// NotUpgradedError reports that whatsmeow's schema is absent from the runtime database.
-type NotUpgradedError struct{}
-
-func (*NotUpgradedError) Error() string {
-	return "whatsmeow: schema not present — run `openwa migrate` (or enable db.autoMigrate) before serving"
-}
-
-// IsNotUpgradedError reports whether err is a NotUpgradedError.
-func IsNotUpgradedError(err error) bool {
-	_, ok := errors.AsType[*NotUpgradedError](err)
-	return ok
 }
 
 // Upgrade creates or upgrades whatsmeow's tables on the migrator connection; it is the only DDL path.

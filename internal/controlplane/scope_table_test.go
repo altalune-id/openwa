@@ -11,7 +11,7 @@ import (
 
 // TestEveryRPCHasAScope guards the fail-closed rule: a mounted procedure with no scope entry is callable unchecked.
 func TestEveryRPCHasAScope(t *testing.T) {
-	srv := controlplane.New(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	srv := controlplane.New(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	_ = srv.Handler("")
 
 	mounted := srv.MountedProcedures()

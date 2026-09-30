@@ -23,6 +23,7 @@ R11: the CLI owns no verbs. What a command calls decides which credential it nee
 | Reaches                              | Commands                                                                    | Credential          |
 | ------------------------------------ | --------------------------------------------------------------------------- | ------------------- |
 | in-process services (`ServerBootFn`) | `init`, `serve`, `migrate`, `scheduler`, `auth`, `org`, `project`, `invite` | session file, or DB |
+| control plane (Connect client)       | `device`                                                                    | bearer token        |
 | nothing but `config.Load`            | `version`, `healthz`, `completion`                                          | none                |
 
 `org`, `project` and `invite` resolve a principal before doing anything, so they fail with
@@ -37,6 +38,7 @@ openwa
 ├─ Runtime   init · serve · migrate {up,status,down-to} · scheduler {list,run}
 ├─ Auth      auth {login,logout,whoami,token mint}
 ├─ Tenancy   org {list,create} · project {list,create} · invite {list,send,revoke}
+├─ Domain    device {list,get,create,pair,logout,delete}                    control plane S2
 └─ Meta      version · healthz · completion
 ```
 

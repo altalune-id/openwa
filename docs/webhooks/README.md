@@ -64,21 +64,28 @@ Any timestamp inside `data` (`first_published_at`, `updated_at`) is RFC 3339 UTC
 
 Source of truth: `internal/platform/events` (`catalog.go`, `payloads.go`, golden files in `testdata/`).
 
-| Type                    | Subscribable     | Fires when                               | `data`              |
-| ----------------------- | ---------------- | ---------------------------------------- | ------------------- |
-| `blog.post.published`   | yes              | a draft becomes published                | `PostPublishedV1`   |
-| `blog.post.unpublished` | yes              | a published post becomes a draft         | `PostUnpublishedV1` |
-| `blog.post.deleted`     | yes              | a post is deleted, draft or published    | `PostDeletedV1`     |
-| `webhook.ping`          | no — "Send test" | the console sends a test to one endpoint | `WebhookPingV1`     |
+| Type                    | Subscribable     | Fires when                                                                                            | `data`                 |
+| ----------------------- | ---------------- | ----------------------------------------------------------------------------------------------------- | ---------------------- |
+| `blog.post.published`   | yes              | a draft becomes published                                                                             | `PostPublishedV1`      |
+| `blog.post.unpublished` | yes              | a published post becomes a draft                                                                      | `PostUnpublishedV1`    |
+| `blog.post.deleted`     | yes              | a post is deleted, draft or published                                                                 | `PostDeletedV1`        |
+| `device.connected`      | yes              | a device's session becomes connected (not on keepalive blips or reconnects that never left connected) | `DeviceConnectedV1`    |
+| `device.disconnected`   | yes              | a connected session loses its connection                                                              | `DeviceDisconnectedV1` |
+| `device.logged_out`     | yes              | the account is logged out from the phone or through Logout                                            | `DeviceLoggedOutV1`    |
+| `webhook.ping`          | no — "Send test" | the console sends a test to one endpoint                                                              | `WebhookPingV1`        |
 
 - A no-op publish or unpublish sends nothing. An edit sends nothing: v1 has no `updated` event.
 - `published` and `unpublished` share one shape (the example above). `tag_ids` is always an
   array, never `null`. `version` is the stored post version after the change.
 
-| Event               | Example `data`                                                                                 |
-| ------------------- | ---------------------------------------------------------------------------------------------- |
-| `blog.post.deleted` | `{"id": "018f9c3e-1111-7000-8000-000000000001", "slug": "hello-world", "was_published": true}` |
-| `webhook.ping`      | `{"endpoint_id": "018f9c3e-4444-7000-8000-000000000004"}`                                      |
+| Event               | Example `data`                                                                                                                                |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `blog.post.deleted` | `{"id": "018f9c3e-1111-7000-8000-000000000001", "slug": "hello-world", "was_published": true}`                                                |
+| `device.connected`  | `{"device": {"id": "dev_V1StGXR8Z5jdHi6B", "name": "sales-01", "phone": "628123456789"}, "state": "connected", "at": "2026-09-28T09:00:00Z"}` |
+| `webhook.ping`      | `{"endpoint_id": "018f9c3e-4444-7000-8000-000000000004"}`                                                                                     |
+
+- `device.id` is the device's public id (`dev_` + 16 characters), the same id every API and the console use; the internal UUID never appears.
+- Device events fire only on real transitions; reasons are `network`, `stream_replaced`, `temp_ban_<code>`, `client_outdated`, `connect_failure_<code>`, `lease_lost`, `open_failed: …`, `logged_out_by_phone`, `unlinked`, `device_missing`.
 
 ## Headers
 

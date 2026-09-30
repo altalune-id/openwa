@@ -50,6 +50,7 @@ func openAPIServer(t *testing.T, enabled bool, auth *controlplane.BasicAuth) *ht
 		blog.NewService(posts, log, reporter.Unexpected, fakes.UnitOfWork, &fakes.Webhooks{}),
 		category.NewService(cats, log, reporter.Unexpected),
 		tag.NewService(tags, log, reporter.Unexpected),
+		nil,
 	)
 	srv.OpenAPIEnabled = enabled
 	srv.OpenAPIBasicAuth = auth

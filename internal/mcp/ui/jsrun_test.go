@@ -13,6 +13,8 @@ var (
 		"src/lit.js":                true,
 		"src/styles.js":             true,
 		"src/views/project_list.js": true,
+		"src/views/device_list.js":  true,
+		"src/views/device_pair.js":  true,
 		"src/app.js":                true,
 	}
 	domParts = map[string]bool{
@@ -62,6 +64,9 @@ func newJSVM(t *testing.T) *goja.Runtime {
 	}
 	if _, err := vm.RunString(`registerView("project_list", projectListModel, null);`); err != nil {
 		t.Fatalf("register project_list: %v", err)
+	}
+	if _, err := vm.RunString(`registerView("device_list", deviceListModel, null); registerView("device_pair", devicePairModel, null); registerView("device_get", deviceGetModel, null);`); err != nil {
+		t.Fatalf("register device views: %v", err)
 	}
 	return vm
 }

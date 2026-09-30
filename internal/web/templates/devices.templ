@@ -1,0 +1,130 @@
+package templates
+
+import (
+	"strconv"
+	"time"
+
+	"altalune.id/openwa/internal/web"
+)
+
+// DeviceCard is one card of the devices list.
+type DeviceCard struct {
+	ID       string
+	Name     string
+	Phone    string
+	PushName string
+	StateKey string
+	Tone     Tone
+	LastSeen *time.Time
+}
+
+// DevicesView is the devices list page.
+type DevicesView struct {
+	ProjectSlug string
+	Total       int
+	Connected   int
+	Attention   int
+	Cards       []DeviceCard
+}
+
+// DeviceFormView is the new-device form.
+type DeviceFormView struct {
+	ProjectSlug string
+	Name        string
+	Error       string
+}
+
+templ DevicesPage(d web.LayoutData, v DevicesView) {
+	<section class="space-y-6">
+		@PageHeader(d, PageHeaderProps{
+			Title:    d.Tr("devices.title"),
+			Subtitle: d.Tr("devices.subtitle"),
+			Actions:  Button(ButtonProps{Kind: ButtonPrimary, Label: d.Tr("devices.new"), Icon: "plus", Href: d.ProjectPath(v.ProjectSlug, "/devices/new")}),
+		})
+		<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+			@StatCard(d.Tr("devices.stat_total"), strconv.Itoa(v.Total))
+			@StatCard(d.Tr("devices.stat_connected"), strconv.Itoa(v.Connected))
+			@StatCard(d.Tr("devices.stat_attention"), strconv.Itoa(v.Attention))
+		</div>
+		if len(v.Cards) == 0 {
+			@EmptyState(d, EmptyStateProps{
+				Icon:  "smartphone",
+				Title: d.Tr("devices.empty_title"),
+				Body:  d.Tr("devices.empty_body"),
+				CTA:   &ButtonProps{Kind: ButtonPrimary, Label: d.Tr("devices.new"), Href: d.ProjectPath(v.ProjectSlug, "/devices/new")},
+			})
+		} else {
+			<ul id="device-list" class="grid grid-cols-1 gap-3 md:grid-cols-2">
+				for _, c := range v.Cards {
+					<li id={ "device-" + c.ID }>
+						@deviceCard(d, v.ProjectSlug, c)
+					</li>
+				}
+			</ul>
+		}
+	</section>
+}
+
+templ deviceCard(d web.LayoutData, projectSlug string, c DeviceCard) {
+	@Card(CardProps{}) {
+		<div class="flex items-start justify-between gap-3">
+			<div class="min-w-0">
+				<a href={ templ.SafeURL(d.ProjectPath(projectSlug, "/devices/"+c.ID)) } class="block truncate text-base font-semibold text-foreground hover:underline">{ c.Name }</a>
+				if c.PushName != "" {
+					<p class="mt-0.5 truncate text-sm text-muted-foreground">{ c.PushName }</p>
+				}
+			</div>
+			<span class="flex shrink-0 items-center gap-2">
+				@StatusDot(c.Tone, d.Tr(c.StateKey))
+				@Badge(c.Tone, d.Tr(c.StateKey))
+			</span>
+		</div>
+		<dl class="mt-3 grid grid-cols-2 gap-2 text-sm">
+			<div>
+				<dt class="text-xs text-muted-foreground">{ d.Tr("devices.phone") }</dt>
+				<dd>
+					if c.Phone != "" {
+						@CopyButton(d, "+"+c.Phone, d.Tr("common.copy")+": +"+c.Phone)
+					} else {
+						<span class="text-muted-foreground">—</span>
+					}
+				</dd>
+			</div>
+			<div>
+				<dt class="text-xs text-muted-foreground">{ d.Tr("devices.last_seen") }</dt>
+				<dd>
+					if c.LastSeen != nil {
+						@Time(d, *c.LastSeen)
+					} else {
+						<span class="text-muted-foreground">—</span>
+					}
+				</dd>
+			</div>
+		</dl>
+	}
+}
+
+templ DevicesLayout(d web.LayoutData, v DevicesView) {
+	@Layout(web.WithContent(d, DevicesPage(d, v)))
+}
+
+templ DeviceNewPage(d web.LayoutData, v DeviceFormView) {
+	<section class="space-y-6">
+		@PageHeader(d, PageHeaderProps{Title: d.Tr("devices.new_title"), Subtitle: d.Tr("devices.new_subtitle")})
+		@Card(CardProps{}) {
+			<form method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/devices")) } class="space-y-4">
+				@Field(d, FieldProps{ID: "name", Label: d.Tr("devices.name"), Help: d.Tr("devices.name_help"), Error: v.Error, Required: true}) {
+					<input type="text" name="name" value={ v.Name } maxlength="64" required class={ InputClass() } { InputAttrs(FieldProps{ID: "name", Help: d.Tr("devices.name_help"), Error: v.Error})... }/>
+				}
+				@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.create")})
+			</form>
+		}
+		@Card(CardProps{Title: d.Tr("devices.pairing_explainer_title")}) {
+			<p class="text-sm text-muted-foreground">{ d.Tr("devices.pairing_explainer_body") }</p>
+		}
+	</section>
+}
+
+templ DeviceNewLayout(d web.LayoutData, v DeviceFormView) {
+	@Layout(web.WithContent(d, DeviceNewPage(d, v)))
+}

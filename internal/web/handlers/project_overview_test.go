@@ -11,7 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"altalune.id/openwa/internal/device"
+	"altalune.id/openwa/internal/i18n"
 	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/testutil/fakes"
 	"altalune.id/openwa/internal/web/handlers"
 )
 
@@ -34,7 +37,7 @@ func newOverviewFixture(t *testing.T) *overviewFixture {
 	proj, err := f.Projects.Create(octx, o.ID, "alpha", "Alpha")
 	require.NoError(t, err)
 	mux := http.NewServeMux()
-	handlers.NewProjectOverviewHandler(f.Deps, f.Projects).Register(mux)
+	handlers.NewProjectOverviewHandler(f.Deps, f.Projects, nil).Register(mux)
 	return &overviewFixture{handlerFixture: f, Mux: mux, uid: uid, org: o.ID, project: proj.ID}
 }
 
@@ -86,4 +89,27 @@ func TestOverview_CopyScriptCarriesNonce(t *testing.T) {
 	body := rec.Body.String()
 	require.Contains(t, body, "data-copied-label", "the copy buttons must be on the page")
 	assert.Regexp(t, noncedCopyScript, body, "the copy script must carry a nonce or CSP silently drops it")
+}
+
+func TestProjectOverview_DevicesTileShowsTotalAndConnected(t *testing.T) {
+	x := newOverviewFixture(t)
+	sessions := fakes.NewDeviceSessions()
+	devices := device.NewService(fakes.NewDevice(), discardLogger(), passthroughUnexpected(), fakes.UnitOfWork, sessions)
+	ctx := setTenantProject(context.Background(), x.org, x.project, x.uid)
+	up, err := devices.Create(ctx, "Sales")
+	require.NoError(t, err)
+	_, err = devices.Create(ctx, "Support")
+	require.NoError(t, err)
+	sessions.Statuses[up.ID] = device.SessionStatus{State: device.SessionConnected}
+	x.Mux = http.NewServeMux()
+	handlers.NewProjectOverviewHandler(x.Deps, x.Projects, devices).Register(x.Mux)
+
+	p := session.Principal{UserID: x.uid, ActiveOrgID: x.org, ActiveProjectID: x.project}
+	req := x.authedRequest(t, http.MethodGet, overviewBase+"/overview", "", p)
+	bundle := i18n.NewEmbeddedBundle(i18n.EnUS)
+	req = req.WithContext(i18n.TranslatorInto(req.Context(), bundle.For(i18n.EnUS)))
+	rec := httptest.NewRecorder()
+	x.Mux.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), "2 · 1 connected")
 }

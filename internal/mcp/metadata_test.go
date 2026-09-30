@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	mcpinternal "altalune.id/openwa/internal/mcp"
 	"altalune.id/openwa/internal/platform/authn"
@@ -189,7 +190,7 @@ func mcpConfig(t *testing.T, basePath string) *config.Config {
 		DB:       db.DBConfig{DSN: "postgres://openwa:openwa@localhost:5432/openwa?sslmode=disable"},
 		Genesis:  config.GenesisConfig{Email: "root@example.com", Password: "x"},
 		Security: config.SecurityConfig{EncryptionKey: strings.Repeat("ab", 32)},
-		WhatsApp: config.WhatsAppConfig{Engine: "whatsmeow", ClientName: "OpenWA"},
+		WhatsApp: config.WhatsAppConfig{Engine: "whatsmeow", ClientName: "OpenWA", LeaseTTL: 45 * time.Second, LeaseInterval: 15 * time.Second, LinkTimeout: 3 * time.Minute},
 	}
 	c.Tenant.SingletonOrg.Slug = "default"
 	c.Tenant.SingletonOrg.Name = "Default Organization"

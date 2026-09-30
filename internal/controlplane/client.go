@@ -10,6 +10,7 @@ import (
 
 	authv1connect "altalune.id/openwa/gen/go/auth/v1/authv1connect"
 	blogv1connect "altalune.id/openwa/gen/go/blog/v1/blogv1connect"
+	devicev1connect "altalune.id/openwa/gen/go/device/v1/devicev1connect"
 	todov1connect "altalune.id/openwa/gen/go/todo/v1/todov1connect"
 )
 
@@ -18,9 +19,10 @@ const DefaultClientTimeout = 30 * time.Second
 
 // Client bundles the Connect clients for every service published by controlplane.Server.
 type Client struct {
-	Auth authv1connect.AuthServiceClient
-	Todo todov1connect.TodoServiceClient
-	Blog blogv1connect.BlogServiceClient
+	Auth   authv1connect.AuthServiceClient
+	Todo   todov1connect.TodoServiceClient
+	Blog   blogv1connect.BlogServiceClient
+	Device devicev1connect.DeviceServiceClient
 }
 
 // NewClient builds a Client pointing at baseURL; a non-empty token becomes the Bearer header.
@@ -31,9 +33,10 @@ func NewClient(baseURL, token string) *Client {
 		connect.WithInterceptors(bearerInterceptor(token)),
 	}
 	return &Client{
-		Auth: authv1connect.NewAuthServiceClient(httpClient, base, opts...),
-		Todo: todov1connect.NewTodoServiceClient(httpClient, base, opts...),
-		Blog: blogv1connect.NewBlogServiceClient(httpClient, base, opts...),
+		Auth:   authv1connect.NewAuthServiceClient(httpClient, base, opts...),
+		Todo:   todov1connect.NewTodoServiceClient(httpClient, base, opts...),
+		Blog:   blogv1connect.NewBlogServiceClient(httpClient, base, opts...),
+		Device: devicev1connect.NewDeviceServiceClient(httpClient, base, opts...),
 	}
 }
 

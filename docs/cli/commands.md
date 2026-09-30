@@ -66,18 +66,46 @@ Hidden from `--help`; kept as the reference for a domain command.
 
 Omit both filters to list everything. Filtering happens client-side after the RPC returns.
 
+### device — control plane (S2)
+
+The token's principal decides the org and the project. `--device` takes a name (case-insensitive,
+resolved through `ListDevices`) or a device public id (`dev_…`). Every id the commands print is
+the public id; the internal UUID never appears. A project key carries an active project; an org key or personal token does not, and the device
+commands do not send `--project`. With such a credential, `pair` and `logout` without `--device`
+are refused with `PRJ005` (exit `7`); pass `--device` or use a project key.
+
+| Command         | Args | Flags                 | Prints                                                                            |
+| --------------- | ---- | --------------------- | --------------------------------------------------------------------------------- |
+| `device list`   | none | —                     | table `NAME STATE PHONE ID`                                                       |
+| `device get`    | none | `--device` (required) | `id / name / state / phone / push name / version`, one per line                   |
+| `device create` | none | `--name` (required)   | `Created device <name> (<dev_id>)`                                                |
+| `device pair`   | none | `--device`, `--phone` | a terminal QR (or the pairing code) on stderr, then `Pairing <dev_id>: <outcome>` |
+| `device logout` | none | `--device`            | `Logged out device <dev_id>`                                                      |
+| `device delete` | none | `--device` (required) | `Deleted device <dev_id>`                                                         |
+
+- `pair` and `logout` without `--device` act on the project's only device; with several devices
+  (or none) the server refuses and lists them (exit `4`, `GEN004`). Server errors keep their code
+  and map to exit codes as in the exit table.
+- `pair` polls every 5 s and reprints the QR when WhatsApp rotates it; it exits `0` on
+  `connected`, `1` on `timeout` or `failed` (in every output format), and on Ctrl-C stops with exit `1` (never `0`) so `pair && next` does not proceed unlinked.
+  The QR and the pairing code always go to stderr, so `--output json` keeps stdout one envelope.
+
 ## Payload fields
 
-| Command          | Fields under `data`                                                   |
-| ---------------- | --------------------------------------------------------------------- |
-| `scheduler list` | `name`, `scope`, `schedule`, `timeout`, `singleton`                   |
-| `auth whoami`    | `user_id`, `email`, `name`, `source`, `session_path`                  |
-| `org list`       | `id`, `slug`, `name`, `owner_id`, `created_at`                        |
-| `project list`   | `id`, `org_id`, `slug`, `name`, `created_at`                          |
-| `invite list`    | `id`, `org_id`, `email`, `role`, `status`, `expires_at`, `created_at` |
-| `todo list`      | `id`, `project_id`, `title`, `done`, `created_at`                     |
-| `version`        | `version`, `commit`, `buildTime`                                      |
-| `healthz`        | `url`, `status`, `ok`, `took`, `error`                                |
+| Command                          | Fields under `data`                                                    |
+| -------------------------------- | ---------------------------------------------------------------------- |
+| `scheduler list`                 | `name`, `scope`, `schedule`, `timeout`, `singleton`                    |
+| `auth whoami`                    | `user_id`, `email`, `name`, `source`, `session_path`                   |
+| `org list`                       | `id`, `slug`, `name`, `owner_id`, `created_at`                         |
+| `project list`                   | `id`, `org_id`, `slug`, `name`, `created_at`                           |
+| `invite list`                    | `id`, `org_id`, `email`, `role`, `status`, `expires_at`, `created_at`  |
+| `todo list`                      | `id`, `project_id`, `title`, `done`, `created_at`                      |
+| `device list` / `get` / `create` | `id`, `name`, `state`, `phone`, `push_name`, `version`, `last_seen_at` |
+| `device pair`                    | `device_id`, `outcome`                                                 |
+| `device logout`                  | `device_id`, `logged_out`                                              |
+| `device delete`                  | `device_id`, `deleted`                                                 |
+| `version`                        | `version`, `commit`, `buildTime`                                       |
+| `healthz`                        | `url`, `status`, `ok`, `took`, `error`                                 |
 
 Timestamps are RFC 3339. `role` is `owner\|admin\|member`; `status` is `pending\|accepted` for an
 invite.

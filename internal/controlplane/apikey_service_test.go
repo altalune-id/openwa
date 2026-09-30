@@ -23,6 +23,7 @@ import (
 	"altalune.id/openwa/internal/platform"
 	"altalune.id/openwa/internal/platform/authn"
 	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
 	"altalune.id/openwa/internal/platform/tokens"
 	"altalune.id/openwa/internal/project"
 	"altalune.id/openwa/internal/testutil/fakes"
@@ -35,6 +36,7 @@ type apikeyFixture struct {
 	projs   *fakes.Project
 	project *project.Project
 	orgID   uuid.UUID
+	devices *fakes.DeviceResolver
 }
 
 func newAPIKeyFixture(t *testing.T) *apikeyFixture {
@@ -67,6 +69,9 @@ func newAPIKeyFixtureAs(t *testing.T, manager bool) *apikeyFixture {
 		Verifier: stubVerifier{principal: principal},
 	}
 
+	devices := fakes.NewDeviceResolver()
+	keySvc.Devices = devices
+
 	srv := controlplane.New(
 		nil, // cfg — OpenAPI off by default in these tests
 		kernel,
@@ -74,6 +79,7 @@ func newAPIKeyFixtureAs(t *testing.T, manager bool) *apikeyFixture {
 		nil, projectSvc, nil, nil,
 		nil,
 		nil, nil, nil,
+		nil,
 	)
 	srv.Authn = authn.Chain{apikey.NewAuthenticator(keyStore, nil, apikey.Scheme{}, fakes.NewMembers()), tokens.NewAuthenticator(kernel.Verifier)}
 	srv.APIKeys = keySvc
@@ -86,7 +92,7 @@ func newAPIKeyFixtureAs(t *testing.T, manager bool) *apikeyFixture {
 	require.NoError(t, err)
 	require.NoError(t, projs.Save(ctx, proj))
 
-	return &apikeyFixture{t: t, baseURL: ts.URL, store: keyStore, projs: projs, project: proj, orgID: orgID}
+	return &apikeyFixture{t: t, baseURL: ts.URL, store: keyStore, projs: projs, project: proj, orgID: orgID, devices: devices}
 }
 
 func (f *apikeyFixture) client() apikeyv1connect.APIKeyServiceClient {
@@ -337,4 +343,50 @@ func TestAPIKey_Create_WithoutExpiry_ReturnsInvalidArgument(t *testing.T) {
 	_, err := f.client().Create(t.Context(), req)
 	require.Equal(t, connect.CodeInvalidArgument, connectCode(err), "err=%v", err)
 	require.Empty(t, f.store.All(), "a key without an expiry must not be stored")
+}
+
+func TestAPIKey_Create_AcceptsADevicePublicIDAndNeverShowsItsUUID(t *testing.T) {
+	f := newAPIKeyFixture(t)
+	deviceID := uuid.New()
+	f.devices.Add("dev_V1StGXR8Z5jdHi6B", deviceID)
+
+	req := connect.NewRequest(&apikeyv1.CreateRequest{
+		ProjectId:   f.project.ID.String(),
+		Name:        "sales-bot",
+		Scopes:      []string{authn.ScopeDevicesRead},
+		ResourceIds: []string{"dev_V1StGXR8Z5jdHi6B"},
+		ExpiresAt:   timestamppb.New(time.Now().Add(24 * time.Hour)),
+	})
+	withBearer(req.Header())
+	resp, err := f.client().Create(t.Context(), req)
+	require.NoError(t, err)
+	require.Equal(t, []string{"dev_V1StGXR8Z5jdHi6B"}, resp.Msg.GetKey().GetResourceIds())
+
+	stored, err := f.store.ByID(tenant.Into(t.Context(), tenant.Context{OrgID: f.orgID, ProjectID: f.project.ID}), uuid.MustParse(resp.Msg.GetKey().GetId()))
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{deviceID}, stored.ResourceIDs, "the key stores the UUID ReachesResource compares")
+
+	bad := connect.NewRequest(&apikeyv1.CreateRequest{ProjectId: f.project.ID.String(), Name: "x", Scopes: []string{authn.ScopeDevicesRead}, ResourceIds: []string{"dev_NoSuchDevice0001"}, ExpiresAt: timestamppb.New(time.Now().Add(24 * time.Hour))})
+	withBearer(bad.Header())
+	_, err = f.client().Create(t.Context(), bad)
+	require.Equal(t, connect.CodeInvalidArgument, connectCode(err))
+}
+
+func TestAPIKey_Create_RefusesADeviceBindingOnNonDeviceScopes(t *testing.T) {
+	f := newAPIKeyFixture(t)
+	f.devices.Add("dev_V1StGXR8Z5jdHi6B", uuid.New())
+
+	for _, scopes := range [][]string{{authn.ScopeDevicesRead, authn.ScopePostsRead}, {authn.ScopePostsRead}} {
+		req := connect.NewRequest(&apikeyv1.CreateRequest{
+			ProjectId:   f.project.ID.String(),
+			Name:        "mixed",
+			Scopes:      scopes,
+			ResourceIds: []string{"dev_V1StGXR8Z5jdHi6B"},
+			ExpiresAt:   timestamppb.New(time.Now().Add(24 * time.Hour)),
+		})
+		withBearer(req.Header())
+		_, err := f.client().Create(t.Context(), req)
+		require.Equal(t, connect.CodeInvalidArgument, connectCode(err), "%v", scopes)
+	}
+	require.Empty(t, f.store.All(), "a refused mint stores nothing")
 }

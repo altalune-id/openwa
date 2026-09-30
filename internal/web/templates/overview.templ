@@ -7,12 +7,13 @@ import (
 )
 
 type OverviewView struct {
-	OrgSlug       string
-	ProjectID     string
-	ProjectSlug   string
-	ProjectName   string
-	Devices       int
-	MessagesToday int
+	OrgSlug          string
+	ProjectID        string
+	ProjectSlug      string
+	ProjectName      string
+	Devices          int
+	DevicesConnected int
+	MessagesToday    int
 }
 
 templ OverviewPage(d web.LayoutData, v OverviewView) {
@@ -27,7 +28,7 @@ templ OverviewPage(d web.LayoutData, v OverviewView) {
 		</div>
 		@copyScript(d.Nonce)
 		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-			@StatCard(d.Tr("overview.devices"), strconv.Itoa(v.Devices))
+			@StatCard(d.Tr("overview.devices"), d.Tr("overview.devices_value", "Total", v.Devices, "Connected", v.DevicesConnected))
 			@StatCard(d.Tr("overview.messages_today"), strconv.Itoa(v.MessagesToday))
 		</div>
 	</section>

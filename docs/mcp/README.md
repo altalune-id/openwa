@@ -100,6 +100,24 @@ sequenceDiagram
 **SECURITY:** a tool failure answers _in the result_, never as a JSON-RPC error — a bare error
 yields a wire error with code zero, which is invalid. Codes: [`error codes`](../errors/README.md).
 
+## Tools
+
+Every tool calls the Connect handler instance S2 serves (`TestMCP_ToolsShareTheConnectHandlerInstance`),
+so its authorization is the RPC's. A device-bound key reaches only its device: a device tool that names
+that device is served, a project-wide tool (`device_list`, `device_pair` with no `deviceId`) is refused —
+the same `Principal.ReachesResource`/`ReachesWholeProject` rule the RPCs apply.
+
+| Tool            | RPC                           | Scope           | App tool (`_meta`) | Mutation | Destructive |
+| --------------- | ----------------------------- | --------------- | ------------------ | -------- | ----------- |
+| `project_list`  | `ProjectService.ListProjects` | `projects:read` | yes                | no       | no          |
+| `device_list`   | `DeviceService.ListDevices`   | `devices:read`  | yes                | no       | no          |
+| `device_get`    | `DeviceService.GetDevice`     | `devices:read`  | no                 | no       | no          |
+| `device_pair`   | `DeviceService.StartLink`     | `devices:write` | yes                | yes      | no          |
+| `device_logout` | `DeviceService.Unlink`        | `devices:write` | no                 | yes      | yes         |
+
+The Apps UI (`ui://openwa/app`) renders three views: `project_list`, `device_list` and `device_pair`
+(`internal/mcp/ui/src/views/`). `device_get` and `device_logout` are plain tools with no view.
+
 ## Adding a tool
 
 Steps, in order: [`howto/mcp-tool.md`](../howto/mcp-tool.md) — the annotation on a **unary** RPC,

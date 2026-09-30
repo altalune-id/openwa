@@ -4,6 +4,7 @@ import (
 	apikeyv1connect "altalune.id/openwa/gen/go/apikey/v1/apikeyv1connect"
 	authv1connect "altalune.id/openwa/gen/go/auth/v1/authv1connect"
 	blogv1connect "altalune.id/openwa/gen/go/blog/v1/blogv1connect"
+	devicev1connect "altalune.id/openwa/gen/go/device/v1/devicev1connect"
 	orgv1connect "altalune.id/openwa/gen/go/org/v1/orgv1connect"
 	projectv1connect "altalune.id/openwa/gen/go/project/v1/projectv1connect"
 	todov1connect "altalune.id/openwa/gen/go/todo/v1/todov1connect"
@@ -29,6 +30,15 @@ func ScopeTable() authn.ScopeTable {
 		todov1connect.TodoServiceCreateProcedure:             authn.ScopePostsWrite,
 		todov1connect.TodoServiceToggleProcedure:             authn.ScopePostsWrite,
 		todov1connect.TodoServiceDeleteProcedure:             authn.ScopePostsAdmin,
+		devicev1connect.DeviceServiceListDevicesProcedure:    authn.ScopeDevicesRead,
+		devicev1connect.DeviceServiceGetDeviceProcedure:      authn.ScopeDevicesRead,
+		devicev1connect.DeviceServiceGetLinkStateProcedure:   authn.ScopeDevicesRead,
+		devicev1connect.DeviceServiceCreateDeviceProcedure:   authn.ScopeDevicesWrite,
+		devicev1connect.DeviceServiceUpdateDeviceProcedure:   authn.ScopeDevicesWrite,
+		devicev1connect.DeviceServiceDeleteDeviceProcedure:   authn.ScopeDevicesWrite,
+		devicev1connect.DeviceServiceStartLinkProcedure:      authn.ScopeDevicesWrite,
+		devicev1connect.DeviceServiceLinkWithPhoneProcedure:  authn.ScopeDevicesWrite,
+		devicev1connect.DeviceServiceUnlinkProcedure:         authn.ScopeDevicesWrite,
 		authv1connect.AuthServiceWhoamiProcedure:             authn.ScopeAPIKeysRead,
 	}
 }

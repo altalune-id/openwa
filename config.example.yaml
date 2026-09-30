@@ -300,3 +300,13 @@ whatsapp:
   clientName: OpenWA
   # [bootstrap] env: OPENWA_WHATSAPP_ENGINE
   engine: whatsmeow
+  # env: OPENWA_WHATSAPP_INBOUND_QUEUE_SIZE
+  inboundQueueSize: 1024
+  # env: OPENWA_WHATSAPP_LEASE_INTERVAL
+  leaseInterval: 15s
+  # env: OPENWA_WHATSAPP_LEASE_TTL
+  leaseTTL: 45s
+  # env: OPENWA_WHATSAPP_LINK_TIMEOUT
+  linkTimeout: 3m
+  # env: OPENWA_WHATSAPP_PARK_FOR
+  parkFor: 0s

@@ -41,6 +41,7 @@ func probeRoutes() []probeRoute {
 		pbase = base + "/projects/" + proj
 	)
 	id := uuid.NewString()
+	devID := "dev_ProbeDevice00001"
 	return []probeRoute{
 		{http.MethodGet, "/", nil},
 		{http.MethodGet, "/login", nil},
@@ -60,6 +61,10 @@ func probeRoutes() []probeRoute {
 		{http.MethodGet, base + "/projects", nil},
 		{http.MethodGet, base + "/projects/new", nil},
 		{http.MethodGet, pbase + "/overview", nil},
+		{http.MethodGet, pbase + "/devices", nil},
+		{http.MethodGet, pbase + "/devices/new", nil},
+		{http.MethodGet, pbase + "/devices/" + devID, nil},
+		{http.MethodGet, pbase + "/devices/" + devID + "/links/current", nil},
 		{http.MethodGet, pbase + "/apikeys", nil},
 		{http.MethodGet, pbase + "/webhooks", nil},
 		{http.MethodGet, pbase + "/webhooks/new", nil},
@@ -88,6 +93,13 @@ func probeRoutes() []probeRoute {
 		{http.MethodPost, base + "/members/" + id + "/remove", url.Values{}},
 		{http.MethodPost, base + "/projects", url.Values{"slug": {"probe-new-project"}, "name": {"Probe New Project"}}},
 		{http.MethodPost, pbase + "/rename", url.Values{"name": {"Renamed"}}},
+		{http.MethodPost, pbase + "/devices", url.Values{"name": {"Probe Device"}}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/links", url.Values{}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/phone-links", url.Values{"phone": {"+62 812 3456 7890"}}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/unlink", url.Values{}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/rules", url.Values{"version": {"1"}, "group_mode": {"mention"}}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/rename", url.Values{"version": {"1"}, "name": {"Renamed"}}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/delete", url.Values{}},
 		{http.MethodPost, pbase + "/apikeys", url.Values{"name": {"Probe Key"}, "scopes": {"posts:read"}}},
 		{http.MethodPost, pbase + "/apikeys/" + id + "/revoke", url.Values{}},
 		{http.MethodPost, pbase + "/webhooks", url.Values{
@@ -262,6 +274,7 @@ func templatize(path string) string {
 		path = strings.Replace(path, "/members/{id}/", "/members/{user}/", 1)
 	}
 	path = strings.Replace(path, "/deliveries/{id}", "/deliveries/{did}", 1)
+	path = strings.Replace(path, "/devices/dev_ProbeDevice00001", "/devices/{device}", 1)
 	if path == "/" {
 		return "/{$}"
 	}

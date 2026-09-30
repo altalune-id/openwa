@@ -4,6 +4,8 @@ import (
 	"container/list"
 	"crypto/sha256"
 	"crypto/subtle"
+	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -146,4 +148,40 @@ func entryOf(el *list.Element) *idempotencyEntry {
 		panic("dataplane: idempotency order holds a foreign element")
 	}
 	return entry
+}
+
+func idempotencyKeyOf(r *http.Request, namespace string) string {
+	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if key == "" {
+		return ""
+	}
+	return namespace + key
+}
+
+// NOTE: createIdempotently replays the stored answer for key, or runs create and remembers its 201; an empty key just runs create.
+func (h *Handler) createIdempotently(w http.ResponseWriter, r *http.Request, projectID uuid.UUID, key string, raw []byte, create func() (etag string, body []byte, err error)) {
+	if key != "" {
+		rec, err := h.idem.reserve(projectID, key, raw)
+		if err != nil {
+			h.fail(w, r, err)
+			return
+		}
+		if rec != nil {
+			w.Header().Set("ETag", rec.resp.etag)
+			writeBytes(w, rec.resp.status, rec.resp.body)
+			return
+		}
+		// NOTE: releases the reservation unless store() completed it, so a failed create is retryable.
+		defer h.idem.release(projectID, key)
+	}
+	tag, body, err := create()
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if key != "" {
+		h.idem.store(projectID, key, raw, idempotencyResponse{status: http.StatusCreated, etag: tag, body: body})
+	}
+	w.Header().Set("ETag", tag)
+	writeBytes(w, http.StatusCreated, body)
 }

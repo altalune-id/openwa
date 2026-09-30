@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -40,7 +39,11 @@ func (s *APIKeyService) List(ctx context.Context, req *connect.Request[apikeyv1.
 	}
 	resp := &apikeyv1.ListResponse{Keys: make([]*apikeyv1.APIKey, 0, len(items))}
 	for _, k := range items {
-		resp.Keys = append(resp.Keys, keyToProto(k))
+		labels, labelErr := s.keys.ResourceLabels(tctx, k)
+		if labelErr != nil {
+			return nil, labelErr
+		}
+		resp.Keys = append(resp.Keys, keyToProto(k, labels))
 	}
 	return connect.NewResponse(resp), nil
 }
@@ -55,7 +58,7 @@ func (s *APIKeyService) Create(ctx context.Context, req *connect.Request[apikeyv
 	if name == "" {
 		return nil, validationErr("name", "name is required")
 	}
-	resourceIDs, err := parseUUIDs("resource_ids", req.Msg.GetResourceIds())
+	resourceIDs, err := s.keys.ResourceIDs(tctx, req.Msg.GetScopes(), req.Msg.GetResourceIds())
 	if err != nil {
 		return nil, err
 	}
@@ -67,8 +70,12 @@ func (s *APIKeyService) Create(ctx context.Context, req *connect.Request[apikeyv
 	if err != nil {
 		return nil, translateKeyErr(err)
 	}
+	labels, err := s.keys.ResourceLabels(tctx, k)
+	if err != nil {
+		return nil, err
+	}
 	return connect.NewResponse(&apikeyv1.CreateResponse{
-		Key:       keyToProto(k),
+		Key:       keyToProto(k, labels),
 		Plaintext: plaintext,
 	}), nil
 }
@@ -124,13 +131,13 @@ func optionalTimestamp(field string, ts *timestamppb.Timestamp) (*time.Time, err
 	return &t, nil
 }
 
-func keyToProto(k *apikey.APIKey) *apikeyv1.APIKey {
+func keyToProto(k *apikey.APIKey, labels []string) *apikeyv1.APIKey {
 	msg := &apikeyv1.APIKey{
 		Id:          k.ID.String(),
 		ProjectId:   k.ProjectID.String(),
 		Name:        k.Name,
 		Scopes:      append([]string(nil), k.Scopes...),
-		ResourceIds: uuidsToStrings(k.ResourceIDs),
+		ResourceIds: labels,
 		CreatedAt:   timestamppb.New(k.CreatedAt),
 	}
 	if k.ExpiresAt != nil {
@@ -143,12 +150,4 @@ func keyToProto(k *apikey.APIKey) *apikeyv1.APIKey {
 		msg.LastUsedAt = timestamppb.New(*k.LastUsedAt)
 	}
 	return msg
-}
-
-func uuidsToStrings(ids []uuid.UUID) []string {
-	out := make([]string, len(ids))
-	for i, id := range ids {
-		out[i] = id.String()
-	}
-	return out
 }

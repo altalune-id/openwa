@@ -527,7 +527,7 @@ func TestValidate_EncryptionKeyIsAlwaysRequired(t *testing.T) {
 }
 
 func validWhatsApp() WhatsAppConfig {
-	return WhatsAppConfig{Engine: "whatsmeow", ClientName: "OpenWA"}
+	return Defaults().WhatsApp
 }
 
 func TestDefaults_BrandName(t *testing.T) {
@@ -546,4 +546,43 @@ func TestEnvKeys_BrandNameIsNotBootstrap(t *testing.T) {
 		require.NotContains(t, k.Awareness, "required")
 	}
 	require.True(t, found, "brand.name must be a known env key")
+}
+
+func TestValidateWhatsAppLease(t *testing.T) {
+	t.Parallel()
+	ok := WhatsAppConfig{Engine: "whatsmeow", ClientName: "OpenWA", LeaseTTL: 45 * time.Second, LeaseInterval: 15 * time.Second, LinkTimeout: 3 * time.Minute}
+	cases := []struct {
+		name string
+		mut  func(*WhatsAppConfig)
+		bad  bool
+	}{
+		{"defaults", func(*WhatsAppConfig) {}, false},
+		{"ttl equals two intervals", func(w *WhatsAppConfig) { w.LeaseTTL = 30 * time.Second }, true},
+		{"zero interval", func(w *WhatsAppConfig) { w.LeaseInterval = 0 }, true},
+		{"zero link timeout", func(w *WhatsAppConfig) { w.LinkTimeout = 0 }, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			w := ok
+			tc.mut(&w)
+			err := validateWhatsAppLease(&Config{WhatsApp: w})
+			if tc.bad {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "whatsapp.")
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestDefaults_WhatsAppRuntime(t *testing.T) {
+	t.Parallel()
+	c := Defaults()
+	require.Equal(t, 45*time.Second, c.WhatsApp.LeaseTTL)
+	require.Equal(t, 15*time.Second, c.WhatsApp.LeaseInterval)
+	require.Equal(t, 3*time.Minute, c.WhatsApp.LinkTimeout)
+	require.Zero(t, c.WhatsApp.ParkFor)
+	require.Equal(t, 1024, c.WhatsApp.InboundQueueSize)
 }

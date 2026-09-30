@@ -43,15 +43,25 @@ primitive each surface uses, what narrows it, and the tests that hold it togethe
 
 ### R4 — authorization depth per surface
 
-| Surface          | Credential                                                     | Authenticated by               | Authorization depth                        |
-| ---------------- | -------------------------------------------------------------- | ------------------------------ | ------------------------------------------ |
-| S1 console       | `sid` cookie, HMAC                                             | `webmw.Session`                | org membership + role                      |
-| S2 control plane | Bearer JWT **or** an api key (`api.keyPrefix`, default `key_`) | `authn.Interceptor(Chain)`     | **method→scope table, fail closed**        |
-| S3 data plane    | Bearer or `X-API-Key`, key only — a JWT is **401**             | per-route `Authorize`          | scope **+** `ResourceIDs`                  |
-| S4 ingest        | provider signature                                             | per-provider `ingest.Verifier` | none — provider identity _is_ the authz    |
-| S5 dispatch      | n/a, we sign                                                   | n/a                            | n/a                                        |
-| S6 cli           | in-process: none; remote: the credential of the plane it calls | —                              | inherits the plane it calls                |
-| S7 mcp           | Bearer JWT (MCP audience) **or** an api key                    | `authn.Chain` + per-tool scope | **every tool scope-checked, JWT included** |
+| Surface          | Credential                                                     | Authenticated by               | Authorization depth                                                                         |
+| ---------------- | -------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------- |
+| S1 console       | `sid` cookie, HMAC                                             | `webmw.Session`                | org membership + role                                                                       |
+| S2 control plane | Bearer JWT **or** an api key (`api.keyPrefix`, default `key_`) | `authn.Interceptor(Chain)`     | **method→scope table, fail closed**; a device RPC reaches only a bound key's device         |
+| S3 data plane    | Bearer or `X-API-Key`, key only — a JWT is **401**             | per-route `Authorize`          | scope **+** `ResourceIDs`                                                                   |
+| S4 ingest        | provider signature                                             | per-provider `ingest.Verifier` | none — provider identity _is_ the authz                                                     |
+| S5 dispatch      | n/a, we sign                                                   | n/a                            | n/a                                                                                         |
+| S6 cli           | in-process: none; remote: the credential of the plane it calls | —                              | inherits the plane it calls                                                                 |
+| S7 mcp           | Bearer JWT (MCP audience) **or** an api key                    | `authn.Chain` + per-tool scope | **every tool scope-checked, JWT included**; a device tool reaches only a bound key's device |
+
+A device-bound key reaches only its device, on every surface. PR #36 puts `ResourceIDs` on
+`session.Principal` and adds `ReachesResource`/`ReachesWholeProject`, so S2, S3 and S7 all
+enforce the binding with no extra DB read: a verb that names the bound device is served
+(`ReachesResource`), and a project-wide verb — list, create, or pair with no device — is
+refused (`ReachesWholeProject`) with `PermissionDenied`. Project-wide keys and JWTs are
+unaffected.
+
+The device verbs span S1 (console pages), S2 (`DeviceService`), S3 (`/devices` REST), S6 (`openwa device`)
+and S7 (`device_*` tools); S6 and S7 call the S2 handler, so they inherit its checks.
 
 Fail-closed is the whole point of the S2 row: a key principal reaching a Connect method absent
 from the scope table is **denied**, and `TestEveryRPCHasAScope` asserts every mounted method has

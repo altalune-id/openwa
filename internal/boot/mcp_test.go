@@ -112,6 +112,7 @@ type mcpFixture struct {
 	projectID string
 	readKey   string
 	noneKey   string
+	deviceKey string
 }
 
 func newMCPFixture(t *testing.T, opts mcpOpts) *mcpFixture {
@@ -162,6 +163,8 @@ func newMCPFixture(t *testing.T, opts mcpOpts) *mcpFixture {
 
 	_, readKey, err := srv.APIKeys.Mint(projCtx, "mcp-reader", []string{authn.ScopeProjectsRead}, nil, soon())
 	require.NoError(t, err)
+	_, deviceKey, err := srv.APIKeys.Mint(projCtx, "mcp-devices", []string{authn.ScopeDevicesRead, authn.ScopeDevicesWrite, authn.ScopeProjectsRead}, nil, soon())
+	require.NoError(t, err)
 	_, noneKey, err := srv.APIKeys.Mint(projCtx, "mcp-keys-only", []string{authn.ScopeAPIKeysRead}, nil, soon())
 	require.NoError(t, err)
 
@@ -172,6 +175,7 @@ func newMCPFixture(t *testing.T, opts mcpOpts) *mcpFixture {
 		projectID: p.ID.String(),
 		readKey:   readKey,
 		noneKey:   noneKey,
+		deviceKey: deviceKey,
 	}
 }
 
@@ -478,8 +482,12 @@ func TestMCP_ToolsCarryAScopeAndTheSharedInstances(t *testing.T) {
 	require.NotEmpty(t, names, "boot registered no MCP tools")
 
 	instances := map[string]any{
-		"project_list": f.srv.API.ProjectSvc,
-		"member_list":  f.srv.API.MemberSvc,
+		"project_list":  f.srv.API.ProjectSvc,
+		"member_list":   f.srv.API.MemberSvc,
+		"device_list":   f.srv.API.DeviceSvc,
+		"device_get":    f.srv.API.DeviceSvc,
+		"device_pair":   f.srv.API.DeviceSvc,
+		"device_logout": f.srv.API.DeviceSvc,
 	}
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {
@@ -512,6 +520,10 @@ func TestMCP_ToolsShareTheConnectHandlerInstance(t *testing.T) {
 	}{
 		{mcpinternal.ToolProjectList, f.srv.API.ProjectSvc},
 		{mcpinternal.ToolMemberList, f.srv.API.MemberSvc},
+		{mcpinternal.ToolDeviceList, f.srv.API.DeviceSvc},
+		{mcpinternal.ToolDeviceGet, f.srv.API.DeviceSvc},
+		{mcpinternal.ToolDevicePair, f.srv.API.DeviceSvc},
+		{mcpinternal.ToolDeviceLogout, f.srv.API.DeviceSvc},
 	}
 
 	covered := make([]string, 0, len(tests))
@@ -555,5 +567,5 @@ func TestMCP_PublishesMemberAndProjectTools(t *testing.T) {
 		names = append(names, tool.Name)
 	}
 	slices.Sort(names)
-	require.Equal(t, []string{"member_list", "project_list"}, names)
+	require.Equal(t, []string{"device_get", "device_list", "device_logout", "device_pair", "member_list", "project_list"}, names)
 }

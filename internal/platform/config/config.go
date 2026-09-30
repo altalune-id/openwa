@@ -111,10 +111,15 @@ type CSPConfig struct {
 	ReportURI  string `yaml:"reportURI"  mapstructure:"reportURI"  awareness:"-"                validate:"omitempty,uri"`
 }
 
-// WhatsAppConfig selects the WhatsApp engine and the name shown under Linked Devices.
+// WhatsAppConfig selects the WhatsApp engine, the name shown under Linked Devices, and the runtime's lease timing.
 type WhatsAppConfig struct {
-	Engine     string `yaml:"engine"     mapstructure:"engine"     awareness:"bootstrap" validate:"required,oneof=whatsmeow"`
-	ClientName string `yaml:"clientName" mapstructure:"clientName" awareness:"-"         validate:"required"`
+	Engine           string        `yaml:"engine"           mapstructure:"engine"           awareness:"bootstrap" validate:"required,oneof=whatsmeow"`
+	ClientName       string        `yaml:"clientName"       mapstructure:"clientName"       awareness:"-"         validate:"required"`
+	LeaseTTL         time.Duration `yaml:"leaseTTL"         mapstructure:"leaseTTL"         awareness:"-"         validate:"gte=0"`
+	LeaseInterval    time.Duration `yaml:"leaseInterval"    mapstructure:"leaseInterval"    awareness:"-"         validate:"gte=0"`
+	LinkTimeout      time.Duration `yaml:"linkTimeout"      mapstructure:"linkTimeout"      awareness:"-"         validate:"gte=0"`
+	ParkFor          time.Duration `yaml:"parkFor"          mapstructure:"parkFor"          awareness:"-"         validate:"gte=0"`
+	InboundQueueSize int           `yaml:"inboundQueueSize" mapstructure:"inboundQueueSize" awareness:"-"         validate:"gte=0"`
 }
 
 // GenesisConfig configures the built-in admin account.
@@ -302,6 +307,9 @@ var v10 = validator.New() //nolint:gochecknoglobals // validator instance is sta
 func validate() *validator.Validate { return v10 }
 
 func validateInvariants(c *Config) error {
+	if err := validateWhatsAppLease(c); err != nil {
+		return err
+	}
 	if err := validateGenesisPasswordNeedsEmail(c); err != nil {
 		return err
 	}
@@ -322,6 +330,20 @@ func validateInvariants(c *Config) error {
 		}
 	}
 	return validateEncryptionKey(c)
+}
+
+func validateWhatsAppLease(c *Config) error {
+	w := c.WhatsApp
+	if w.LeaseInterval <= 0 {
+		return errors.New("config: whatsapp.leaseInterval must be positive (set " + EnvVar("whatsapp.leaseInterval") + ")")
+	}
+	if w.LeaseTTL <= 2*w.LeaseInterval {
+		return fmt.Errorf("config: whatsapp.leaseTTL (%s) must exceed 2 x whatsapp.leaseInterval (%s), or one missed renewal loses every device", w.LeaseTTL, w.LeaseInterval)
+	}
+	if w.LinkTimeout <= 0 {
+		return errors.New("config: whatsapp.linkTimeout must be positive (set " + EnvVar("whatsapp.linkTimeout") + ")")
+	}
+	return nil
 }
 
 func validateSelfhosted(_ *Config) error { return nil }

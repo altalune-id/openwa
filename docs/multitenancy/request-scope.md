@@ -41,8 +41,15 @@ flowchart LR
 | S6 cli           | the resolved principal, or slugs      | in-process: the principal; remote: `--org` / `--project`      |
 | S7 mcp           | the principal — **no path segment**   | a `projectId` argument checked against the principal's org    |
 
-Two non-surface sources: the **scheduler**, on the same `tenant.Enumerator` fan-out, and **boot / onboarding**,
-which enters the org it is creating because none exists yet.
+Three non-surface sources: the **scheduler**, on the same `tenant.Enumerator` fan-out; **boot / onboarding**,
+which enters the org it is creating because none exists yet; and **the whatsapp runtime**, which binds each
+sink call to the org and project recorded on the lease or link attempt (`sinkContext` in
+`internal/whatsapp/sink.go`, with no `UserID`). The runtime's lease table is the one cross-tenant read it makes,
+and it has no RLS by design (`schema/leases_not_tenant_test.go`).
+
+A device-scoped request takes its scope from the surface like any other. `device.Service.Resolve` then turns the
+public id (`dev_…`) into a device inside the caller's project only, and the `device.Sessions` port is called with
+the device's UUID, never the public id.
 
 Per-surface steps live in [`howto`](../howto/README.md). This document is the contract every one of those
 recipes satisfies, plus one rule none of them states: **resolve scope with that surface's own primitive —

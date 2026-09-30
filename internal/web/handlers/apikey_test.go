@@ -161,6 +161,40 @@ func TestProjectAPIKeys_HideRetiredAndDemoScopes(t *testing.T) {
 	assert.Contains(t, page.Body.String(), `value="`+authn.ScopeDevicesRead+`"`, "an openwa project scope must be offered")
 }
 
+func TestProjectAPIKeys_MintBindsDevicesByPublicID(t *testing.T) {
+	x := newAPIKeyWebFixture(t)
+	deviceID := uuid.New()
+	devices := fakes.NewDeviceResolver()
+	devices.Add("dev_V1StGXR8Z5jdHi6B", deviceID)
+	x.Keys.Devices = devices
+
+	page := x.as(t, x.owner, http.MethodGet, "/orgs/acme/projects/alpha/apikeys", nil)
+	assert.Contains(t, page.Body.String(), `name="devices"`, "the project form offers the devices field")
+	orgPage := x.as(t, x.owner, http.MethodGet, "/orgs/acme/apikeys", nil)
+	assert.NotContains(t, orgPage.Body.String(), `name="devices"`, "an org key cannot be device-bound")
+
+	rec := x.as(t, x.owner, http.MethodPost, "/orgs/acme/projects/alpha/apikeys", url.Values{
+		"name": {"bot"}, "scopes": {authn.ScopeDevicesRead}, "devices": {"dev_V1StGXR8Z5jdHi6B\n"}, "expires_in": {"30"},
+	})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	all := x.Store.All()
+	require.Len(t, all, 1)
+	assert.Equal(t, []uuid.UUID{deviceID}, all[0].ResourceIDs)
+	assert.NotContains(t, rec.Body.String(), deviceID.String())
+
+	bad := x.as(t, x.owner, http.MethodPost, "/orgs/acme/projects/alpha/apikeys", url.Values{
+		"name": {"bot2"}, "scopes": {authn.ScopeDevicesRead}, "devices": {"dev_NoSuchDevice0001"}, "expires_in": {"30"},
+	})
+	assert.Contains(t, bad.Body.String(), "apikey.error_invalid_resource")
+	assert.Len(t, x.Store.All(), 1, "an unknown device id mints nothing")
+
+	mixed := x.as(t, x.owner, http.MethodPost, "/orgs/acme/projects/alpha/apikeys", url.Values{
+		"name": {"bot3"}, "scopes": {authn.ScopeDevicesRead, authn.ScopeProjectsRead}, "devices": {"dev_V1StGXR8Z5jdHi6B"}, "expires_in": {"30"},
+	})
+	assert.Contains(t, mixed.Body.String(), "apikey.error_scope")
+	assert.Len(t, x.Store.All(), 1, "a device binding on a non-device scope mints nothing")
+}
+
 func TestAPIKeys_ExpiryIsRequiredAndCapped(t *testing.T) {
 	x := newAPIKeyWebFixture(t)
 	for _, days := range []string{"", "0", "366", "never"} {

@@ -16,6 +16,8 @@ import (
 	authv1connect "altalune.id/openwa/gen/go/auth/v1/authv1connect"
 	blogv1 "altalune.id/openwa/gen/go/blog/v1"
 	blogv1connect "altalune.id/openwa/gen/go/blog/v1/blogv1connect"
+	devicev1 "altalune.id/openwa/gen/go/device/v1"
+	devicev1connect "altalune.id/openwa/gen/go/device/v1/devicev1connect"
 	orgv1 "altalune.id/openwa/gen/go/org/v1"
 	orgv1connect "altalune.id/openwa/gen/go/org/v1/orgv1connect"
 	projectv1 "altalune.id/openwa/gen/go/project/v1"
@@ -29,6 +31,7 @@ import (
 	"altalune.id/openwa/internal/blog/category"
 	"altalune.id/openwa/internal/blog/tag"
 	"altalune.id/openwa/internal/controlplane/interceptor"
+	"altalune.id/openwa/internal/device"
 	"altalune.id/openwa/internal/invite"
 	"altalune.id/openwa/internal/org"
 	"altalune.id/openwa/internal/platform"
@@ -54,6 +57,7 @@ type Server struct {
 	Posts      *blog.Service
 	Categories *category.Service
 	Tags       *tag.Service
+	Devices    *device.Service
 
 	// APIKeys is set by boot after New returns, mirroring Authn/KeyPrefix below.
 	APIKeys *apikey.Service
@@ -62,6 +66,7 @@ type Server struct {
 	TodoSvc    *TodoService
 	BlogSvc    *BlogService
 	ProjectSvc *ProjectService
+	DeviceSvc  *DeviceService
 	MemberSvc  *MemberService
 	APIKeySvc  *APIKeyService
 
@@ -86,6 +91,7 @@ func New(
 	posts *blog.Service,
 	categories *category.Service,
 	tags *tag.Service,
+	devices *device.Service,
 ) *Server {
 	s := &Server{
 		Cfg:      cfg,
@@ -100,11 +106,13 @@ func New(
 		Posts:      posts,
 		Categories: categories,
 		Tags:       tags,
+		Devices:    devices,
 
 		AuthSvc:    NewAuthService(orgs),
 		TodoSvc:    NewTodoService(todos, todoStore, projects),
 		BlogSvc:    NewBlogService(posts, categories, tags, projects),
 		ProjectSvc: NewProjectService(projects),
+		DeviceSvc:  NewDeviceService(devices, projects),
 		MemberSvc:  NewMemberService(orgs),
 	}
 	if cfg != nil {
@@ -126,6 +134,7 @@ var (
 	_ projectv1connect.ProjectServiceHandler = (*ProjectService)(nil)
 	_ orgv1connect.MemberServiceHandler      = (*MemberService)(nil)
 	_ apikeyv1connect.APIKeyServiceHandler   = (*APIKeyService)(nil)
+	_ devicev1connect.DeviceServiceHandler   = (*DeviceService)(nil)
 )
 
 // Handler mounts the Connect handlers plus OpenAPI endpoints under basePath+"/api".
@@ -143,6 +152,8 @@ func (s *Server) Handler(basePath string) http.Handler {
 	inner.Handle(blogPath, blogHandler)
 	projectPath, projectHandler := projectv1connect.NewProjectServiceHandler(s.ProjectSvc, opts...)
 	inner.Handle(projectPath, projectHandler)
+	devicePath, deviceHandler := devicev1connect.NewDeviceServiceHandler(s.DeviceSvc, opts...)
+	inner.Handle(devicePath, deviceHandler)
 	memberPath, memberHandler := orgv1connect.NewMemberServiceHandler(s.MemberSvc, opts...)
 	inner.Handle(memberPath, memberHandler)
 	apikeyPath, apikeyHandler := apikeyv1connect.NewAPIKeyServiceHandler(s.APIKeySvc, opts...)
@@ -171,6 +182,7 @@ func (s *Server) MountedProcedures() []string {
 		serviceProcedures(authv1.File_auth_v1_auth_proto, "AuthService"),
 		serviceProcedures(blogv1.File_blog_v1_blog_proto, "BlogService"),
 		serviceProcedures(projectv1.File_project_v1_project_proto, "ProjectService"),
+		serviceProcedures(devicev1.File_device_v1_device_proto, "DeviceService"),
 		serviceProcedures(orgv1.File_org_v1_org_proto, "MemberService"),
 		serviceProcedures(apikeyv1.File_apikey_v1_apikey_proto, "APIKeyService"),
 	)

@@ -27,8 +27,8 @@ func IsStaleSchemaError(err error) bool {
 	return ok
 }
 
-// RequiredTableSuffixes lists tables that carry no org_id and so are invisible to TenantTableSuffixes.
-var RequiredTableSuffixes = []string{"sessions"} //nolint:gochecknoglobals // Immutable manifest; not runtime state.
+// RequiredTableSuffixes lists tables outside RLS that TenantTableSuffixes cannot see.
+var RequiredTableSuffixes = []string{"sessions", "whatsapp_leases"} //nolint:gochecknoglobals // Immutable manifest; not runtime state.
 
 // AssertRequiredTables reports any table in RequiredTableSuffixes that the database is missing.
 func AssertRequiredTables(ctx context.Context, conn *sql.DB, cfg *db.DBConfig) error {

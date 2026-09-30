@@ -90,6 +90,8 @@ const (
 	CodeAPIKeyExpiryRequired     = "APK010"
 	CodeAPIKeyExpiryInPast       = "APK011"
 	CodeAPIKeyExpiryTooLong      = "APK012"
+	CodeAPIKeyInvalidResource    = "APK013"
+	CodeAPIKeyDeviceBindingScope = "APK014"
 
 	CodeWebhookEndpointNotFound     = "WHK001"
 	CodeWebhookInvalidURL           = "WHK002"
@@ -99,4 +101,20 @@ const (
 	CodeWebhookDeliveryNotFound     = "WHK006"
 	CodeWebhookEndpointInactive     = "WHK007"
 	CodeWebhookSecretConflict       = "WHK008"
+
+	CodeDeviceNotFound     = "DEV001"
+	CodeDeviceNameTaken    = "DEV002"
+	CodeDeviceInvalidName  = "DEV003"
+	CodeDeviceInvalidRules = "DEV004"
+	CodeDeviceStaleVersion = "DEV005"
+
+	CodeWhatsAppSessionNotFound = "WAS001"
+	CodeWhatsAppNotOwned        = "WAS002"
+	CodeWhatsAppAlreadyLinked   = "WAS003"
+	CodeWhatsAppLinkTimeout     = "WAS004"
+	CodeWhatsAppUnsupported     = "WAS005"
+	CodeWhatsAppNotConnected    = "WAS006"
+	CodeWhatsAppInvalidPhone    = "WAS007"
+	CodeWhatsAppSessionGone     = "WAS008"
+	CodeWhatsAppEngine          = "WAS009"
 )

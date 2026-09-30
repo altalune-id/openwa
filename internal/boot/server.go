@@ -22,6 +22,7 @@ import (
 	"altalune.id/openwa/internal/blog/category"
 	"altalune.id/openwa/internal/blog/tag"
 	"altalune.id/openwa/internal/controlplane"
+	"altalune.id/openwa/internal/device"
 	"altalune.id/openwa/internal/invite"
 	"altalune.id/openwa/internal/onboard"
 	"altalune.id/openwa/internal/org"
@@ -39,6 +40,7 @@ import (
 	"altalune.id/openwa/internal/todo"
 	"altalune.id/openwa/internal/user"
 	"altalune.id/openwa/internal/webhook"
+	"altalune.id/openwa/internal/whatsapp"
 	"altalune.id/openwa/internal/whatsapp/meow"
 	"altalune.id/openwa/logger"
 	"altalune.id/openwa/mailer"
@@ -75,6 +77,9 @@ type Server struct {
 	Tags       *tag.Service
 	APIKeys    *apikey.Service
 	Webhooks   *webhook.Service
+	Devices    *device.Service
+	WhatsApp   *whatsapp.Service
+	Runtime    *whatsapp.Runtime
 
 	Onboard *user.OnboardWorkflow
 
@@ -216,7 +221,7 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 
 	required := &atomic.Bool{}
 
-	svcs, err := buildServices(cfg, kernel, caps)
+	svcs, err := buildServices(cfg, kernel, caps, wa)
 	if err != nil {
 		abort()
 		return nil, err
@@ -254,6 +259,9 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 	sup.Register(health)
 	sup.Register(svcs.APIKeyUsage)
 	sup.Register(outbox.NewWorker(kernel.Outbox, dispatchDeliverer(o, kernel, svcs, log), orgEnumerator(cfg, kernel, log), log, o.dispatch))
+	if !o.schedulerOnly && !o.consumerOnly {
+		sup.Register(svcs.Runtime)
+	}
 	if cfg.Telemetry.Metrics.Prometheus.Enabled {
 		sup.Register(telemetry.PrometheusWorker(cfg.Telemetry.Metrics.Prometheus, log))
 	}
@@ -341,7 +349,7 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 
 	webHandler, webRoutes := buildWebHandler(cfg, kernel, caps, log, reporter, healthOK,
 		svcs.Auth, svcs.Users, svcs.Orgs, svcs.Projects, svcs.Invites, svcs.Onboards,
-		svcs.APIKeys, svcs.Webhooks, required, gate.Complete, setup, apiHandler, dataHandler, mcpSurf, bundle, defaultLoc)
+		svcs.APIKeys, svcs.Webhooks, svcs.Devices, required, gate.Complete, setup, apiHandler, dataHandler, mcpSurf, bundle, defaultLoc)
 
 	httpHandler := webHandler
 	if o.schedulerOnly || o.consumerOnly {
@@ -366,6 +374,9 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 		Tags:               svcs.Tags,
 		APIKeys:            svcs.APIKeys,
 		Webhooks:           svcs.Webhooks,
+		Devices:            svcs.Devices,
+		WhatsApp:           svcs.WhatsApp,
+		Runtime:            svcs.Runtime,
 		Onboarded:          onboarded,
 		Routes:             webRoutes,
 		SetupToken:         setup,

@@ -182,6 +182,8 @@ scope-denial code, returned by `internal/mcp/auth.go` — for a denied or undecl
 | `APK010` | `apperror.CodeAPIKeyExpiryRequired`     | `InvalidArgument`    | API Key Expiry Required      |
 | `APK011` | `apperror.CodeAPIKeyExpiryInPast`       | `InvalidArgument`    | API Key Expiry In Past       |
 | `APK012` | `apperror.CodeAPIKeyExpiryTooLong`      | `InvalidArgument`    | API Key Expiry Too Long      |
+| `APK013` | `apperror.CodeAPIKeyInvalidResource`    | `InvalidArgument`    | API Key Invalid Resource     |
+| `APK014` | `apperror.CodeAPIKeyDeviceBindingScope` | `InvalidArgument`    | API Key Device Binding Scope |
 
 ## WHK — Webhooks
 
@@ -198,17 +200,29 @@ scope-denial code, returned by `internal/mcp/auth.go` — for a denied or undecl
 
 ## DEV — Devices
 
-| Code | Constant | Status | Meaning |
-| ---- | -------- | ------ | ------- |
+| Code     | Constant                          | Status            | Meaning              |
+| -------- | --------------------------------- | ----------------- | -------------------- |
+| `DEV001` | `apperror.CodeDeviceNotFound`     | `NotFound`        | Device Not Found     |
+| `DEV002` | `apperror.CodeDeviceNameTaken`    | `AlreadyExists`   | Device Name Taken    |
+| `DEV003` | `apperror.CodeDeviceInvalidName`  | `InvalidArgument` | Device Invalid Name  |
+| `DEV004` | `apperror.CodeDeviceInvalidRules` | `InvalidArgument` | Device Invalid Rules |
+| `DEV005` | `apperror.CodeDeviceStaleVersion` | `Aborted`         | Device Stale Version |
 
-_Reserved for spec 03/04; no codes yet._
+`DEV005` is the optimistic-concurrency outcome of `device.StaleVersionError`. On the data plane it answers `412 Precondition Failed`.
 
 ## WAS — WhatsApp sessions
 
-| Code | Constant | Status | Meaning |
-| ---- | -------- | ------ | ------- |
-
-_Reserved for spec 03/04; no codes yet._
+| Code     | Constant                               | Status               | Meaning                                    |
+| -------- | -------------------------------------- | -------------------- | ------------------------------------------ |
+| `WAS001` | `apperror.CodeWhatsAppSessionNotFound` | `NotFound`           | WhatsApp Session Not Found                 |
+| `WAS002` | `apperror.CodeWhatsAppNotOwned`        | `Unavailable`        | WhatsApp Session Not Owned By This Process |
+| `WAS003` | `apperror.CodeWhatsAppAlreadyLinked`   | `FailedPrecondition` | WhatsApp Session Already Linked            |
+| `WAS004` | `apperror.CodeWhatsAppLinkTimeout`     | `DeadlineExceeded`   | WhatsApp Link Timeout                      |
+| `WAS005` | `apperror.CodeWhatsAppUnsupported`     | `Unimplemented`      | WhatsApp Feature Unsupported By The Engine |
+| `WAS006` | `apperror.CodeWhatsAppNotConnected`    | `FailedPrecondition` | WhatsApp Session Not Connected             |
+| `WAS007` | `apperror.CodeWhatsAppInvalidPhone`    | `InvalidArgument`    | WhatsApp Invalid Phone Number              |
+| `WAS008` | `apperror.CodeWhatsAppSessionGone`     | `NotFound`           | WhatsApp Session Gone From The Engine      |
+| `WAS009` | `apperror.CodeWhatsAppEngine`          | `Internal`           | WhatsApp Engine Failure                    |
 
 ## MSG — Messages
 

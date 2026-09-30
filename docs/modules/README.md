@@ -3,8 +3,8 @@
 A **module** is one bounded context under `internal/<name>/`. It owns the rules and never knows which
 surface called it. Surfaces expose it; `internal/boot` introduces the two.
 
-Reference impls: `internal/todo/` (flat) and `internal/blog/` (relations, plus `category/` and `tag/`
-subdomains). Infrastructure primitives are not modules — see [`platform`](../platform/README.md).
+Reference impls: `internal/todo/` (flat), `internal/blog/` (relations, plus `category/` and `tag/`
+subdomains) and `internal/device/` (a product aggregate behind a port to another context). Infrastructure primitives are not modules — see [`platform`](../platform/README.md).
 
 This doc is the **shape** and is canonical for it. Ordered steps: [`howto/module.md`](../howto/module.md). The
 `altalune-go-convention` skill routes to both and adds scaffolding and the review traps.

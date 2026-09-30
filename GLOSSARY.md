@@ -87,18 +87,18 @@ Three DB credentials, three jobs:
 Tenant scope answers _whose rows_. A scope answers _which verbs_. They are independent
 checks and both run.
 
-| Term                  | Where                                      | What it is                                                                                                                                                     |
-| --------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| scope                 | `internal/platform/authn/scope.go`         | A permission string minted into an API key or JWT: `posts:read`, `posts:write`, `posts:admin`, `apikeys:read`, `members:read`; `apikeys:write` is retired.     |
-| scope catalog         | `authn.MintableScopes()` / `authn.Valid()` | The closed set minting is gated on. A **wire contract** — additive only; a retired scope still validates but is never minted.                                  |
-| scope level           | `authn.LevelOf()`                          | `project` (acts on data inside the projects a key reaches) or `org` (acts on the org itself; refused on a project key).                                        |
-| project key           | `apikey.KindProject`                       | An API key bound to one project for life.                                                                                                                      |
-| org key               | `apikey.KindOrg`                           | An API key reaching its grant (`apikey.ProjectGrant`: all projects, or named ones in `api_key_projects`). Created by an owner or admin; the grant only widens. |
-| personal access token | `apikey.KindPersonal`                      | A key a member mints for themselves in one org, under Settings. Never exceeds its owner; dies when the owner leaves.                                           |
-| reach                 | `session.Principal.Reaches*`               | The one rule every surface asks: may this caller act inside this org, project, resource.                                                                       |
-| `ScopeTable`          | `internal/controlplane/scopes.go:12`       | Maps each RPC procedure to the scope it requires. Read by both the control plane interceptor and the MCP surface.                                              |
-| `Principal`           | `internal/platform/session/session.go:21`  | The authenticated caller. A key principal keeps `UserID == uuid.Nil`, so it is never mistaken for a signed-in human.                                           |
-| `authn.Chain`         | `internal/platform/authn/authn.go:48`      | Tries each `Authenticator` in order and returns the first `Principal`; otherwise `UnauthorizedError`.                                                          |
+| Term                  | Where                                      | What it is                                                                                                                                                                                  |
+| --------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| scope                 | `internal/platform/authn/scope.go`         | A permission string minted into an API key or JWT: `posts:read`, `posts:write`, `posts:admin`, `apikeys:read`, `members:read`, `devices:read`, `devices:write`; `apikeys:write` is retired. |
+| scope catalog         | `authn.MintableScopes()` / `authn.Valid()` | The closed set minting is gated on. A **wire contract** — additive only; a retired scope still validates but is never minted.                                                               |
+| scope level           | `authn.LevelOf()`                          | `project` (acts on data inside the projects a key reaches) or `org` (acts on the org itself; refused on a project key).                                                                     |
+| project key           | `apikey.KindProject`                       | An API key bound to one project for life.                                                                                                                                                   |
+| org key               | `apikey.KindOrg`                           | An API key reaching its grant (`apikey.ProjectGrant`: all projects, or named ones in `api_key_projects`). Created by an owner or admin; the grant only widens.                              |
+| personal access token | `apikey.KindPersonal`                      | A key a member mints for themselves in one org, under Settings. Never exceeds its owner; dies when the owner leaves.                                                                        |
+| reach                 | `session.Principal.Reaches*`               | The one rule every surface asks: may this caller act inside this org, project, resource.                                                                                                    |
+| `ScopeTable`          | `internal/controlplane/scopes.go:12`       | Maps each RPC procedure to the scope it requires. Read by both the control plane interceptor and the MCP surface.                                                                           |
+| `Principal`           | `internal/platform/session/session.go:21`  | The authenticated caller. A key principal keeps `UserID == uuid.Nil`, so it is never mistaken for a signed-in human.                                                                        |
+| `authn.Chain`         | `internal/platform/authn/authn.go:48`      | Tries each `Authenticator` in order and returns the first `Principal`; otherwise `UnauthorizedError`.                                                                                       |
 
 NOTE: scopes do **not** imply one another — the check is `slices.Contains`. A key needing
 read plus delete holds both strings. Full catalog and per-surface enforcement:
@@ -140,6 +140,27 @@ Receiver contract: [`webhooks`](docs/webhooks/README.md).
 
 NOTE: the table `webhook_deliveries` holds **attempts**, one row per POST. "Delivery" always
 means the outbox row.
+
+## WhatsApp
+
+Two contexts: `device` is the product (a named slot and its inbound rules); `whatsapp` is the
+protocol (the session, the lease, the engine). They meet only through `device.Sessions`.
+
+| Term             | Where                                          | What it is                                                                                                                                                                  |
+| ---------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| device           | `internal/device/`, `openwa_devices`           | A named slot in a project that one WhatsApp account is paired into. Carries the inbound `Rules`. Deleting it logs the account out first.                                    |
+| public id        | `internal/platform/publicid`, `public_id`      | The prefixed nanoid (`dev_`, `cht_`, `msg_`, `lnk_` + 16 characters) every outside surface uses for a row. The UUID v7 stays the primary key and never leaves the database. |
+| inbound rules    | `device.Rules`, `internal/device/rules.go`     | Group mode, allowed senders and groups, trigger prefix, ignore-from-me. `Rules.Match` is pure and returns the reasons it matched.                                           |
+| WhatsApp session | `whatsapp.Session`, `openwa_whatsapp_sessions` | One device's link to an account: JID, phone, state (`unlinked → linking → connected ⇄ disconnected → logged_out`). **Not** the login session.                               |
+| lease            | `whatsapp.Lease`, `openwa_whatsapp_leases`     | The cross-tenant row saying which process runs a linked device. No RLS. A row exists iff the device is linked. Only the runtime writes it.                                  |
+| owner            | `RuntimeConfig.Owner`                          | `hostname/pid/nanoid` naming this process in lease rows; a restart never inherits the old owner's leases.                                                                   |
+| runtime          | `whatsapp.Runtime`, worker `whatsapp.runtime`  | Claims and renews leases, holds one engine session per lease, runs link attempts. Registered only in full `serve` mode.                                                     |
+| engine           | `whatsapp.Engine`, `internal/whatsapp/meow`    | The swappable transport behind the port; `meow` (whatsmeow) is the only importer of `go.mau.fi`.                                                                            |
+| link attempt     | `whatsapp.LinkState`                           | One in-memory pairing try (QR or phone code). Its outcome stays visible for `whatsapp.linkTimeout`, then it is dropped.                                                     |
+| parked           | runtime, `whatsapp.parkFor`                    | A device the runtime will not reopen for a while after `stream_replaced`, a temporary ban or a connect failure; its lease stays held.                                       |
+
+NOTE: "session" alone means the **login** session (`internal/platform/session`, `openwa_sessions`).
+Always say "WhatsApp session" for `openwa_whatsapp_sessions`.
 
 ## Queue
 

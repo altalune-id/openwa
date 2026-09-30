@@ -1,4 +1,4 @@
-// Package dataplane implements S3, the REST data plane over blog posts: the surface an integrator's running product calls directly, authenticated by API key.
+// Package dataplane implements S3, the REST data plane over blog posts and devices: the surface an integrator's running product calls directly, authenticated by API key.
 package dataplane
 
 import (
@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -22,6 +23,55 @@ type Posts interface {
 	Delete(ctx context.Context, id uuid.UUID, ifVersion int) error
 	Publish(ctx context.Context, id uuid.UUID, ifVersion int) (PostRef, error)
 	Unpublish(ctx context.Context, id uuid.UUID, ifVersion int) (PostRef, error)
+}
+
+// Devices is the driven port the data plane reaches devices through.
+type Devices interface {
+	List(ctx context.Context) ([]DeviceRef, error)
+	// Resolve returns the caller's project's device whose public id is publicID.
+	Resolve(ctx context.Context, publicID string) (DeviceRef, error)
+	Get(ctx context.Context, id uuid.UUID) (DeviceRef, error)
+	Create(ctx context.Context, name string) (DeviceRef, error)
+	Update(ctx context.Context, id uuid.UUID, name *string, rules *RulesRef, ifVersion int) (DeviceRef, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+	StartLink(ctx context.Context, id uuid.UUID) (LinkRef, error)
+	LinkWithPhone(ctx context.Context, id uuid.UUID, phone string) (LinkRef, error)
+	LinkState(ctx context.Context, id uuid.UUID) (LinkRef, error)
+	Unlink(ctx context.Context, id uuid.UUID) error
+}
+
+// RulesRef is a device's inbound rules as this surface carries them.
+type RulesRef struct {
+	GroupMode      string
+	AllowedSenders []string
+	AllowedGroups  []string
+	TriggerPrefix  string
+	IgnoreFromMe   bool
+}
+
+// DeviceRef is the device this surface needs, with its session status; only PublicID is ever written to a response.
+type DeviceRef struct {
+	ID         uuid.UUID
+	PublicID   string
+	Name       string
+	Rules      RulesRef
+	Version    int
+	State      string
+	Phone      string
+	PushName   string
+	LastSeenAt *time.Time
+}
+
+// LinkRef is one pairing attempt; Outcome "none" means there is none, and ID is its lnk_ public id.
+type LinkRef struct {
+	ID          string
+	Method      string
+	Outcome     string
+	QR          string
+	PNG         []byte
+	PairingCode string
+	ExpiresAt   time.Time
+	StartedAt   time.Time
 }
 
 // ListOpts filters a collection read, with PublishedOnly set for an uncredentialed caller.
@@ -45,16 +95,19 @@ type Authorizer interface {
 	Authenticate(ctx context.Context, raw string) (session.Principal, error)
 	Authorize(ctx context.Context, raw, scope string, orgID, projectID, resourceID uuid.UUID) (session.Principal, error)
 	AuthorizeProject(ctx context.Context, raw, scope string, orgID, projectID uuid.UUID) (session.Principal, error)
+	AuthorizeScope(ctx context.Context, raw, scope string, orgID, projectID uuid.UUID) (session.Principal, error)
 }
 
 // Capabilities is the feature-flag snapshot the data plane checks, such as public reads.
 type Capabilities = capabilities.Capabilities
 
-// Handler serves S3, the REST data plane over blog posts.
+// Handler serves S3, the REST data plane over blog posts and devices.
 type Handler struct {
 	mux      *http.ServeMux
 	resolver resolver
 	posts    Posts
+	devices  Devices
+	basePath string
 	authz    Authorizer
 	caps     Capabilities
 	idem     *idempotencyStore
@@ -106,6 +159,7 @@ type HandlerParams struct {
 	Orgs     Orgs
 	Projects Projects
 	Posts    Posts
+	Devices  Devices
 	Authz    Authorizer
 	Caps     Capabilities
 	Log      *slog.Logger
@@ -122,6 +176,8 @@ func NewHandler(p HandlerParams) http.Handler {
 		mux:      http.NewServeMux(),
 		resolver: resolver{orgs: p.Orgs, projects: p.Projects},
 		posts:    p.Posts,
+		devices:  p.Devices,
+		basePath: p.BasePath,
 		authz:    p.Authz,
 		caps:     p.Caps,
 		idem:     newIdempotencyStore(IdempotencyTTL, IdempotencyMaxEntries),
@@ -137,6 +193,16 @@ func NewHandler(p HandlerParams) http.Handler {
 	h.mux.HandleFunc("DELETE "+posts+"/{slug}", h.deletePost)
 	h.mux.HandleFunc("POST "+posts+"/{slug}/publish", h.publishPost)
 	h.mux.HandleFunc("POST "+posts+"/{slug}/unpublish", h.unpublishPost)
+
+	base := p.BasePath + "/orgs/{org}/projects/{project}"
+	h.mux.HandleFunc("GET "+base+"/devices", h.listDevices)
+	h.mux.HandleFunc("POST "+base+"/devices", h.createDevice)
+	h.mux.HandleFunc("GET "+base+"/devices/{device}", h.getDevice)
+	h.mux.HandleFunc("PATCH "+base+"/devices/{device}", h.patchDevice)
+	h.mux.HandleFunc("DELETE "+base+"/devices/{device}", h.deleteDevice)
+	h.mux.HandleFunc("POST "+base+"/devices/{device}/links", h.createLink)
+	h.mux.HandleFunc("GET "+base+"/devices/{device}/links/current", h.getLink)
+	h.mux.HandleFunc("POST "+base+"/devices/{device}/unlink", h.unlinkDevice)
 
 	return h
 }

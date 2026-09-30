@@ -479,6 +479,12 @@ templ navGroup(d web.LayoutData, heading string) {
 
 templ projectMenu(d web.LayoutData, slug string) {
 	<nav aria-label={ d.Tr("common.project") }>
+		@navGroup(d, d.Tr("nav.group_messaging")) {
+			<a href={ templ.SafeURL(d.ProjectPath(slug, "/devices")) } class={ orgItemClass(d.ProjectMenuActive("devices")) }>
+				@icons.Icon("smartphone", "h-4 w-4 shrink-0")
+				<span>{ d.Tr("nav.devices") }</span>
+			</a>
+		}
 		@navGroup(d, d.Tr("nav.group_project")) {
 			<a href={ templ.SafeURL(d.ProjectPath(slug, "/overview")) } class={ orgItemClass(d.ProjectMenuActive("overview")) }>
 				@icons.Icon("layout-dashboard", "h-4 w-4 shrink-0")

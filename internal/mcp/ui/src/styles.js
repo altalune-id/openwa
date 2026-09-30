@@ -31,4 +31,6 @@ const appStyles = css`
     background: var(--color-background-primary, light-dark(#fff, #18181b));
     color: inherit;
   }
+  .app-qr { display: block; background: #fff; border-radius: 8px; padding: 8px; image-rendering: pixelated; }
+  .app-code { font-family: ui-monospace, monospace; font-size: 1.5rem; font-weight: 600; letter-spacing: 0.2em; }
 `;

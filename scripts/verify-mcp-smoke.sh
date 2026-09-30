@@ -179,7 +179,7 @@ mint_key() {
     printf "%s" "$key"
 }
 
-READ_KEY=$(mint_key "mcp-reader" "projects:read")
+READ_KEY=$(mint_key "mcp-reader" "projects:read" "devices:read")
 NOSCOPE_KEY=$(mint_key "mcp-keys-only" "apikeys:read")
 
 rpc() {
@@ -240,10 +240,10 @@ code=$(rpc "$tools_out" "$READ_KEY" '{"jsonrpc":"2.0","id":2,"method":"tools/lis
 
 names=$(jqx "$tools_out" '[.result.tools[].name] | sort | join(",")') \
     || fail "tools/list returned no tools array"
-[ "$names" = "member_list,project_list" ] \
-    || fail "tools/list published [${names}], want [member_list,project_list] — 2 tools"
+[ "$names" = "device_get,device_list,device_logout,device_pair,member_list,project_list" ] \
+    || fail "tools/list published [${names}], want [device_get,device_list,device_logout,device_pair,member_list,project_list] — 6 tools"
 
-for tool in member_list project_list; do
+for tool in device_get device_list device_logout device_pair member_list project_list; do
     require_true "$tools_out" \
         ".result.tools[] | select(.name == \"${tool}\") | .description | type == \"string\" and length > 0" \
         "tool ${tool} carries no description — a host renders it unlabelled"
@@ -263,6 +263,31 @@ require_true "$tools_out" \
     '.result.tools[] | select(.name == "project_list") | ._meta | has("ui/resourceUri") | not' \
     'project_list _meta carries the deprecated flat "ui/resourceUri" sibling — the pair breaks strict hosts'
 
+meta_keys_device_list=$(jqx "$tools_out" '.result.tools[] | select(.name == "device_list") | ._meta | keys | join(",")') \
+    || fail "device_list carries no _meta — mcp.appsUI must bind it to the app resource"
+[ "$meta_keys_device_list" = "ui" ] \
+    || fail "device_list _meta carries keys [${meta_keys_device_list}], want exactly [ui] — a strict host rejects any extra sibling"
+require_true "$tools_out" \
+    '.result.tools[] | select(.name == "device_list") | ._meta.ui.resourceUri == "ui://openwa/app"' \
+    "device_list _meta.ui.resourceUri is not ui://openwa/app"
+require_true "$tools_out" \
+    '.result.tools[] | select(.name == "device_list") | ._meta | has("ui/resourceUri") | not' \
+    'device_list _meta carries the deprecated flat "ui/resourceUri" sibling — the pair breaks strict hosts'
+
+meta_keys_device_pair=$(jqx "$tools_out" '.result.tools[] | select(.name == "device_pair") | ._meta | keys | join(",")') \
+    || fail "device_pair carries no _meta — mcp.appsUI must bind it to the app resource"
+[ "$meta_keys_device_pair" = "ui" ] \
+    || fail "device_pair _meta carries keys [${meta_keys_device_pair}], want exactly [ui] — a strict host rejects any extra sibling"
+require_true "$tools_out" \
+    '.result.tools[] | select(.name == "device_pair") | ._meta.ui.resourceUri == "ui://openwa/app"' \
+    "device_pair _meta.ui.resourceUri is not ui://openwa/app"
+require_true "$tools_out" \
+    '.result.tools[] | select(.name == "device_pair") | ._meta | has("ui/resourceUri") | not' \
+    'device_pair _meta carries the deprecated flat "ui/resourceUri" sibling — the pair breaks strict hosts'
+
+require_true "$tools_out" '.result.tools[] | select(.name == "device_get") | has("_meta") | not' \
+    "device_get carries _meta — only device_list and device_pair are app tools"
+
 projects_out="${tmpdir}/project-list.json"
 code=$(rpc "$projects_out" "$READ_KEY" \
     '{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"project_list","arguments":{}}}')
@@ -271,6 +296,13 @@ require_true "$projects_out" '.result.isError != true' \
     "project_list failed — an agent cannot discover a projectId without it"
 require_true "$projects_out" '[.result.content[].text] | join(" ") | test("smoke-proj")' \
     "project_list did not name the caller's own project"
+
+devices_out="${tmpdir}/device-list.json"
+code=$(rpc "$devices_out" "$READ_KEY" \
+    '{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"device_list","arguments":{}}}')
+[ "$code" = "200" ] || fail "device_list returned HTTP ${code}, want 200"
+require_true "$devices_out" '.result.isError != true' \
+    "device_list with no projectId did not fall back to the credential's active project"
 
 res_out="${tmpdir}/resources-list.json"
 code=$(rpc "$res_out" "$READ_KEY" '{"jsonrpc":"2.0","id":3,"method":"resources/list"}')
@@ -345,7 +377,7 @@ resource=$(jqx "$meta_out" '.resource') || fail "${metadata_url} names no resour
     || fail "metadata resource is ${resource}, want ${AUDIENCE} — the verifier enforces that audience"
 require_true "$meta_out" "[.authorization_servers[]] | index(\"${ISSUER}\") != null" \
     "metadata does not name ${ISSUER} as an authorization server"
-require_true "$meta_out" '[.scopes_supported[]] | index("projects:read") != null and index("members:read") != null' \
+require_true "$meta_out" '[.scopes_supported[]] | index("projects:read") != null and index("members:read") != null and index("devices:read") != null' \
     "metadata scopes_supported does not cover the registered tools' scopes"
 
 kill -TERM "$SERVE_PID"
@@ -379,5 +411,5 @@ fi
 mkdir -p .cache
 cp "$servelog" .cache/verify-mcp.log 2>/dev/null || true
 
-echo "OK: initialize + 2 tools + ui://openwa/app (${bundle_size} bytes) + RFC 9728 challenge; shutdown in ${elapsed}s"
+echo "OK: initialize + 6 tools + ui://openwa/app (${bundle_size} bytes) + RFC 9728 challenge; shutdown in ${elapsed}s"
 exit 0

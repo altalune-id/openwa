@@ -15,12 +15,13 @@ import (
 )
 
 type OverviewView struct {
-	OrgSlug       string
-	ProjectID     string
-	ProjectSlug   string
-	ProjectName   string
-	Devices       int
-	MessagesToday int
+	OrgSlug          string
+	ProjectID        string
+	ProjectSlug      string
+	ProjectName      string
+	Devices          int
+	DevicesConnected int
+	MessagesToday    int
 }
 
 func OverviewPage(d web.LayoutData, v OverviewView) templ.Component {
@@ -88,7 +89,7 @@ func OverviewPage(d web.LayoutData, v OverviewView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = StatCard(d.Tr("overview.devices"), strconv.Itoa(v.Devices)).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = StatCard(d.Tr("overview.devices"), d.Tr("overview.devices_value", "Total", v.Devices, "Connected", v.DevicesConnected)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

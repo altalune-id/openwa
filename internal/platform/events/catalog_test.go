@@ -72,6 +72,17 @@ func TestGoldenPayloads(t *testing.T) {
 	checkGolden(t, "testdata/webhook_ping_v1.golden.json", events.WebhookPingV1{
 		EndpointID: uuid.MustParse("018f9c3e-4444-7000-8000-000000000004"),
 	})
+
+	dev := events.DeviceEventV1{
+		Device: events.DeviceRefV1{ID: "dev_V1StGXR8Z5jdHi6B", Name: "sales-01", Phone: "628123456789"},
+		State:  "connected",
+		At:     time.Date(2026, 9, 28, 9, 0, 0, 0, time.UTC),
+	}
+	checkGolden(t, "testdata/device_connected_v1.golden.json", events.DeviceConnectedV1(dev))
+	dev.State, dev.Reason = "disconnected", "network"
+	checkGolden(t, "testdata/device_disconnected_v1.golden.json", events.DeviceDisconnectedV1(dev))
+	dev.State, dev.Reason = "logged_out", "logged_out_by_phone"
+	checkGolden(t, "testdata/device_logged_out_v1.golden.json", events.DeviceLoggedOutV1(dev))
 }
 
 func TestAllLookupRoundTrip(t *testing.T) {
@@ -96,7 +107,7 @@ func TestLookupUnknownType(t *testing.T) {
 
 func TestSubscribable(t *testing.T) {
 	subs := events.Subscribable()
-	want := []events.Type{events.PostPublished, events.PostUnpublished, events.PostDeleted}
+	want := []events.Type{events.PostPublished, events.PostUnpublished, events.PostDeleted, events.DeviceConnected, events.DeviceDisconnected, events.DeviceLoggedOut}
 
 	if len(subs) != len(want) {
 		t.Fatalf("Subscribable() = %d entries, want %d", len(subs), len(want))
@@ -158,6 +169,9 @@ func TestCheckPayloadOK(t *testing.T) {
 		{events.PostUnpublished, events.PostUnpublishedV1{}},
 		{events.PostDeleted, events.PostDeletedV1{}},
 		{events.WebhookPing, events.WebhookPingV1{}},
+		{events.DeviceConnected, events.DeviceConnectedV1{}},
+		{events.DeviceDisconnected, events.DeviceDisconnectedV1{}},
+		{events.DeviceLoggedOut, events.DeviceLoggedOutV1{}},
 	}
 	for _, tt := range cases {
 		t.Run(string(tt.typ), func(t *testing.T) {

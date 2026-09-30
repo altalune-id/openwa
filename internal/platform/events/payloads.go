@@ -36,3 +36,27 @@ type PostDeletedV1 struct {
 type WebhookPingV1 struct {
 	EndpointID uuid.UUID `json:"endpoint_id"`
 }
+
+// DeviceRefV1 names the device a device event is about; ID is its public id, never the internal UUID.
+type DeviceRefV1 struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Phone string `json:"phone"`
+}
+
+// DeviceEventV1 is the shape shared by the three device events.
+type DeviceEventV1 struct {
+	Device DeviceRefV1 `json:"device"`
+	State  string      `json:"state"`
+	Reason string      `json:"reason,omitempty"`
+	At     time.Time   `json:"at"`
+}
+
+// DeviceConnectedV1 is the payload for DeviceConnected.
+type DeviceConnectedV1 DeviceEventV1
+
+// DeviceDisconnectedV1 is the payload for DeviceDisconnected.
+type DeviceDisconnectedV1 DeviceEventV1
+
+// DeviceLoggedOutV1 is the payload for DeviceLoggedOut.
+type DeviceLoggedOutV1 DeviceEventV1

@@ -15,6 +15,7 @@ import (
 	apikeyv1connect "altalune.id/openwa/gen/go/apikey/v1/apikeyv1connect"
 	authv1connect "altalune.id/openwa/gen/go/auth/v1/authv1connect"
 	blogv1connect "altalune.id/openwa/gen/go/blog/v1/blogv1connect"
+	devicev1connect "altalune.id/openwa/gen/go/device/v1/devicev1connect"
 	projectv1connect "altalune.id/openwa/gen/go/project/v1/projectv1connect"
 	todov1connect "altalune.id/openwa/gen/go/todo/v1/todov1connect"
 	"altalune.id/openwa/internal/apikey"
@@ -23,6 +24,7 @@ import (
 	"altalune.id/openwa/internal/blog/category"
 	"altalune.id/openwa/internal/blog/tag"
 	"altalune.id/openwa/internal/controlplane"
+	"altalune.id/openwa/internal/device"
 	"altalune.id/openwa/internal/org"
 	"altalune.id/openwa/internal/platform"
 	"altalune.id/openwa/internal/platform/authn"
@@ -55,6 +57,9 @@ type harness struct {
 	cats   *fakes.Category
 	tags   *fakes.Tag
 	keys   *fakes.APIKey
+
+	devices  *fakes.Device
+	sessions *fakes.DeviceSessions
 }
 
 func newHarness(t *testing.T, p session.Principal) *harness {
@@ -81,6 +86,9 @@ func newHarnessOpts(t *testing.T, p session.Principal, verr error) *harness {
 	postSvc := blog.NewService(posts, log, reporter.Unexpected, fakes.UnitOfWork, &fakes.Webhooks{})
 	catSvc := category.NewService(cats, log, reporter.Unexpected)
 	tagSvc := tag.NewService(tags, log, reporter.Unexpected)
+	devs := fakes.NewDevice()
+	sessions := fakes.NewDeviceSessions()
+	deviceSvc := device.NewService(devs, log, reporter.Unexpected, fakes.UnitOfWork, sessions)
 
 	kernel := &platform.Kernel{
 		Log:      log,
@@ -95,13 +103,14 @@ func newHarnessOpts(t *testing.T, p session.Principal, verr error) *harness {
 		orgSvc, projectSvc, todoSvc, nil,
 		tds,
 		postSvc, catSvc, tagSvc,
+		deviceSvc,
 	)
 	srv.Authn = authn.Chain{apikey.NewAuthenticator(keys, nil, apikey.Scheme{}, fakes.NewMembers()), tokens.NewAuthenticator(kernel.Verifier)}
 	srv.APIKeys = apikey.NewService(keys, apikey.Scheme{}, fakes.PermissiveMembers(), fakes.NewOrgProjects(), log, reporter.Unexpected)
 	srv.KeyPrefix = apikey.DefaultPrefix
 	ts := httptest.NewServer(srv.Handler(""))
 	t.Cleanup(ts.Close)
-	return &harness{t: t, server: ts, orgs: orgs, projs: projs, todos: tds, posts: posts, cats: cats, tags: tags, keys: keys}
+	return &harness{t: t, server: ts, orgs: orgs, projs: projs, todos: tds, posts: posts, cats: cats, tags: tags, keys: keys, devices: devs, sessions: sessions}
 }
 
 func (h *harness) mintKey(orgID, projectID uuid.UUID, scopes []string, resourceIDs []uuid.UUID) string {
@@ -147,4 +156,8 @@ func connectCode(err error) connect.Code {
 		return connect.CodeUnknown
 	}
 	return connect.CodeOf(err)
+}
+
+func (h *harness) deviceClient() devicev1connect.DeviceServiceClient {
+	return devicev1connect.NewDeviceServiceClient(http.DefaultClient, h.server.URL+"/api")
 }

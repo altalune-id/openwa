@@ -16,6 +16,7 @@ const (
 	APIKeyErrorNotManager    = "not_manager"
 	APIKeyErrorEmptyGrant    = "empty_grant"
 	APIKeyErrorGrant         = "grant"
+	APIKeyErrorInvalidResource = "invalid_resource"
 )
 
 type APIKeyScopeOption struct {
@@ -98,6 +99,8 @@ templ apikeyBanner(d web.LayoutData, kind, code string) {
 		@ErrorBanner(d, d.Tr("apikey.error_empty_grant"), code)
 	} else if kind == APIKeyErrorGrant {
 		@ErrorBanner(d, d.Tr("apikey.error_grant"), code)
+	} else if kind == APIKeyErrorInvalidResource {
+		@ErrorBanner(d, d.Tr("apikey.error_invalid_resource"), code)
 	} else if kind == APIKeyErrorFailed {
 		@ErrorBanner(d, d.Tr("apikey.error_failed"), code)
 	}
@@ -360,6 +363,12 @@ templ apikeyMintForm(d web.LayoutData, v APIKeysView) {
 		}
 		if v.HasGrant {
 			@apikeyGrantFields(d, v)
+		}
+		if !v.OrgLevel && !v.Personal {
+			{{ devicesField := FieldProps{ID: "apikey-devices", Label: d.Tr("apikey.devices_label"), Help: d.Tr("apikey.devices_help")} }}
+			@Field(d, devicesField) {
+				<textarea name="devices" rows="2" class={ InputClass() + " max-w-sm font-mono" } { InputAttrs(devicesField)... }></textarea>
+			}
 		}
 		<div>
 			<label class="block text-sm font-medium text-foreground/90" for="apikey-expires">{ d.Tr("apikey.expires_label") }</label>

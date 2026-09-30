@@ -46,6 +46,9 @@ func TestMCP_AppsUIServesTheAdvertisedResource(t *testing.T) {
 	require.Equal(t, rootmcp.MIMEApp, got.MIMEType)
 	require.Equal(t, ui.Document(), got.Text)
 	require.True(t, strings.Contains(got.Text, `id="root"`), "the served document is not the assembled bundle")
+	for _, tag := range []string{"openwa-device-list", "openwa-device-pair"} {
+		require.Contains(t, got.Text, tag, "the served bundle lacks the %s view", tag)
+	}
 }
 
 func TestMCP_AppsUIOffPublishesNoResource(t *testing.T) {

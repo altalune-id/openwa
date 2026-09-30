@@ -58,7 +58,11 @@ func (h *APIKeyHandler) PostKeyCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.mintInto(w, sc.req, h.projectWriter(w, sc), func(in mintInput) (*apikey.APIKey, string, error) {
-		return h.Keys.Mint(sc.req.Context(), in.name, in.scopes, nil, in.expiresAt)
+		resourceIDs, err := h.Keys.ResourceIDs(sc.req.Context(), in.scopes, in.resources)
+		if err != nil {
+			return nil, "", err
+		}
+		return h.Keys.Mint(sc.req.Context(), in.name, in.scopes, resourceIDs, in.expiresAt)
 	})
 }
 
@@ -140,6 +144,7 @@ type mintInput struct {
 	name      string
 	scopes    []string
 	grant     apikey.ProjectGrant
+	resources []string
 	expiresAt *time.Time
 }
 
@@ -158,6 +163,7 @@ func (h *APIKeyHandler) mintInto(w http.ResponseWriter, r *http.Request, write l
 		name:      strings.TrimSpace(r.PostForm.Get("name")),
 		scopes:    selectedScopes(r.PostForm["scopes"]),
 		grant:     formGrant(r),
+		resources: strings.Fields(strings.ReplaceAll(r.PostForm.Get("devices"), ",", " ")),
 		expiresAt: expiresAt,
 	}
 	k, plaintext, err := mint(in)
@@ -352,6 +358,10 @@ func apiKeyErrorKind(err error) string {
 		return templates.APIKeyErrorNotFound
 	case apikey.IsExpiryRequiredError(err), apikey.IsExpiryInPastError(err), apikey.IsExpiryTooLongError(err):
 		return templates.APIKeyErrorInvalidExpiry
+	case apikey.IsDeviceBindingScopeError(err):
+		return templates.APIKeyErrorScope
+	case apikey.IsInvalidResourceError(err):
+		return templates.APIKeyErrorInvalidResource
 	case apikey.IsEmptyGrantError(err):
 		return templates.APIKeyErrorEmptyGrant
 	case apikey.IsProjectNotInOrgError(err), apikey.IsAlreadyAllProjectsError(err), apikey.IsBoundToProjectError(err),

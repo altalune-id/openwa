@@ -17,6 +17,7 @@ import (
 	"altalune.id/openwa/internal/auth"
 	"altalune.id/openwa/internal/controlplane"
 	"altalune.id/openwa/internal/dataplane"
+	"altalune.id/openwa/internal/device"
 	i18npkg "altalune.id/openwa/internal/i18n"
 	"altalune.id/openwa/internal/ingest"
 	"altalune.id/openwa/internal/invite"
@@ -37,7 +38,7 @@ import (
 )
 
 func buildAPIHandler(cfg *config.Config, k *platform.Kernel, s *Services) (*controlplane.Server, http.Handler) {
-	srv := controlplane.New(cfg, k, s.Auth, s.Users, s.Orgs, s.Projects, s.Todos, s.Invites, s.TodoStore, s.Posts, s.Categories, s.Tags)
+	srv := controlplane.New(cfg, k, s.Auth, s.Users, s.Orgs, s.Projects, s.Todos, s.Invites, s.TodoStore, s.Posts, s.Categories, s.Tags, s.Devices)
 	srv.Authn = s.Authn
 	srv.KeyPrefix = s.KeyAuthn.Scheme().Prefix()
 	srv.APIKeys = s.APIKeys
@@ -57,6 +58,7 @@ func buildDataHandler(cfg *config.Config, caps capabilities.Capabilities, slogge
 		Orgs:     orgServiceForDataplane{svc: s.Orgs},
 		Projects: projectServiceForDataplane{svc: s.Projects},
 		Posts:    blogServiceForDataplane{svc: s.Posts},
+		Devices:  deviceServiceForDataplane{svc: s.Devices},
 		Authz:    s.KeyAuthn,
 		Caps:     caps,
 		Log:      slogger,
@@ -86,6 +88,7 @@ func buildWebHandler(
 	onboards *onboard.Service,
 	apiKeys *apikey.Service,
 	webhooks *webhook.Service,
+	devices *device.Service,
 	required *atomic.Bool,
 	onComplete func(ctx context.Context),
 	setupToken string,
@@ -108,7 +111,8 @@ func buildWebHandler(
 	homeHandler := webhandlers.NewHomeHandler(deps, orgs, projects)
 	orgHandler := webhandlers.NewOrgHandler(deps, orgs)
 	projectHandler := webhandlers.NewProjectHandler(deps, projects)
-	overviewHandler := webhandlers.NewProjectOverviewHandler(deps, projects)
+	overviewHandler := webhandlers.NewProjectOverviewHandler(deps, projects, devices)
+	deviceHandler := webhandlers.NewDeviceHandler(deps, projects, devices)
 	apiKeyHandler := webhandlers.NewAPIKeyHandler(deps, projects, apiKeys)
 	webhookHandler := webhandlers.NewWebhookHandler(deps, projects, webhooks)
 	inviteHandler := webhandlers.NewInviteHandler(deps, orgs, invites)
@@ -123,7 +127,7 @@ func buildWebHandler(
 		BasePath: cfg.HTTP.BasePath,
 		HealthOK: healthOK,
 		AppHandlers: []web.Register{
-			authHandler, onboardingHandler, onboardHandler, homeHandler, orgHandler, projectHandler, overviewHandler, apiKeyHandler, webhookHandler, inviteHandler, localeHandler, welcomeHandler, signupHandler, legalHandler,
+			authHandler, onboardingHandler, onboardHandler, homeHandler, orgHandler, projectHandler, overviewHandler, deviceHandler, apiKeyHandler, webhookHandler, inviteHandler, localeHandler, welcomeHandler, signupHandler, legalHandler,
 		},
 		APIHandler:         apiHandler,
 		DataHandler:        dataHandler,

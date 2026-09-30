@@ -10,7 +10,8 @@ factory, one field on `Kernel`.
 - **Adapter over an external system** — `internal/platform/{db,session,tokens,outbox,notify,queue}`,
   `mailer/`, `authl/`.
 - **Cross-cutting primitive** — `logger/`, `telemetry/`, `reqid/`, `nanoid/`, `slug/`, `httpclient/`,
-  `internal/platform/{tenant,capabilities,sealer,authn}`.
+  `internal/platform/{tenant,capabilities,sealer,authn,publicid}`.
+- `internal/platform/publicid` — prefixed nanoid ids (`<prefix>_` + 16 characters) for every id an outside surface sees; the UUID v7 stays the primary key and never leaves the database. Each prefix is a constant of the module that owns the aggregate (`device.PublicIDPrefix`, `whatsapp.LinkIDPrefix`, spec 04's chat and message prefixes).
 - **Long-running loop** — `worker/` (the Supervisor), `scheduler/`, `outbox.Worker`,
   `db.HealthMonitor`, `queue.Consumer`, `queue.Listen`.
 - **Public contract** — `internal/platform/events`: the webhook event catalog and payloads.

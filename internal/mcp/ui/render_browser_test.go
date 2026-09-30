@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -46,18 +47,24 @@ func findBrowser(t *testing.T) string {
 const driverTemplate = `
 const app = document.createElement("openwa-app");
 document.getElementById("root").appendChild(app);
-app.view = renderTool("project_list", %s);
+app.view = renderTool(%TOOL%, %FIXTURE%);
 app.status = "view";
 await app.updateComplete;
-const inner = app.renderRoot.querySelector("openwa-project-list");
+const inner = app.renderRoot.querySelector(%TAG%);
 await inner.updateComplete;
+const badge = inner.renderRoot.querySelector(".app-badge");
+const img = inner.renderRoot.querySelector("img");
 const payload = {
   outer: app.renderRoot.innerHTML,
   inner: inner.renderRoot.innerHTML,
   text: inner.renderRoot.textContent,
   images: inner.renderRoot.querySelectorAll("img").length,
+  imgSrc: img ? img.getAttribute("src") : "",
   scripts: inner.renderRoot.querySelectorAll("script").length,
   buttons: inner.renderRoot.querySelectorAll("button").length,
+  badgeStyle: badge ? badge.getAttribute("style") : "",
+  badgeBackground: badge ? getComputedStyle(badge).backgroundColor : "",
+  badgePosition: badge ? getComputedStyle(badge).position : "",
   scoped: !!inner.shadowRoot,
 };
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
@@ -68,6 +75,7 @@ type renderReport struct {
 	Inner   string `json:"inner"`
 	Text    string `json:"text"`
 	Images  int    `json:"images"`
+	ImgSrc  string `json:"imgSrc"`
 	Scripts int    `json:"scripts"`
 	Buttons int    `json:"buttons"`
 	Scoped  bool   `json:"scoped"`
@@ -76,7 +84,7 @@ type renderReport struct {
 //nolint:gochecknoglobals // compiled once; a package-level regexp is the idiom.
 var dumpedOut = regexp.MustCompile(`(?s)<pre id="out">(.*?)</pre>`)
 
-func renderInBrowser(t *testing.T, fixture string) renderReport {
+func renderInBrowser(t *testing.T, tool, tag, fixture string) renderReport {
 	t.Helper()
 	bin := findBrowser(t)
 
@@ -94,9 +102,12 @@ func renderInBrowser(t *testing.T, fixture string) renderReport {
 		doc.WriteString(mustRead(t, p))
 		doc.WriteString("\n")
 	}
-	doc.WriteString("registerView(\"project_list\", projectListModel, VIEWS[\"project_list\"].template);\n")
-	// NOTE: the fixture is embedded in a <script> block, so "</" must not close it early.
-	doc.WriteString(strings.Replace(driverTemplate, "%s", strings.ReplaceAll(fixture, "</", `<\/`), 1))
+	doc.WriteString(strings.NewReplacer(
+		"%TOOL%", strconv.Quote(tool),
+		"%TAG%", strconv.Quote(tag),
+		// NOTE: the fixture is embedded in a <script> block, so "</" must not close it early.
+		"%FIXTURE%", strings.ReplaceAll(fixture, "</", `<\/`),
+	).Replace(driverTemplate))
 	doc.WriteString("</script></body></html>")
 
 	dir := t.TempDir()
@@ -130,7 +141,7 @@ func renderInBrowser(t *testing.T, fixture string) renderReport {
 }
 
 func TestRenderLayerScopesTheViewInAShadowRoot(t *testing.T) {
-	rep := renderInBrowser(t, fixtureJSON(t, "project_list.json"))
+	rep := renderInBrowser(t, "project_list", "openwa-project-list", fixtureJSON(t, "project_list.json"))
 	if !rep.Scoped {
 		t.Error("the view rendered outside a shadow root; CSS scoping is the reason it is a LitElement")
 	}
@@ -150,7 +161,7 @@ func TestRenderLayerScopesTheViewInAShadowRoot(t *testing.T) {
 // TestRenderLayerEscapesAToolResultInTextPosition is the browser half of the escaping guard: Lit makes a text node, it never parses markup.
 func TestRenderLayerEscapesAToolResultInTextPosition(t *testing.T) {
 	const hostile = `{"projects":[{"id":"a","name":"<img src=x onerror=alert(1)><script>alert(2)</` + `script>"}]}`
-	rep := renderInBrowser(t, hostile)
+	rep := renderInBrowser(t, "project_list", "openwa-project-list", hostile)
 	if rep.Images != 0 || rep.Scripts != 0 {
 		t.Errorf("a tool result was parsed as markup: %d img, %d script:\n%s", rep.Images, rep.Scripts, rep.Inner)
 	}

@@ -3,6 +3,8 @@ package boot
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"altalune.id/openwa/internal/blog"
 	"altalune.id/openwa/internal/blog/category"
 	"altalune.id/openwa/internal/blog/tag"
+	"altalune.id/openwa/internal/device"
 	"altalune.id/openwa/internal/invite"
 	"altalune.id/openwa/internal/onboard"
 	"altalune.id/openwa/internal/org"
@@ -25,6 +28,9 @@ import (
 	"altalune.id/openwa/internal/todo"
 	"altalune.id/openwa/internal/user"
 	"altalune.id/openwa/internal/webhook"
+	"altalune.id/openwa/internal/whatsapp"
+	"altalune.id/openwa/internal/whatsapp/meow"
+	"altalune.id/openwa/nanoid"
 )
 
 const apiKeyUsageFlushInterval = 30 * time.Second
@@ -38,6 +44,7 @@ type Services struct {
 	InviteStore  invite.Store
 	OnboardStore onboard.Store
 	WebhookStore webhook.Store
+	DeviceStore  device.Store
 
 	Auth       *auth.Service
 	Users      *user.Service
@@ -50,6 +57,9 @@ type Services struct {
 	Categories *category.Service
 	Tags       *tag.Service
 	Webhooks   *webhook.Service
+	Devices    *device.Service
+	WhatsApp   *whatsapp.Service
+	Runtime    *whatsapp.Runtime
 
 	Onboard *user.OnboardWorkflow
 
@@ -59,7 +69,7 @@ type Services struct {
 	APIKeyUsage *apikey.UsageWorker
 }
 
-func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Capabilities) (*Services, error) {
+func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Capabilities, wa *meow.Container) (*Services, error) {
 	pool := k.Pool
 	pgConn := k.PgConn
 	log := k.Log
@@ -83,6 +93,28 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 	posts := blog.NewService(blog.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected, uow, webhooks)
 	categories := category.NewService(category.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected)
 	tags := tag.NewService(tag.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected)
+
+	owner, err := runtimeOwner()
+	if err != nil {
+		return nil, err
+	}
+	deviceStore := device.NewStore(cfg.DB, pool, pgConn)
+	runtime := whatsapp.NewRuntime(
+		meow.NewEngine(wa, meow.Options{InboundQueueSize: cfg.WhatsApp.InboundQueueSize, Log: log}),
+		whatsapp.NewLeaseStore(cfg.DB, pool),
+		whatsapp.RuntimeConfig{
+			Owner:         owner,
+			LeaseTTL:      cfg.WhatsApp.LeaseTTL,
+			LeaseInterval: cfg.WhatsApp.LeaseInterval,
+			LinkTimeout:   cfg.WhatsApp.LinkTimeout,
+			ParkFor:       cfg.WhatsApp.ParkFor,
+		},
+		log,
+	)
+	whatsappSvc := whatsapp.NewService(whatsapp.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected, uow,
+		runtime, webhooks, deviceDescriber{store: deviceStore}, time.Now)
+	runtime.Subscribe(whatsappSvc)
+	devices := device.NewService(deviceStore, log, reporter.Unexpected, uow, deviceSessions{svc: whatsappSvc})
 
 	invitesEnabled := cfg.Mode == config.ModeCloud || cfg.OIDC.Issuer != ""
 
@@ -174,6 +206,7 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 	keyScheme := apikey.NewScheme(cfg.API.KeyPrefix)
 	keyAuthn := apikey.NewAuthenticator(keyStore, keyUsage, keyScheme, orgs)
 	keys := apikey.NewService(keyStore, keyScheme, orgs, projectServiceForAPIKeys{svc: projects}, log, reporter.Unexpected)
+	keys.Devices = apikeyDevices{svc: devices}
 	orgs.OnMemberRemoved(keys.RevokePersonalOf)
 	// SECURITY: key first, so its shape gate rejects a non-key credential without a DB call.
 	tenantResolution := user.WithTenantResolution(
@@ -190,6 +223,7 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 		InviteStore:  inviteStore,
 		OnboardStore: onboardStore,
 		WebhookStore: webhookStore,
+		DeviceStore:  deviceStore,
 		Auth:         auths,
 		Users:        users,
 		Orgs:         orgs,
@@ -201,6 +235,9 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 		Categories:   categories,
 		Tags:         tags,
 		Webhooks:     webhooks,
+		Devices:      devices,
+		WhatsApp:     whatsappSvc,
+		Runtime:      runtime,
 		Onboard:      onboardWorkflow,
 		Authn:        chain,
 		KeyAuthn:     keyAuthn,
@@ -222,4 +259,17 @@ func hashGenesisPassword(plain string) (string, error) {
 		return "", nil
 	}
 	return password.Hash(plain)
+}
+
+// NOTE: hostname/pid/nanoid names this process in lease rows, so a restart on the same host never inherits the old owner's leases.
+func runtimeOwner() (string, error) {
+	host, err := os.Hostname()
+	if err != nil || host == "" {
+		host = "unknown-host"
+	}
+	suffix, err := nanoid.New(8)
+	if err != nil {
+		return "", fmt.Errorf("boot: runtime owner: %w", err)
+	}
+	return host + "/" + strconv.Itoa(os.Getpid()) + "/" + suffix, nil
 }

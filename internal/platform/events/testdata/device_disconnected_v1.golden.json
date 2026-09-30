@@ -1,0 +1,10 @@
+{
+  "device": {
+    "id": "dev_V1StGXR8Z5jdHi6B",
+    "name": "sales-01",
+    "phone": "628123456789"
+  },
+  "state": "disconnected",
+  "reason": "network",
+  "at": "2026-09-28T09:00:00Z"
+}

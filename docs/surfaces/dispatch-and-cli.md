@@ -68,10 +68,10 @@ exact path, so a break in the public contract breaks your own tooling first. Pro
 
 Two client shapes are therefore shipped and both are reference implementations:
 
-| Client                | Speaks      | Credential | Built by                  | Reference command                                         |
-| --------------------- | ----------- | ---------- | ------------------------- | --------------------------------------------------------- |
-| `controlplane.Client` | Connect, S2 | Bearer JWT | `internal/boot/client.go` | `openwa project list`                                     |
-| `dataplane.Client`    | REST, S3    | API key    | `internal/cli/blog.go`    | device and message commands arrive with the device module |
+| Client                | Speaks      | Credential | Built by                  | Reference command                  |
+| --------------------- | ----------- | ---------- | ------------------------- | ---------------------------------- |
+| `controlplane.Client` | Connect, S2 | Bearer JWT | `internal/boot/client.go` | `openwa device …`                  |
+| `dataplane.Client`    | REST, S3    | API key    | `internal/cli/blog.go`    | `openwa blog …` (hidden reference) |
 
 **A client, not a peer of the server.** Single-user, local-first CLIs own their protocol
 session in the CLI process and keep state on the operator's disk. Borrow their **ergonomics** —
