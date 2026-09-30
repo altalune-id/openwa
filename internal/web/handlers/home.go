@@ -86,7 +86,7 @@ func (h *HomeHandler) GetOverview(w http.ResponseWriter, r *http.Request) {
 			view.Projects = append(view.Projects, templates.ProjectSummary{ID: pr.ID.String(), Slug: pr.Slug, Name: pr.Name, System: pr.System})
 		}
 	}
-	Render(w, r, templates.DashboardLayout(h.LayoutForOrg(r, "Overview · "+o.Name, o.Slug, "overview"), view))
+	Render(w, r, templates.DashboardLayout(h.LayoutForOrg(r, "Overview", o.Slug, "overview"), view))
 }
 
 func (h *HomeHandler) remember(r *http.Request, sid string, p session.Principal, orgID uuid.UUID) {

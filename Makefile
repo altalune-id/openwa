@@ -53,7 +53,7 @@ templ-normalize: ## Pin generated templ FileName paths to repo-root-relative for
 templ-normalize-check: ## Fail if any generated templ FileName is not root-relative (CI check)
 	@bash scripts/templ-normalize.sh --check
 
-UI_TEMPL_SRC := $(shell find internal/web -name '*.templ')
+UI_TEMPL_SRC := $(shell find internal/web -name '*.templ') $(wildcard internal/web/templates/*.go)
 
 internal/web/static/.vendor-stamp: scripts/ui-vendor.sh
 	bash scripts/ui-vendor.sh

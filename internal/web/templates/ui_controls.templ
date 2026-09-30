@@ -1,0 +1,192 @@
+package templates
+
+import (
+	"strconv"
+
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
+)
+
+templ button(p ButtonProps) {
+	if p.Href != "" {
+		<a href={ templ.SafeURL(p.Href) } class={ ButtonClass(p.Kind) } { p.Attrs... }>
+			if p.Icon != "" {
+				@icons.Icon(p.Icon, "h-4 w-4")
+			}
+			if p.Label != "" {
+				<span>{ p.Label }</span>
+			}
+		</a>
+	} else {
+		<button type={ buttonType(p) } class={ ButtonClass(p.Kind) } disabled?={ p.Disabled } { p.Attrs... }>
+			if p.Icon != "" {
+				@icons.Icon(p.Icon, "h-4 w-4")
+			}
+			if p.Label != "" {
+				<span>{ p.Label }</span>
+			}
+		</button>
+	}
+}
+
+// Field renders a label, the control passed as children, help text and an error message.
+templ Field(d web.LayoutData, p FieldProps) {
+	<div>
+		<label for={ p.ID } class="block text-sm font-medium text-foreground">
+			{ p.Label }
+			if p.Required {
+				<span aria-hidden="true" class="text-destructive">*</span>
+			}
+		</label>
+		{ children... }
+		if p.Help != "" {
+			<p id={ p.ID + "-help" } class="mt-1 text-xs text-muted-foreground">{ p.Help }</p>
+		}
+		if p.Error != "" {
+			<p role="alert" id={ p.ID + "-error" } class="mt-1 flex items-center gap-1.5 text-xs text-foreground">
+				<span aria-hidden="true" class="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-destructive"></span>
+				{ p.Error }
+			</p>
+		}
+	</div>
+}
+
+// Chip renders a checkbox styled as a pill.
+templ Chip(p ChipProps) {
+	<label class="chip inline-flex cursor-pointer items-center gap-2 rounded-full border border-border px-3 py-1 text-sm text-foreground hover:bg-muted">
+		<input type="checkbox" name={ p.Name } value={ p.Value } checked?={ p.Checked } class="h-3.5 w-3.5 rounded border-border"/>
+		<span>{ p.Label }</span>
+	</label>
+}
+
+// Tabs renders the ARIA tablist pattern and its switching script.
+templ Tabs(d web.LayoutData, p TabsProps) {
+	<div data-tabs class="rounded-md border border-border/70">
+		<nav role="tablist" aria-orientation="horizontal" aria-label={ p.Label } class="tab-bar">
+			for i, t := range p.Tabs {
+				<button type="button" role="tab" id={ p.ID + "-tab-" + t.Key } aria-controls={ p.ID + "-panel-" + t.Key } aria-selected={ strconv.FormatBool(i == 0) } tabindex={ tabIndex(i == 0) }>{ t.Label }</button>
+			}
+		</nav>
+		for i, t := range p.Tabs {
+			<div role="tabpanel" id={ p.ID + "-panel-" + t.Key } aria-labelledby={ p.ID + "-tab-" + t.Key } { t.Attrs... } hidden?={ i != 0 } class="px-3 py-2">
+				@t.Panel
+			</div>
+		}
+	</div>
+	@tabsScript(d.Nonce)
+}
+
+templ tabsScript(nonce string) {
+	<script nonce={ nonce }>
+	(function() {
+	if (window.openwaTabsBound) return;
+	window.openwaTabsBound = true;
+	var tabsOf = function(root) {
+		return Array.prototype.filter.call(root.querySelectorAll('[role="tab"]'), function(t) {
+			return t.closest('[data-tabs]') === root;
+		});
+	};
+	var select = function(tab) {
+		var root = tab.closest('[data-tabs]');
+		if (!root) return;
+		tabsOf(root).forEach(function(t) {
+			var on = t === tab;
+			t.setAttribute('aria-selected', on ? 'true' : 'false');
+			t.tabIndex = on ? 0 : -1;
+			var panel = document.getElementById(t.getAttribute('aria-controls'));
+			if (panel) panel.hidden = !on;
+		});
+	};
+	document.addEventListener('click', function(e) {
+		if (!e.target || !e.target.closest) return;
+		var tab = e.target.closest('[data-tabs] [role="tab"]');
+		if (tab) select(tab);
+	});
+	document.addEventListener('keydown', function(e) {
+		if (!e.target || !e.target.closest) return;
+		var tab = e.target.closest('[data-tabs] [role="tab"]');
+		if (!tab) return;
+		var tabs = tabsOf(tab.closest('[data-tabs]'));
+		var i = tabs.indexOf(tab);
+		var step = getComputedStyle(tab).direction === 'rtl' ? -1 : 1;
+		var next = null;
+		if (e.key === 'ArrowRight') next = tabs[(i + step + tabs.length) % tabs.length];
+		if (e.key === 'ArrowLeft') next = tabs[(i - step + tabs.length) % tabs.length];
+		if (e.key === 'Home') next = tabs[0];
+		if (e.key === 'End') next = tabs[tabs.length - 1];
+		if (!next) return;
+		e.preventDefault();
+		select(next);
+		next.focus();
+	});
+	})();
+	</script>
+}
+
+// Disclosure renders a styled details element around its children.
+templ Disclosure(summary string) {
+	<details class="rounded-md border border-border/70 p-3">
+		<summary class="cursor-pointer text-sm font-semibold text-foreground">{ summary }</summary>
+		<div class="mt-3">
+			{ children... }
+		</div>
+	</details>
+}
+
+// CopyButton renders a button that copies value and shows label.
+templ CopyButton(d web.LayoutData, value, label string) {
+	@copyControl(d, value, label, label)
+}
+
+// CopyValue renders value itself as a copy button.
+templ CopyValue(d web.LayoutData, value string) {
+	@copyControl(d, value, value, d.Tr("common.copy")+": "+value)
+}
+
+templ copyControl(d web.LayoutData, value, text, label string) {
+	<button
+		type="button"
+		data-copy={ value }
+		data-copy-text={ text }
+		data-copy-label={ label }
+		data-copied-label={ d.Tr("common.copy_done") }
+		aria-label={ label }
+		class="rounded-md font-mono text-xs text-muted-foreground hover:text-foreground"
+	>{ text }</button>
+}
+
+templ copyScript(nonce string) {
+	<script nonce={ nonce }>
+	if (!window.openwaCopyBound) {
+	window.openwaCopyBound = true;
+	document.addEventListener('click', function(e) {
+		if (!e.target || !e.target.closest) return;
+		var btn = e.target.closest('[data-copy]');
+		if (!btn) return;
+		var text = btn.getAttribute('data-copy');
+		var shown = btn.getAttribute('data-copy-text') || text;
+		var done = function() {
+			btn.textContent = btn.getAttribute('data-copied-label');
+			btn.setAttribute('aria-label', btn.getAttribute('data-copied-label'));
+			setTimeout(function() {
+				btn.textContent = shown;
+				btn.setAttribute('aria-label', btn.getAttribute('data-copy-label'));
+			}, 1500);
+		};
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			navigator.clipboard.writeText(text).then(done, function() {});
+			return;
+		}
+		var ta = document.createElement('textarea');
+		ta.value = text;
+		ta.setAttribute('readonly', '');
+		ta.style.position = 'fixed';
+		ta.style.opacity = '0';
+		document.body.appendChild(ta);
+		ta.select();
+		try { document.execCommand('copy'); done(); } catch (err) {}
+		document.body.removeChild(ta);
+	});
+	}
+	</script>
+}

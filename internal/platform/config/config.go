@@ -50,6 +50,7 @@ type Config struct {
 	Mail          MailConfig          `yaml:"mail"          mapstructure:"mail"`
 	I18n          I18nConfig          `yaml:"i18n"          mapstructure:"i18n"`
 	Compliance    ComplianceConfig    `yaml:"compliance"    mapstructure:"compliance"`
+	Brand         BrandConfig         `yaml:"brand"         mapstructure:"brand"         awareness:"-"`
 	Security      SecurityConfig      `yaml:"security"      mapstructure:"security"`
 	WhatsApp      WhatsAppConfig      `yaml:"whatsapp"      mapstructure:"whatsapp"`
 	Blog          BlogConfig          `yaml:"blog"          mapstructure:"blog"`
@@ -78,6 +79,11 @@ type ComplianceConfig struct {
 	TermsURL          string `yaml:"termsURL"          mapstructure:"termsURL"          validate:"omitempty,url"`
 	PrivacyURL        string `yaml:"privacyURL"        mapstructure:"privacyURL"        validate:"omitempty,url"`
 	RequireAcceptance bool   `yaml:"requireAcceptance" mapstructure:"requireAcceptance"`
+}
+
+// BrandConfig names the product in the console shell.
+type BrandConfig struct {
+	Name string `yaml:"name" mapstructure:"name" awareness:"-"`
 }
 
 // I18nConfig configures the SSR i18n subsystem.

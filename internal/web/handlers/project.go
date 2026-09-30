@@ -29,7 +29,7 @@ func (h *ProjectHandler) GetList(w http.ResponseWriter, r *http.Request) {
 	items, err := h.Projects.List(r.Context(), o.ID)
 	if err != nil {
 		h.LogErr("web project: list", err)
-		h.ErrorPage(w, r, http.StatusInternalServerError, "List failed", "Could not load projects.", err)
+		h.ErrorPageKey(w, r, http.StatusInternalServerError, "error.load_failed", err)
 		return
 	}
 	Render(w, r, templates.ProjectsLayout(
@@ -59,7 +59,7 @@ func (h *ProjectHandler) PostCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	p, sid, o, r := sc.principal, sc.sid, sc.org, sc.req
 	if err := r.ParseForm(); err != nil {
-		h.ErrorPage(w, r, http.StatusBadRequest, "Bad request", "Could not parse form body.")
+		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.bad_request", nil)
 		return
 	}
 	slug := strings.TrimSpace(r.PostForm.Get("slug"))
@@ -86,6 +86,7 @@ func (h *ProjectHandler) PostCreate(w http.ResponseWriter, r *http.Request) {
 	if err := h.UpdateSession(r, sid, updated); err != nil {
 		h.LogErr("web project: update session", err)
 	}
+	h.SetFlash(w, r, web.FlashOK, "flash.project_created", "Name", created.Name)
 	http.Redirect(w, r, web.Path(h.Cfg.HTTP.BasePath, projectPath(o.Slug, created.Slug, "/overview")), http.StatusSeeOther) //nolint:gosec // G710: both slugs are validated by their own slug patterns
 }
 
@@ -97,17 +98,17 @@ func (h *ProjectHandler) PostRename(w http.ResponseWriter, r *http.Request) {
 	}
 	o, proj, r := sc.org, sc.project, sc.req
 	if err := r.ParseForm(); err != nil {
-		h.ErrorPage(w, r, http.StatusBadRequest, "Bad request", "Could not parse form body.")
+		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.bad_request", nil)
 		return
 	}
 	name := strings.TrimSpace(r.PostForm.Get("name"))
 	if _, err := h.Projects.Rename(r.Context(), proj.ID, name); err != nil {
 		h.LogErr("web project: rename", err)
 		if project.IsSystemProtectedError(err) {
-			h.ErrorPage(w, r, http.StatusConflict, "Rename not allowed", "This project is system-protected.", err)
+			h.ErrorPageKey(w, r, http.StatusConflict, "error.forbidden", err)
 			return
 		}
-		h.ErrorPage(w, r, http.StatusBadRequest, "Rename failed", err.Error())
+		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.save_failed", err)
 		return
 	}
 	http.Redirect(w, r, ResolveReturnTo(h.Cfg.HTTP.BasePath, "/orgs/"+o.Slug+"/projects"), http.StatusSeeOther) //nolint:gosec // G710: destination sanitized via ResolveReturnTo → SanitizeReturnTo

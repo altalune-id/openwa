@@ -1,0 +1,13 @@
+package templates
+
+import (
+	"time"
+
+	"altalune.id/openwa/internal/web"
+)
+
+// Time renders t as a time element with a relative label and an absolute title.
+templ Time(d web.LayoutData, t time.Time) {
+	{{ rel, abs := web.FormatTime(t, d.Translator, time.Now()) }}
+	<time datetime={ t.UTC().Format(time.RFC3339) } title={ abs }>{ rel }</time>
+}

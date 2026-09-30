@@ -7,13 +7,12 @@ type OnboardingView struct {
 	DisplayName string
 	ReturnTo    string
 	Error       string
-	ErrorCode string
+	ErrorCode   string
 }
 
 templ OnboardingPage(d web.LayoutData, v OnboardingView) {
 	<section class="mx-auto max-w-md">
-		<h1 class="text-2xl font-semibold">{ d.Tr("onboarding.title") }</h1>
-		<p class="mt-2 text-muted-foreground">{ d.Tr("onboarding.subtitle_prefix") } { v.Email }{ d.Tr("onboarding.subtitle_suffix") }</p>
+		@PageHeader(d, PageHeaderProps{Title: d.Tr("onboarding.title"), Subtitle: d.Tr("onboarding.subtitle_prefix") + " " + v.Email + d.Tr("onboarding.subtitle_suffix")})
 		if v.Error != "" {
 			@ErrorBanner(d, v.Error, v.ErrorCode)
 		}
@@ -21,24 +20,15 @@ templ OnboardingPage(d web.LayoutData, v OnboardingView) {
 			if v.ReturnTo != "" {
 				<input type="hidden" name="return_to" value={ v.ReturnTo }/>
 			}
-			<div>
-				<label for="display_name" class="block text-sm font-medium">{ d.Tr("onboarding.display_name") }</label>
-				<input
-					id="display_name"
-					name="display_name"
-					type="text"
-					required
-					value={ v.DisplayName }
-					class="mt-1.5 block w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 shadow-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
-				/>
-			</div>
-			<label class="flex items-start gap-2 text-sm">
-				<input type="checkbox" name="accept_terms" value="1" required class="mt-1"/>
+			{{ nameField := FieldProps{ID: "display_name", Label: d.Tr("onboarding.display_name"), Required: true} }}
+			@Field(d, nameField) {
+				<input name="display_name" type="text" value={ v.DisplayName } class={ InputClass() } { InputAttrs(nameField)... }/>
+			}
+			<label class="flex items-start gap-2 text-sm text-foreground">
+				<input type="checkbox" name="accept_terms" value="1" required class="mt-1 h-4 w-4 rounded border-border"/>
 				<span>{ d.Tr("onboarding.accept") }</span>
 			</label>
-			<button type="submit" class="w-full rounded bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90">
-				{ d.Tr("onboarding.submit") }
-			</button>
+			<button type="submit" class={ ButtonClass(ButtonPrimary), "w-full justify-center" }>{ d.Tr("onboarding.submit") }</button>
 		</form>
 	</section>
 }

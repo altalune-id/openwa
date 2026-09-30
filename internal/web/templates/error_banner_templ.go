@@ -10,7 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import "altalune.id/openwa/internal/web"
 
-// ErrorBanner renders an inline form error with its code and the request id, so a user report maps to a log line. Codes: ../../../docs/errors/README.md.
+// ErrorBanner renders an inline form error with its code and the request id.
 func ErrorBanner(d web.LayoutData, msg, code string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -32,7 +32,7 @@ func ErrorBanner(d web.LayoutData, msg, code string) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200\"><p>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div role=\"alert\" class=\"mt-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-foreground\"><p>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -50,7 +50,7 @@ func ErrorBanner(d web.LayoutData, msg, code string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if code != "" || d.RequestID != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<p class=\"mt-1.5 space-x-3 text-xs text-red-800/80 dark:text-red-200/70\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<p class=\"mt-1.5 space-x-3 text-xs text-muted-foreground\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

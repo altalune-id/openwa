@@ -1,0 +1,145 @@
+package templates
+
+import (
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
+)
+
+// Badge renders a status pill in the tone's theme tokens.
+templ Badge(tone Tone, text string) {
+	<span class={ badgeClass(tone) }>{ text }</span>
+}
+
+// StatusDot renders a labelled status dot.
+templ StatusDot(tone Tone, label string) {
+	<span class={ dotClass(tone) } role="img" aria-label={ label }></span>
+}
+
+// Spinner renders an htmx-indicator spinner with a screen-reader label.
+templ Spinner(label string) {
+	<span role="status" class="htmx-indicator inline-flex items-center gap-2 text-xs text-muted-foreground">
+		<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+			<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity="0.25"></circle>
+			<path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
+		</svg>
+		<span class="sr-only">{ label }</span>
+	</span>
+}
+
+// Avatar renders the initial of name in a circle.
+templ Avatar(name, size string) {
+	<span class={ "inline-flex shrink-0 items-center justify-center rounded-full bg-primary font-semibold uppercase text-primary-foreground", size } aria-hidden="true">{ avatarInitial(name) }</span>
+}
+
+// Toast renders one dismissible notice.
+templ Toast(d web.LayoutData, kind web.FlashKind, message string) {
+	<div class={ toastClass(kind) } data-toast>
+		<p class="min-w-0 flex-1 text-sm text-foreground">{ message }</p>
+		<button type="button" data-toast-dismiss aria-label={ d.Tr("common.dismiss") } class="shrink-0 rounded-md p-0.5 hover:bg-muted">
+			@icons.Icon("x", "h-4 w-4")
+		</button>
+	</div>
+}
+
+// ToastRegion renders the live region toasts land in, with the current flash.
+templ ToastRegion(d web.LayoutData) {
+	<div id="hx-notice" aria-live="polite" class="fixed bottom-4 end-4 z-50 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2">
+		if d.Flash != nil {
+			@Toast(d, d.Flash.Kind, d.Flash.Message)
+		}
+	</div>
+	@toastScript(d.Nonce)
+}
+
+// OOBToast renders a toast as an htmx 4 partial appended to the toast region.
+templ OOBToast(d web.LayoutData, kind web.FlashKind, message string) {
+	<template hx type="partial" hx-target="#hx-notice" hx-swap="beforeend" hx-nonce={ d.Nonce }>
+		@Toast(d, kind, message)
+	</template>
+}
+
+templ toastScript(nonce string) {
+	<script nonce={ nonce }>
+	(function() {
+		if (window.openwaToastBound) return;
+		window.openwaToastBound = true;
+		var region = document.getElementById('hx-notice');
+		if (!region) return;
+		var arm = function(toast) {
+			if (!toast || toast.nodeType !== 1 || !toast.hasAttribute('data-toast') || toast.__armed) return;
+			toast.__armed = true;
+			var timer = setTimeout(function() { toast.remove(); }, 6000);
+			toast.addEventListener('click', function(e) {
+				if (e.target.closest('[data-toast-dismiss]')) { clearTimeout(timer); toast.remove(); }
+			});
+		};
+		Array.prototype.forEach.call(region.children, arm);
+		new MutationObserver(function(records) {
+			records.forEach(function(r) { Array.prototype.forEach.call(r.addedNodes, arm); });
+		}).observe(region, { childList: true });
+	})();
+	</script>
+}
+
+// ConfirmDialog renders a trigger button and a dialog holding the real POST form.
+templ ConfirmDialog(d web.LayoutData, p ConfirmProps) {
+	@Button(confirmTrigger(p))
+	<dialog id={ p.ID } aria-labelledby={ p.ID + "-title" } data-confirm>
+		<form
+			method="post"
+			action={ templ.SafeURL(p.Action) }
+			if p.HxTarget != "" {
+				hx-post={ p.Action }
+				hx-target={ p.HxTarget }
+				hx-swap={ p.HxSwap }
+				hx-status:4xx="target:#hx-error swap:innerHTML"
+				hx-status:5xx="target:#hx-error swap:innerHTML"
+				hx-disable="find button"
+				hx-nonce={ d.Nonce }
+			}
+			class="p-5"
+		>
+			for _, h := range p.Hidden {
+				<input type="hidden" name={ h.Name } value={ h.Value }/>
+			}
+			<h2 id={ p.ID + "-title" } class="text-base font-semibold text-foreground">{ p.Title }</h2>
+			if p.Body != "" {
+				<p class="mt-2 text-sm text-muted-foreground">{ p.Body }</p>
+			}
+			<div class="mt-5 flex justify-end gap-2">
+				<button type="button" data-confirm-close class={ ButtonClass(ButtonSecondary) }>{ d.Tr("common.cancel") }</button>
+				<button type="submit" class={ ButtonClass(p.Kind) }>{ confirmLabel(d, p) }</button>
+			</div>
+		</form>
+	</dialog>
+	<noscript><style>dialog[data-confirm] { display: block; position: static; margin-top: 0.5rem; }</style></noscript>
+}
+
+templ confirmScript(nonce string) {
+	<script nonce={ nonce }>
+	(function() {
+		if (window.openwaConfirmBound) return;
+		window.openwaConfirmBound = true;
+		document.addEventListener('click', function(e) {
+			if (!e.target || !e.target.closest) return;
+			var open = e.target.closest('[data-confirm-open]');
+			if (open) {
+				var dlg = document.getElementById(open.getAttribute('data-confirm-open'));
+				if (dlg && dlg.showModal && !dlg.open) dlg.showModal();
+				return;
+			}
+			var close = e.target.closest('[data-confirm-close]');
+			if (close) {
+				var d = close.closest('dialog');
+				if (d) d.close();
+			}
+		});
+		document.addEventListener('htmx:finally:request', function(e) {
+			var elt = e.target;
+			if (!elt || !elt.closest) return;
+			var d = elt.closest('dialog[data-confirm]');
+			if (d && d.open) d.close();
+		});
+	})();
+	</script>
+}

@@ -1,98 +1,36 @@
 package templates
 
 import (
-	"fmt"
+	"strconv"
 
 	"altalune.id/openwa/internal/web"
 )
 
 type OverviewView struct {
-	OrgSlug string
-	ProjectID   string
-	ProjectSlug string
-	ProjectName string
+	OrgSlug       string
+	ProjectID     string
+	ProjectSlug   string
+	ProjectName   string
 	Devices       int
 	MessagesToday int
 }
 
 templ OverviewPage(d web.LayoutData, v OverviewView) {
-	<section class="flex flex-col gap-6">
-		<header class="border-b border-border pb-4">
-			<p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">{ d.Tr("nav.overview") }</p>
-			<h1 class="mt-1 text-2xl font-semibold text-foreground">{ v.ProjectName }</h1>
-			<div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-				@copyValue(d, v.OrgSlug)
-				<span aria-hidden="true" class="text-muted-foreground/70">/</span>
-				@copyValue(d, v.ProjectSlug)
-				<span aria-hidden="true" class="text-muted-foreground/70">·</span>
-				@copyValue(d, v.ProjectID)
-			</div>
-			@copyScript(d.Nonce)
-		</header>
+	<section class="space-y-6">
+		@PageHeader(d, PageHeaderProps{Eyebrow: d.Tr("nav.overview"), Title: v.ProjectName})
+		<div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+			@CopyValue(d, v.OrgSlug)
+			<span aria-hidden="true" class="text-muted-foreground/70">/</span>
+			@CopyValue(d, v.ProjectSlug)
+			<span aria-hidden="true" class="text-muted-foreground/70">·</span>
+			@CopyValue(d, v.ProjectID)
+		</div>
+		@copyScript(d.Nonce)
 		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-			@statCard(d.Tr("overview.devices"), fmt.Sprintf("%d", v.Devices))
-			@statCard(d.Tr("overview.messages_today"), fmt.Sprintf("%d", v.MessagesToday))
+			@StatCard(d.Tr("overview.devices"), strconv.Itoa(v.Devices))
+			@StatCard(d.Tr("overview.messages_today"), strconv.Itoa(v.MessagesToday))
 		</div>
 	</section>
-}
-
-templ copyValue(d web.LayoutData, value string) {
-	@copyButton(d, value, value, d.Tr("common.copy")+": "+value)
-}
-
-templ copyButton(d web.LayoutData, value, text, label string) {
-	<button
-		type="button"
-		data-copy={ value }
-		data-copy-text={ text }
-		data-copy-label={ label }
-		data-copied-label={ d.Tr("common.copied") }
-		aria-label={ label }
-		class="rounded-md font-mono text-xs text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
-	>{ text }</button>
-}
-
-templ copyScript(nonce string) {
-	<script nonce={ nonce }>
-	if (!window.openwaCopyBound) {
-	window.openwaCopyBound = true;
-	document.addEventListener('click', function(e) {
-		if (!e.target || !e.target.closest) return;
-		var btn = e.target.closest('[data-copy]');
-		if (!btn) return;
-		var text = btn.getAttribute('data-copy');
-		var shown = btn.getAttribute('data-copy-text') || text;
-		var done = function() {
-			btn.textContent = btn.getAttribute('data-copied-label');
-			btn.setAttribute('aria-label', btn.getAttribute('data-copied-label'));
-			setTimeout(function() {
-				btn.textContent = shown;
-				btn.setAttribute('aria-label', btn.getAttribute('data-copy-label'));
-			}, 1500);
-		};
-		if (navigator.clipboard && navigator.clipboard.writeText) {
-			navigator.clipboard.writeText(text).then(done, function() {});
-			return;
-		}
-		var ta = document.createElement('textarea');
-		ta.value = text;
-		ta.setAttribute('readonly', '');
-		ta.style.position = 'fixed';
-		ta.style.opacity = '0';
-		document.body.appendChild(ta);
-		ta.select();
-		try { document.execCommand('copy'); done(); } catch (err) {}
-		document.body.removeChild(ta);
-	});
-	}
-	</script>
-}
-
-templ statCard(label, value string) {
-	<div class="rounded-lg border border-border bg-card p-4 shadow-sm">
-		<p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">{ label }</p>
-		<p class="mt-2 text-2xl font-semibold text-foreground">{ value }</p>
-	</div>
 }
 
 templ OverviewLayout(d web.LayoutData, v OverviewView) {

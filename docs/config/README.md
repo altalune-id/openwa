@@ -121,6 +121,12 @@ one account once and never overwrite it. Boot writes nothing — it reconciles t
   exists is itself a disclosure — and every write route requires a key regardless of the flag.
   Scope strings a key or token can carry: [`scopes`](../scopes/README.md).
 
+## Console
+
+| Key          | Default  | Awareness | Meaning                                                                 |
+| ------------ | -------- | --------- | ----------------------------------------------------------------------- |
+| `brand.name` | `OpenWA` | `-`       | Wordmark in the top bar, the `<title>` suffix and the user-menu footer. |
+
 ## MCP and queue
 
 - `mcp.enabled` mounts S7 at `basePath + /mcp`; boot fails without `tokens.issuer` and without

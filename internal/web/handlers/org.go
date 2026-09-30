@@ -31,7 +31,7 @@ func (h *OrgHandler) GetList(w http.ResponseWriter, r *http.Request) {
 	items, err := h.Orgs.List(r.Context(), p.UserID)
 	if err != nil {
 		h.LogErr("web org: list", err)
-		h.ErrorPage(w, r, http.StatusInternalServerError, "List failed", "Could not load orgs.", err)
+		h.ErrorPageKey(w, r, http.StatusInternalServerError, "error.load_failed", err)
 		return
 	}
 	Render(w, r, templates.OrgsLayout(h.Layout(r, "Organizations", web.ActiveNav{Scope: web.NavScopeOrg}), templates.OrgsView{Orgs: orgSummaries(items)}))
@@ -43,7 +43,7 @@ func (h *OrgHandler) GetNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.Caps.OrgCreation {
-		h.ErrorPage(w, r, http.StatusForbidden, "Not allowed", "Organization creation is disabled in this deployment.")
+		h.ErrorPageKey(w, r, http.StatusForbidden, "error.forbidden", nil)
 		return
 	}
 	Render(w, r, templates.OrgNewLayout(h.Layout(r, "Create organization", web.ActiveNav{Scope: web.NavScopeOrg}), templates.OrgNewView{Slug: slugs.Generate()}))
@@ -57,11 +57,11 @@ func (h *OrgHandler) PostCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.Caps.OrgCreation {
-		h.ErrorPage(w, r, http.StatusForbidden, "Not allowed", "Organization creation is disabled in this deployment.")
+		h.ErrorPageKey(w, r, http.StatusForbidden, "error.forbidden", nil)
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		h.ErrorPage(w, r, http.StatusBadRequest, "Bad request", "Could not parse form body.")
+		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.bad_request", nil)
 		return
 	}
 	slug := strings.TrimSpace(r.PostForm.Get("slug"))
@@ -78,6 +78,7 @@ func (h *OrgHandler) PostCreate(w http.ResponseWriter, r *http.Request) {
 	if err := h.UpdateSession(r, sid, updated); err != nil {
 		h.LogErr("web org: update session", err)
 	}
+	h.SetFlash(w, r, web.FlashOK, "flash.org_created", "Name", created.Name)
 	http.Redirect(w, r, web.Path(h.Cfg.HTTP.BasePath, "/orgs/"+created.Slug+"/projects"), http.StatusSeeOther)
 }
 
@@ -89,23 +90,23 @@ func (h *OrgHandler) PostRename(w http.ResponseWriter, r *http.Request) {
 	}
 	p, o, r := sc.principal, sc.org, sc.req
 	if err := r.ParseForm(); err != nil {
-		h.ErrorPage(w, r, http.StatusBadRequest, "Bad request", "Could not parse form body.")
+		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.bad_request", nil)
 		return
 	}
 	name := strings.TrimSpace(r.PostForm.Get("name"))
 	// SECURITY: the slug comes from the URL, so membership in that org must be checked here — RLS no longer narrows this to the active org.
 	canManage, mErr := h.Orgs.IsManager(r.Context(), o.ID, p.UserID)
 	if mErr != nil || !canManage {
-		h.ErrorPage(w, r, http.StatusForbidden, "Not allowed", "You must be an admin or owner to rename this organization.")
+		h.ErrorPageKey(w, r, http.StatusForbidden, "error.forbidden", nil)
 		return
 	}
 	if _, err := h.Orgs.Rename(r.Context(), o.ID, name); err != nil {
 		h.LogErr("web org: rename", err)
 		if org.IsSystemProtectedError(err) {
-			h.ErrorPage(w, r, http.StatusConflict, "Rename not allowed", "This organization is system-protected.", err)
+			h.ErrorPageKey(w, r, http.StatusConflict, "error.forbidden", err)
 			return
 		}
-		h.ErrorPage(w, r, http.StatusBadRequest, "Rename failed", err.Error())
+		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.save_failed", err)
 		return
 	}
 	http.Redirect(w, r, ResolveReturnTo(h.Cfg.HTTP.BasePath, "/orgs/"+o.Slug+"/members"), http.StatusSeeOther) //nolint:gosec // G710: destination sanitized via ResolveReturnTo → SanitizeReturnTo
@@ -121,11 +122,11 @@ func (h *OrgHandler) GetShow(w http.ResponseWriter, r *http.Request) {
 	profiles, err := h.Orgs.ListMemberProfiles(r.Context(), o.ID)
 	if err != nil {
 		h.LogErr("web org: members", err)
-		h.ErrorPage(w, r, http.StatusInternalServerError, "Members failed", "Could not load members.", err)
+		h.ErrorPageKey(w, r, http.StatusInternalServerError, "error.load_failed", err)
 		return
 	}
 	canManage, _ := h.Orgs.IsManager(r.Context(), o.ID, p.UserID)
-	Render(w, r, templates.MembersLayout(h.LayoutForOrg(r, o.Name, o.Slug, "members"), templates.MembersView{
+	Render(w, r, templates.MembersLayout(h.LayoutForOrg(r, "Members", o.Slug, "members"), templates.MembersView{
 		OrgSlug:   o.Slug,
 		Members:   memberProfileRows(profiles, o.ID, p.UserID),
 		CanManage: canManage,
@@ -141,36 +142,37 @@ func (h *OrgHandler) PostRemoveMember(w http.ResponseWriter, r *http.Request) {
 	p, o, r := sc.principal, sc.org, sc.req
 	canManage, mErr := h.Orgs.IsManager(r.Context(), o.ID, p.UserID)
 	if mErr != nil || !canManage {
-		h.ErrorPage(w, r, http.StatusForbidden, "Not allowed", "You must be an admin or owner to manage members.")
+		h.ErrorPageKey(w, r, http.StatusForbidden, "error.forbidden", nil)
 		return
 	}
 	userID, err := uuid.Parse(r.PathValue("user"))
 	if err != nil {
-		h.ErrorPage(w, r, http.StatusBadRequest, "Bad id", "Malformed user id.")
+		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.bad_id", nil)
 		return
 	}
 	if err := h.Orgs.RemoveMember(r.Context(), o.ID, userID); err != nil {
 		h.LogErr("web org: remove member", err)
 		if org.IsSystemProtectedError(err) {
-			h.ErrorPage(w, r, http.StatusConflict, "Remove not allowed", "This membership is system-protected.", err)
+			h.ErrorPageKey(w, r, http.StatusConflict, "error.forbidden", err)
 			return
 		}
 		if org.IsMembershipMissingError(err) || org.IsNotFoundError(err) {
-			h.ErrorPage(w, r, http.StatusNotFound, "Member not found", "That person is not a member of this organization.")
+			h.ErrorPageKey(w, r, http.StatusNotFound, "error.not_found", nil)
 			return
 		}
 		if org.IsSelfRemovalError(err) {
-			h.ErrorPage(w, r, http.StatusConflict, "Remove not allowed", "You cannot remove your own membership.")
+			h.ErrorPageKey(w, r, http.StatusConflict, "error.forbidden", nil)
 			return
 		}
 		if org.IsOwnerRemovalError(err) {
-			h.ErrorPage(w, r, http.StatusConflict, "Remove not allowed", "An owner cannot be removed.")
+			h.ErrorPageKey(w, r, http.StatusConflict, "error.forbidden", nil)
 			return
 		}
 		// SECURITY: err.Error() names internal ids, so it stays in the log and never reaches the page.
-		h.ErrorPage(w, r, http.StatusInternalServerError, "Remove failed", "Could not remove that member.")
+		h.ErrorPageKey(w, r, http.StatusInternalServerError, "error.save_failed", nil)
 		return
 	}
+	h.SetFlash(w, r, web.FlashOK, "flash.member_removed")
 	http.Redirect(w, r, ResolveReturnTo(h.Cfg.HTTP.BasePath, "/orgs/"+o.Slug+"/members"), http.StatusSeeOther) //nolint:gosec // G710: destination sanitized via ResolveReturnTo → SanitizeReturnTo
 }
 

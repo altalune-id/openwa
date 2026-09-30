@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -84,24 +85,21 @@ func TestAcceptTerms_SetsTimestamp(t *testing.T) {
 	require.NotNil(t, got.TermsAcceptedAt, "expected TermsAcceptedAt to be set")
 }
 
-func TestAcceptTerms_Idempotent(t *testing.T) {
+func TestAcceptTerms_Restamps(t *testing.T) {
 	t.Parallel()
 	store := fakes.NewUser()
 	existing, err := user.New("a@b.co", "n", user.SourceGenesis)
 	require.NoError(t, err)
+	old := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	existing.AcceptTerms(old)
 	require.NoError(t, store.Save(context.Background(), existing))
 
 	s := user.NewService(store, user.GenesisConfig{}, newTestLogger(), noopUnexpected())
 	require.NoError(t, s.AcceptTerms(context.Background(), existing.ID))
-	first, err := store.ByID(context.Background(), existing.ID)
+	got, err := store.ByID(context.Background(), existing.ID)
 	require.NoError(t, err)
-	require.NotNil(t, first.TermsAcceptedAt)
-
-	require.NoError(t, s.AcceptTerms(context.Background(), existing.ID))
-	second, err := store.ByID(context.Background(), existing.ID)
-	require.NoError(t, err)
-	require.NotNil(t, second.TermsAcceptedAt)
-	assert.True(t, first.TermsAcceptedAt.Equal(*second.TermsAcceptedAt), "second AcceptTerms clobbered the first stamp")
+	require.NotNil(t, got.TermsAcceptedAt)
+	assert.True(t, got.TermsAcceptedAt.After(old), "re-acceptance must move the stamp forward")
 }
 
 func TestAcceptTerms_NotFound(t *testing.T) {

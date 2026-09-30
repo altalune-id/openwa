@@ -25,7 +25,7 @@ func (h *LegalHandler) get(slug, fallbackTitle string) http.HandlerFunc {
 		doc, err := legal.BySlug(slug)
 		if err != nil {
 			h.LogErr("legal: load", err)
-			h.ErrorPage(w, r, http.StatusInternalServerError, "Load failed", "Could not load the document.", err)
+			h.ErrorPageKey(w, r, http.StatusInternalServerError, "error.load_failed", err)
 			return
 		}
 		title := doc.Title

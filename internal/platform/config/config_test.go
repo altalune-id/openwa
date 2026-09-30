@@ -529,3 +529,21 @@ func TestValidate_EncryptionKeyIsAlwaysRequired(t *testing.T) {
 func validWhatsApp() WhatsAppConfig {
 	return WhatsAppConfig{Engine: "whatsmeow", ClientName: "OpenWA"}
 }
+
+func TestDefaults_BrandName(t *testing.T) {
+	cfg := Defaults()
+	require.Equal(t, "OpenWA", cfg.Brand.Name)
+}
+
+func TestEnvKeys_BrandNameIsNotBootstrap(t *testing.T) {
+	var found bool
+	for _, k := range WalkEnvKeys(EnvPrefix) {
+		if k.YAML != "brand.name" {
+			continue
+		}
+		found = true
+		require.NotContains(t, k.Awareness, "bootstrap")
+		require.NotContains(t, k.Awareness, "required")
+	}
+	require.True(t, found, "brand.name must be a known env key")
+}

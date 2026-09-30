@@ -30,7 +30,7 @@ func (h *ProjectOverviewHandler) GetOverview(w http.ResponseWriter, r *http.Requ
 	}
 	h.rememberProject(sc)
 	Render(w, sc.req, templates.OverviewLayout(
-		h.LayoutForProject(sc.req, "Overview · "+sc.project.Name, sc.org.Slug, sc.project, "overview"),
+		h.LayoutForProject(sc.req, "Overview", sc.org.Slug, sc.project, "overview"),
 		templates.OverviewView{
 			OrgSlug:     sc.org.Slug,
 			ProjectID:   sc.project.ID.String(),

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/google/uuid"
 
@@ -32,7 +33,10 @@ func (h *LocaleHandler) Register(mux web.Mux) {
 		CookieSecure: h.Cfg.HTTP.CookieSecure,
 		CookiePath:   h.cookiePath(),
 		Persist:      h.persister(),
-		Fallback:     h.Cfg.HTTP.BasePath + "/",
+		OnSwitched: func(w http.ResponseWriter, r *http.Request) {
+			h.SetFlash(w, r, web.FlashOK, "flash.locale_saved")
+		},
+		Fallback: h.Cfg.HTTP.BasePath + "/",
 	}))
 }
 

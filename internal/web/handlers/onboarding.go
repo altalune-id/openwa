@@ -47,7 +47,7 @@ func (h *OnboardingHandler) PostOnboarding(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		h.ErrorPage(w, r, http.StatusBadRequest, "Bad request", "Could not parse form body.")
+		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.bad_request", err)
 		return
 	}
 	returnTo := SanitizeReturnTo(r.PostForm.Get("return_to"))
@@ -107,7 +107,7 @@ func RequireOnboarded(deps Deps, users UserLookup) func(http.Handler) http.Handl
 				next.ServeHTTP(w, r)
 				return
 			}
-			if u.TermsAcceptedAt == nil {
+			if u.TermsAcceptedAt == nil || (deps.Cfg.Compliance.RequireAcceptance && u.TermsAcceptedAt.Before(deps.TermsUpdatedAt)) {
 				http.Redirect(w, r, web.Path(basePath, "/onboarding"), http.StatusSeeOther)
 				return
 			}

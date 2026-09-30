@@ -141,6 +141,7 @@ func TestWebhookHandler_CreateShowsTheSecretOnce(t *testing.T) {
 	require.NotEmpty(t, secret, "the create response must reveal the new secret")
 	assert.Contains(t, rec.Body.String(), "data-webhook-secret")
 	assert.Contains(t, rec.Body.String(), "data-copy=", "the reveal carries the copy button")
+	assert.Contains(t, rec.Body.String(), ">flash.webhook_saved<", "the create response pushes a saved toast")
 
 	items, err := x.Hooks.List(x.ctx())
 	require.NoError(t, err)
@@ -220,6 +221,7 @@ func TestWebhookHandler_UpdateAndDelete(t *testing.T) {
 	form := endpointForm("https://example.com/other", string(events.PostDeleted), string(events.PostPublished))
 	rec := x.do(t, http.MethodPost, detail, form)
 	require.Equal(t, http.StatusSeeOther, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Header().Get("Set-Cookie"), web.FlashCookieName+"=")
 	got, err := x.Hooks.ByID(x.ctx(), e.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "https://example.com/other", got.URL)
@@ -228,9 +230,25 @@ func TestWebhookHandler_UpdateAndDelete(t *testing.T) {
 
 	rec = x.do(t, http.MethodPost, detail+"/delete", nil)
 	require.Equal(t, http.StatusSeeOther, rec.Code)
+	assert.Contains(t, rec.Header().Get("Set-Cookie"), web.FlashCookieName+"=")
 	assert.Equal(t, webhookBase, rec.Header().Get("Location"))
 	_, err = x.Hooks.ByID(x.ctx(), e.ID)
 	require.True(t, webhook.IsNotFoundError(err))
+}
+
+func TestWebhookHandler_DetailUsesConfirmDialogsAndTime(t *testing.T) {
+	t.Parallel()
+	x := newWebhookFixture(t)
+	e := x.create(t)
+	require.NoError(t, x.Hooks.SendTest(x.ctx(), e.ID))
+	rec := x.do(t, http.MethodGet, webhookBase+"/"+e.ID.String(), nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	assert.Contains(t, body, `<dialog id="delete-`+e.ID.String()+`"`)
+	assert.Contains(t, body, `action="`+webhookBase+"/"+e.ID.String()+`/delete"`)
+	assert.Regexp(t, `<time datetime="[^"]+" title="[^"]+ UTC">`, body)
+	assert.Contains(t, body, `aria-label="nav.breadcrumb"`)
+	assert.NotRegexp(t, colourLiteral, body)
 }
 
 // TestWebhookHandler_DeliveriesTestRetryAndAttempts drives send test, the delivery row, retry one and retry all.
@@ -269,6 +287,8 @@ func TestWebhookHandler_DeliveriesTestRetryAndAttempts(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), `id="delivery-`+did+`"`)
 	assert.Contains(t, rec.Body.String(), "webhooks.status.pending")
 	assert.Contains(t, rec.Body.String(), `hx-target="#webhook-retry-all"`)
+	assert.Contains(t, rec.Body.String(), `<template hx type="partial" hx-target="#webhook-retry-all" hx-swap="outerHTML" hx-nonce=`, "htmx 4.0.0 reads template[hx][type=partial]; <hx-partial> is inert")
+	assert.NotContains(t, rec.Body.String(), "<hx-partial")
 
 	x.settle(t, true)
 	rec = x.do(t, http.MethodPost, detail+"/retry-failed", nil)

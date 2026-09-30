@@ -288,7 +288,7 @@ func (s *Service) refreshFromClaims(ctx context.Context, u *User, claims Claims)
 	return u, nil
 }
 
-// AcceptTerms records the moment the user accepted the ToS; idempotent.
+// AcceptTerms stamps the current time as the user's acceptance of the terms, replacing any earlier stamp.
 func (s *Service) AcceptTerms(ctx context.Context, id uuid.UUID) error {
 	ctx, span := tracer.Start(ctx, "user.AcceptTerms")
 	defer span.End()
@@ -298,9 +298,6 @@ func (s *Service) AcceptTerms(ctx context.Context, id uuid.UUID) error {
 			return err
 		}
 		return s.unexpected(ctx, "user.AcceptTerms: byID", err, slog.String("user_id", id.String()))
-	}
-	if u.TermsAcceptedAt != nil {
-		return nil
 	}
 	u.AcceptTerms(s.now())
 	if err := s.store.Save(ctx, u); err != nil {

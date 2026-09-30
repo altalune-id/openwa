@@ -43,7 +43,7 @@ func (h *SignupHandler) Register(mux web.Mux) {
 // GetSignup renders the signup-complete form.
 func (h *SignupHandler) GetSignup(w http.ResponseWriter, r *http.Request) {
 	if h.Cfg.Mode != config.ModeCloud {
-		h.ErrorPage(w, r, http.StatusNotFound, "Not found", "")
+		h.ErrorPageKey(w, r, http.StatusNotFound, "error.not_found", nil)
 		return
 	}
 	p, _, ok := h.LoadSession(r)
@@ -63,7 +63,7 @@ func (h *SignupHandler) GetSignup(w http.ResponseWriter, r *http.Request) {
 //nolint:gocyclo,funlen // linear signup flow reads more clearly as one function.
 func (h *SignupHandler) PostSignup(w http.ResponseWriter, r *http.Request) {
 	if h.Cfg.Mode != config.ModeCloud {
-		h.ErrorPage(w, r, http.StatusNotFound, "Not found", "")
+		h.ErrorPageKey(w, r, http.StatusNotFound, "error.not_found", nil)
 		return
 	}
 	p, sid, ok := h.LoadSession(r)
@@ -76,7 +76,7 @@ func (h *SignupHandler) PostSignup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		h.ErrorPage(w, r, http.StatusBadRequest, "Bad request", "Could not parse form body.")
+		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.bad_request", err)
 		return
 	}
 	view := h.defaultView(p)
@@ -182,7 +182,7 @@ func (h *SignupHandler) defaultView(p session.Principal) templates.SignupComplet
 		Email:          p.Email,
 		Name:           p.Name,
 		AskDisplayName: strings.TrimSpace(p.Name) == "",
-		AskAccept:      h.Cfg.Compliance.RequireAcceptance && p.TermsAcceptedAt.IsZero(),
+		AskAccept:      needsTerms(p, h.TermsUpdatedAt, h.Cfg.Compliance.RequireAcceptance),
 		TermsURL:       cmp.Or(strings.TrimSpace(h.Cfg.Compliance.TermsURL), web.Path(h.Cfg.HTTP.BasePath, "/terms")),
 		PrivacyURL:     cmp.Or(strings.TrimSpace(h.Cfg.Compliance.PrivacyURL), web.Path(h.Cfg.HTTP.BasePath, "/privacy")),
 		OrgSlug:        slugs.Generate(),

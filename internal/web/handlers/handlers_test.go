@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -1179,4 +1180,138 @@ func setTenant(ctx context.Context, orgID, userID uuid.UUID) context.Context {
 
 func setTenantProject(ctx context.Context, orgID, projectID, userID uuid.UUID) context.Context {
 	return tenant.Into(ctx, tenant.Context{OrgID: orgID, ProjectID: projectID, UserID: userID})
+}
+
+func TestBase_BrandAndAssetVersionAndCrumbs(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.Cfg.Brand.Name = "Acme Chat"
+	deps := f.Deps
+	deps.AssetVersion = "v9"
+	d := deps.Base(httptest.NewRequest(http.MethodGet, "/", nil), "Sign in")
+	assert.Equal(t, "Acme Chat", d.BrandName)
+	assert.Equal(t, "v9", d.AssetVersion)
+	assert.Equal(t, "Sign in · Acme Chat", d.DocumentTitle())
+
+	uid := uuid.New()
+	o := f.seedOrg(t, "acme", uid)
+	proj, err := f.Projects.Create(setTenant(context.Background(), o.ID, uid), o.ID, "alpha", "Alpha")
+	require.NoError(t, err)
+	r := f.authedRequest(t, http.MethodGet, "/orgs/acme/projects/alpha/apikeys", "", session.Principal{UserID: uid, ActiveOrgID: o.ID})
+	l := f.Deps.LayoutForProject(r, "API keys", "acme", proj, "apikeys")
+	require.Len(t, l.Crumbs, 2)
+	assert.Equal(t, web.Crumb{Label: "ACME", Href: "/orgs/acme"}, l.Crumbs[0])
+	assert.Equal(t, web.Crumb{Label: "Alpha", Href: "/orgs/acme/projects/alpha/overview"}, l.Crumbs[1])
+	assert.Equal(t, "API keys · Alpha · Acme Chat", l.DocumentTitle(), "f.Cfg is shared by pointer, so the brand set above applies here too")
+
+	lo := f.Deps.LayoutForOrg(r, "Members", "acme", "members")
+	require.Len(t, lo.Crumbs, 1)
+	assert.Equal(t, "ACME", lo.Crumbs[0].Label)
+}
+
+var colourLiteral = regexp.MustCompile(`\b(bg|text|border|ring|from|to|via|fill|stroke|divide|outline|decoration|placeholder|accent|caret)-(red|green|amber|emerald|yellow|rose|orange)-[0-9]`)
+
+func TestWelcome_PostSetsFlashAndRedirects(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.Cfg.Compliance.RequireAcceptance = true
+	ctx := context.Background()
+	u, err := f.Users.Create(ctx, user.CreateRequest{Email: "a@b.co", Name: "Pending", Source: user.SourceLocal})
+	require.NoError(t, err)
+	h := handlers.NewWelcomeHandler(f.Deps, f.Users)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodPost, "/welcome", "name=Alice&accept_terms=1&return_to=/orgs", session.Principal{UserID: u.ID, Email: u.Email}))
+	require.Equal(t, http.StatusSeeOther, rec.Code)
+	assert.Equal(t, "/orgs", rec.Header().Get("Location"))
+	assert.Contains(t, rec.Header().Get("Set-Cookie"), web.FlashCookieName+"=")
+}
+
+func TestWelcome_LogoutFormIsNotNested(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.Cfg.Compliance.RequireAcceptance = true
+	h := handlers.NewWelcomeHandler(f.Deps, f.Users)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodGet, "/welcome", "", session.Principal{UserID: uuid.New(), Email: "a@b.co"}))
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	welcome := strings.Index(body, `action="/welcome"`)
+	logout := strings.LastIndex(body, `action="/logout"`)
+	closeAt := strings.Index(body[welcome:], "</form>")
+	require.Positive(t, welcome)
+	require.Positive(t, closeAt)
+	assert.Greater(t, logout, welcome+closeAt, "the logout form must start after the welcome form closes")
+}
+
+func TestLogin_RendersFieldPrimitive(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	h := handlers.NewAuthHandler(f.Deps, newAuthSvc(t, f), f.Users, f.Orgs, f.Projects, nil, nil)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/admin-login", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	assert.Contains(t, body, `<label for="email"`)
+	assert.Contains(t, body, `id="email"`)
+	assert.NotRegexp(t, colourLiteral, body)
+}
+
+func TestProjectHandler_PostCreate_SetsFlash(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	uid := uuid.New()
+	f.seedOrg(t, "acme", uid)
+	h := handlers.NewProjectHandler(f.Deps, f.Projects)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodPost, "/orgs/acme/projects", "slug=alpha&name=Alpha", session.Principal{UserID: uid}))
+	require.Equal(t, http.StatusSeeOther, rec.Code)
+	assert.Contains(t, rec.Header().Get("Set-Cookie"), web.FlashCookieName+"=")
+}
+
+func TestOrgHandler_MembersPage_UsesConfirmDialogForRemove(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	owner := uuid.New()
+	o := f.seedOrg(t, "acme", owner)
+	member := uuid.New()
+	m, err := org.NewMembership(o.ID, member, org.RoleMember)
+	require.NoError(t, err)
+	require.NoError(t, f.OrgStore.SaveMembership(context.Background(), m))
+	h := handlers.NewOrgHandler(f.Deps, f.Orgs)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodGet, "/orgs/acme/members", "", session.Principal{UserID: owner, ActiveOrgID: o.ID}))
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	assert.Contains(t, body, `<dialog id="remove-`+member.String()+`"`)
+	assert.Contains(t, body, `action="/orgs/acme/members/`+member.String()+`/remove"`)
+	assert.NotRegexp(t, colourLiteral, body)
+}
+
+func TestInviteHandler_ListShowsRelativeExpiry(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	owner := uuid.New()
+	o := f.seedOrg(t, "acme", owner)
+	sendWorkflow := invite.NewSendWorkflow(f.InvStore, nopMailer{}, "http://localhost", discardLogger(), passthroughUnexpected())
+	invites := invite.NewService(f.InvStore, sendWorkflow, nil, true, discardLogger(), passthroughUnexpected())
+	_, err := invites.Send(setTenant(context.Background(), o.ID, owner), invite.SendRequest{Email: "x@y.z", Role: invite.RoleMember})
+	require.NoError(t, err)
+	h := handlers.NewInviteHandler(f.Deps, f.Orgs, invites)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodGet, "/orgs/acme/invites", "", session.Principal{UserID: owner, ActiveOrgID: o.ID}))
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Regexp(t, `<time datetime="[0-9T:+-]+Z?" title="[^"]+ UTC">`, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "invites.expires")
 }

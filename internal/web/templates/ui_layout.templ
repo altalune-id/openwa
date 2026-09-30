@@ -1,0 +1,130 @@
+package templates
+
+import (
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
+)
+
+// PageHeader renders the page h1 with optional eyebrow, subtitle and right-aligned actions.
+templ PageHeader(d web.LayoutData, p PageHeaderProps) {
+	<header class="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-4 mb-6">
+		<div class="min-w-0">
+			if p.Eyebrow != "" {
+				<p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">{ p.Eyebrow }</p>
+			}
+			<h1 class="text-2xl font-semibold tracking-tight text-foreground">{ p.Title }</h1>
+			if p.Subtitle != "" {
+				<p class="mt-1 text-sm text-muted-foreground">{ p.Subtitle }</p>
+			}
+		</div>
+		if p.Actions != nil {
+			<div class="flex shrink-0 flex-wrap items-center gap-2">
+				@p.Actions
+			</div>
+		}
+	</header>
+}
+
+// Breadcrumb renders d.Crumbs as an ordered trail above the page on md and wider.
+templ Breadcrumb(d web.LayoutData) {
+	if len(d.Crumbs) > 0 {
+		<nav aria-label={ d.Tr("nav.breadcrumb") } class="mb-4 hidden md:block">
+			<ol class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+				for i, c := range d.Crumbs {
+					if i > 0 {
+						<li aria-hidden="true" class="text-muted-foreground/70">/</li>
+					}
+					<li>
+						if c.Href != "" && i == len(d.Crumbs)-1 {
+							<a href={ templ.SafeURL(c.Href) } aria-current="page" class="text-foreground hover:underline">{ c.Label }</a>
+						} else if c.Href != "" {
+							<a href={ templ.SafeURL(c.Href) } class="hover:text-foreground">{ c.Label }</a>
+						} else {
+							<span aria-current="page" class="text-foreground">{ c.Label }</span>
+						}
+					</li>
+				}
+			</ol>
+		</nav>
+	}
+}
+
+// Card renders a surface panel with an optional heading around its children.
+templ Card(p CardProps) {
+	<section class="surface p-5">
+		if p.Title != "" {
+			<h2 class="text-base font-semibold text-foreground">{ p.Title }</h2>
+		}
+		if p.Description != "" {
+			<p class="mt-1 text-sm text-muted-foreground">{ p.Description }</p>
+		}
+		if p.Title != "" || p.Description != "" {
+			<div class="mt-4">
+				{ children... }
+			</div>
+		} else {
+			{ children... }
+		}
+	</section>
+}
+
+// StatCard renders one KPI tile.
+templ StatCard(label, value string) {
+	<div class="surface p-4">
+		<p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">{ label }</p>
+		<p class="mt-2 text-2xl font-semibold tracking-tight text-foreground">{ value }</p>
+	</div>
+}
+
+// ListShell renders the divided list container; hx- attributes in attrs get hx-nonce added.
+templ ListShell(d web.LayoutData, id string, attrs templ.Attributes) {
+	<ul id={ id } class="surface divide-y divide-border/50 overflow-hidden" { withNonce(d, attrs)... }>
+		{ children... }
+	</ul>
+}
+
+// ListRow renders one list row; hx- attributes in attrs get hx-nonce added.
+templ ListRow(d web.LayoutData, attrs templ.Attributes) {
+	<li class="flex flex-wrap items-center gap-3 px-4 py-3" { withNonce(d, attrs)... }>
+		{ children... }
+	</li>
+}
+
+// EmptyState renders the dashed placeholder for an empty page or list.
+templ EmptyState(d web.LayoutData, p EmptyStateProps) {
+	<div class="rounded-lg border border-dashed border-border bg-card p-8 text-center">
+		if p.Icon != "" {
+			@icons.Icon(p.Icon, "mx-auto h-8 w-8 text-muted-foreground")
+		}
+		<p class="mt-3 text-sm font-medium text-foreground">{ p.Title }</p>
+		if p.Body != "" {
+			<p class="mt-1 text-sm text-muted-foreground">{ p.Body }</p>
+		}
+		if p.CTA != nil {
+			<div class="mt-4 flex justify-center">
+				@Button(*p.CTA)
+			</div>
+		}
+	</div>
+}
+
+// Poll wraps children in a self-replacing polling element that stops once Done is set.
+templ Poll(d web.LayoutData, p PollProps) {
+	if p.Done {
+		<div id={ p.ID }>
+			{ children... }
+		</div>
+	} else {
+		<div
+			id={ p.ID }
+			hx-get={ p.URL }
+			hx-trigger={ "every " + p.Every }
+			hx-swap="outerHTML"
+			hx-status:4xx="target:#hx-error swap:innerHTML"
+			hx-status:5xx="swap:none"
+			hx-nonce={ d.Nonce }
+		>
+			{ children... }
+		</div>
+	}
+}

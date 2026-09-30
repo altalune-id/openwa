@@ -81,6 +81,7 @@ func Load(path string, opts ...Option) (*Config, error) {
 func setDefaults(v *viper.Viper) {
 	v.SetDefault("mode", string(ModeSelfhosted))
 
+	v.SetDefault("brand.name", "OpenWA")
 	v.SetDefault("whatsapp.engine", "whatsmeow")
 	v.SetDefault("whatsapp.clientName", "OpenWA")
 	v.SetDefault("http.addr", ":5150")

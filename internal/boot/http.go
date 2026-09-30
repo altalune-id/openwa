@@ -7,8 +7,10 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"altalune.id/openwa/internal/apikey"
 	"altalune.id/openwa/internal/apperror"
@@ -18,6 +20,7 @@ import (
 	i18npkg "altalune.id/openwa/internal/i18n"
 	"altalune.id/openwa/internal/ingest"
 	"altalune.id/openwa/internal/invite"
+	"altalune.id/openwa/internal/legal"
 	"altalune.id/openwa/internal/onboard"
 	"altalune.id/openwa/internal/org"
 	"altalune.id/openwa/internal/platform"
@@ -30,6 +33,7 @@ import (
 	webhandlers "altalune.id/openwa/internal/web/handlers"
 	webmw "altalune.id/openwa/internal/web/middleware"
 	"altalune.id/openwa/internal/webhook"
+	"altalune.id/openwa/version"
 )
 
 func buildAPIHandler(cfg *config.Config, k *platform.Kernel, s *Services) (*controlplane.Server, http.Handler) {
@@ -92,6 +96,8 @@ func buildWebHandler(
 	defaultLoc i18npkg.Locale,
 ) (handler http.Handler, routes []string) { //nolint:nonamedreturns // two return values differ in role
 	deps := newWebDeps(cfg, caps, kernel.Sessions, slogger)
+	termsSince := termsUpdatedAt(cfg, slogger)
+	deps.TermsUpdatedAt = termsSince
 	deps.Orgs = orgs
 	deps.Projects = projects
 	deps.I18n = bundle
@@ -127,7 +133,7 @@ func buildWebHandler(
 		MCPMetadataPath:    mcp.MetadataPath,
 		MCPChallengeRoutes: mcp.ChallengeRoutes,
 		RobotsCfg:          &struct{ RobotsTxt string }{RobotsTxt: cfg.HTTP.RobotsTxt},
-		Chains:             surfaceChains(cfg, kernel, slogger, reporter, errTmpl, bundle, defaultLoc, required),
+		Chains:             surfaceChains(cfg, kernel, slogger, reporter, errTmpl, bundle, defaultLoc, required, termsSince),
 	})
 }
 
@@ -140,6 +146,7 @@ func surfaceChains(
 	bundle *i18npkg.Bundle,
 	defaultLoc i18npkg.Locale,
 	required *atomic.Bool,
+	termsSince time.Time,
 ) web.SurfaceChains {
 	edge := []web.Middleware{
 		webmw.RequestID,
@@ -164,7 +171,8 @@ func surfaceChains(
 				UserLookup: sessionLocaleLookup,
 			}),
 			webhandlers.OnboardingGate(cfg.HTTP.BasePath, required),
-			webhandlers.WelcomeGate(cfg.HTTP.BasePath, cfg.Compliance.RequireAcceptance),
+			webhandlers.WelcomeGate(cfg.HTTP.BasePath, cfg.Compliance.RequireAcceptance, termsSince),
+			webmw.Flash([]byte(cfg.HTTP.StateSecret), cfg.HTTP.BasePath, cfg.HTTP.CookieSecure),
 		}),
 		Control: edge,
 		Data: slices.Concat(edge, []web.Middleware{
@@ -210,7 +218,16 @@ func newWebDeps(cfg *config.Config, caps capabilities.Capabilities, sessions ses
 		Caps:     caps,
 		Sessions: sessions,
 		Logger:   stdlog.New(logSlogWriter{log: slogger}, "", 0),
+
+		AssetVersion: assetVersion(),
 	}
+}
+
+func assetVersion() string {
+	if version.Version == "" {
+		return strconv.FormatInt(time.Now().Unix(), 10)
+	}
+	return version.Default()
 }
 
 type logSlogWriter struct{ log *slog.Logger }
@@ -228,4 +245,16 @@ func cspOptions(cfg config.CSPConfig) webmw.CSPOptions {
 		ReportOnly: cfg.ReportOnly,
 		ReportURI:  cfg.ReportURI,
 	}
+}
+
+func termsUpdatedAt(cfg *config.Config, log *slog.Logger) time.Time {
+	if strings.TrimSpace(cfg.Compliance.TermsURL) != "" {
+		return time.Time{}
+	}
+	doc, err := legal.Terms()
+	if err != nil {
+		log.Error("boot: terms document failed to parse; re-acceptance disabled", "err", err)
+		return time.Time{}
+	}
+	return doc.UpdatedAt
 }

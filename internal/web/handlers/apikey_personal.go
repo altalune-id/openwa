@@ -15,7 +15,7 @@ func (h *APIKeyHandler) GetPersonalTokens(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	v, err := h.personalView(r, p, sid, r.URL.Query().Get("org"), nil, "", "")
+	v, err := h.personalView(r, p, sid, r.URL.Query().Get("org"), nil, false, "", "")
 	if err != nil {
 		h.listFailed(w, r, err)
 		return
@@ -51,25 +51,25 @@ func (h *APIKeyHandler) PostPersonalTokenCreate(w http.ResponseWriter, r *http.R
 
 // PostPersonalTokenProjects widens one of the caller's tokens by the submitted projects.
 func (h *APIKeyHandler) PostPersonalTokenProjects(w http.ResponseWriter, r *http.Request) {
-	h.changePersonalToken(w, r, h.grantProjects)
+	h.changePersonalToken(w, r, h.grantProjects, false)
 }
 
 // PostPersonalTokenAllProjects promotes one of the caller's tokens to every project of its org.
 func (h *APIKeyHandler) PostPersonalTokenAllProjects(w http.ResponseWriter, r *http.Request) {
-	h.changePersonalToken(w, r, h.grantAllProjects)
+	h.changePersonalToken(w, r, h.grantAllProjects, false)
 }
 
 // PostPersonalTokenRevoke revokes one of the caller's tokens.
 func (h *APIKeyHandler) PostPersonalTokenRevoke(w http.ResponseWriter, r *http.Request) {
-	h.changePersonalToken(w, r, h.revoke)
+	h.changePersonalToken(w, r, h.revoke, true)
 }
 
-func (h *APIKeyHandler) changePersonalToken(w http.ResponseWriter, r *http.Request, change keyChange) {
+func (h *APIKeyHandler) changePersonalToken(w http.ResponseWriter, r *http.Request, change keyChange, revoked bool) {
 	sc, ok := h.RequireOrg(w, r)
 	if !ok {
 		return
 	}
-	h.changeInto(w, sc.req, h.personalWriter(w, sc), change)
+	h.changeInto(w, sc.req, h.personalWriter(w, sc), change, revoked)
 }
 
 func formOrg(r *http.Request) string {
@@ -79,12 +79,12 @@ func formOrg(r *http.Request) string {
 	return r.PostForm.Get("org")
 }
 
-func (h *APIKeyHandler) personalView(r *http.Request, p session.Principal, sid, selected string, minted *templates.APIKeyMinted, errKind, code string) (templates.APIKeysView, error) {
+func (h *APIKeyHandler) personalView(r *http.Request, p session.Principal, sid, selected string, minted *templates.APIKeyMinted, revoked bool, errKind, code string) (templates.APIKeysView, error) {
 	scopes, err := h.MemberOrgScopes(r, p, sid)
 	if err != nil {
 		return templates.APIKeysView{}, err
 	}
-	v := baseView(web.Path(h.Cfg.HTTP.BasePath, "/settings/tokens"), minted, errKind, code)
+	v := baseView(web.Path(h.Cfg.HTTP.BasePath, "/settings/tokens"), minted, revoked, errKind, code)
 	v.Personal, v.HasGrant, v.CanManage = true, true, true
 	picked := pickedOrg(scopes, selected)
 	for _, sc := range scopes {
@@ -126,8 +126,8 @@ func pickedOrg(scopes []OrgScope, selected string) string {
 }
 
 func (h *APIKeyHandler) personalWriter(w http.ResponseWriter, sc OrgScope) listWriter {
-	return func(minted *templates.APIKeyMinted, errKind, code string) {
-		v, err := h.personalView(sc.req, sc.principal, sc.sid, sc.org.Slug, minted, errKind, code)
+	return func(minted *templates.APIKeyMinted, revoked bool, errKind, code string) {
+		v, err := h.personalView(sc.req, sc.principal, sc.sid, sc.org.Slug, minted, revoked, errKind, code)
 		if err != nil {
 			h.listFailed(w, sc.req, err)
 			return

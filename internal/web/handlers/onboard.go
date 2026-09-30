@@ -107,8 +107,7 @@ func constantTimeEqual(got, want string) bool {
 
 // SECURITY: the refusal never reveals whether a token was supplied but wrong.
 func (h *OnboardHandler) denySetup(w http.ResponseWriter, r *http.Request) {
-	h.ErrorPage(w, r, http.StatusForbidden, "Setup is locked",
-		"First-time setup requires the one-time setup token printed in the server logs.")
+	h.ErrorPageKey(w, r, http.StatusForbidden, "error.forbidden", nil)
 }
 
 func (h *OnboardHandler) rememberSetupToken(w http.ResponseWriter) {
@@ -373,7 +372,7 @@ func (h *OnboardHandler) stillRequired(w http.ResponseWriter, r *http.Request) b
 	required, err := h.Onboards.Required(r.Context())
 	if err != nil {
 		h.LogErr("web onboard: re-check required", err)
-		h.ErrorPage(w, r, http.StatusServiceUnavailable, "Setup unavailable", "Could not confirm the onboarding state. Please try again.")
+		h.ErrorPageKey(w, r, http.StatusServiceUnavailable, "error.load_failed", err)
 		return false
 	}
 	if required {

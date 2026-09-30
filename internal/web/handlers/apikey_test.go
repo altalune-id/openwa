@@ -88,7 +88,7 @@ func (x *apikeyWebFixture) orgKeys(t *testing.T) []*apikey.APIKey {
 func TestOrgAPIKeys_OwnerMintsASelectedProjectsKey(t *testing.T) {
 	x := newAPIKeyWebFixture(t)
 	rec := x.as(t, x.owner, http.MethodPost, "/orgs/acme/apikeys", url.Values{
-		"name": {"ci"}, "scopes": {authn.ScopePostsRead}, "grant": {"selected"}, "project_ids": {x.alpha.ID.String()}, "expires_in": {"30"},
+		"name": {"ci"}, "scopes": {authn.ScopeDevicesRead}, "grant": {"selected"}, "project_ids": {x.alpha.ID.String()}, "expires_in": {"30"},
 	})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
@@ -152,12 +152,13 @@ func TestAPIKeys_MemberIsReadOnly(t *testing.T) {
 	assert.Len(t, x.Store.All(), 1, "a member must mint nothing")
 }
 
-func TestProjectAPIKeys_HideTheRetiredScope(t *testing.T) {
+func TestProjectAPIKeys_HideRetiredAndDemoScopes(t *testing.T) {
 	x := newAPIKeyWebFixture(t)
 	page := x.as(t, x.owner, http.MethodGet, "/orgs/acme/projects/alpha/apikeys", nil)
 	require.Equal(t, http.StatusOK, page.Code)
-	assert.NotContains(t, page.Body.String(), `value="`+authn.ScopeAPIKeysWrite+`"`)
-	assert.Contains(t, page.Body.String(), `value="`+authn.ScopePostsRead+`"`)
+	assert.NotContains(t, page.Body.String(), `value="`+authn.ScopeAPIKeysWrite+`"`, "the retired scope must not be offered")
+	assert.NotContains(t, page.Body.String(), `value="`+authn.ScopePostsRead+`"`, "the posts demo scope must not be offered")
+	assert.Contains(t, page.Body.String(), `value="`+authn.ScopeDevicesRead+`"`, "an openwa project scope must be offered")
 }
 
 func TestAPIKeys_ExpiryIsRequiredAndCapped(t *testing.T) {
@@ -192,7 +193,7 @@ func TestPersonalTokens_AMemberCreatesTheirOwn(t *testing.T) {
 	assert.Contains(t, page.Body.String(), `/settings/tokens/projects`, "switching org reloads the project picker")
 
 	rec := x.as(t, x.member, http.MethodPost, "/settings/tokens", url.Values{
-		"org": {"acme"}, "name": {"laptop"}, "scopes": {authn.ScopePostsRead}, "grant": {"selected"},
+		"org": {"acme"}, "name": {"laptop"}, "scopes": {authn.ScopeDevicesRead}, "grant": {"selected"},
 		"project_ids": {x.beta.ID.String()}, "expires_in": {"7"},
 	})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -256,4 +257,36 @@ func TestPersonalTokens_UnknownOrgFallsBackToTheFirst(t *testing.T) {
 	page := x.as(t, x.member, http.MethodGet, "/settings/tokens?org=nope", nil)
 	require.Equal(t, http.StatusOK, page.Code)
 	assert.Contains(t, page.Body.String(), x.alpha.ID.String(), "the picker must show the selected org's projects")
+}
+
+func TestAPIKeys_ListRendersTimeAndConfirm(t *testing.T) {
+	t.Parallel()
+	x := newAPIKeyWebFixture(t)
+	rec := x.as(t, x.owner, http.MethodPost, "/orgs/acme/projects/alpha/apikeys", url.Values{
+		"name": {"ci"}, "scopes": {authn.ScopeProjectsRead}, "expires_in": {"30"},
+	})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	body := rec.Body.String()
+	assert.Contains(t, body, `id="apikey-list"`)
+	assert.Regexp(t, `<time datetime="[^"]+" title="[^"]+ UTC">`, body)
+	assert.Contains(t, body, `<dialog id="revoke-`)
+	assert.Contains(t, body, `hx-target="#apikey-list"`)
+	assert.Regexp(t, `apikey.created_label:\s*<time datetime=`, body)
+	assert.NotContains(t, body, "@Time(")
+	assert.NotRegexp(t, colourLiteral, body)
+}
+
+func TestAPIKeys_RevokeHTMXPushesToast(t *testing.T) {
+	t.Parallel()
+	x := newAPIKeyWebFixture(t)
+	require.Equal(t, http.StatusOK, x.as(t, x.owner, http.MethodPost, "/orgs/acme/projects/alpha/apikeys", url.Values{
+		"name": {"ci"}, "scopes": {authn.ScopeProjectsRead}, "expires_in": {"30"},
+	}).Code)
+	items, err := x.Keys.List(setTenantProject(context.Background(), x.org, x.alpha.ID, x.owner), x.alpha.ID)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	rec := x.as(t, x.owner, http.MethodPost, "/orgs/acme/projects/alpha/apikeys/"+items[0].ID.String()+"/revoke", nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), `<template hx type="partial" hx-target="#hx-notice"`)
+	assert.Contains(t, rec.Body.String(), "flash.apikey_revoked")
 }

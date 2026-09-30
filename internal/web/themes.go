@@ -8,11 +8,12 @@ type Theme struct {
 }
 
 // DefaultThemeKey is the fallback theme when no localStorage preference is set.
-const DefaultThemeKey = "slate"
+const DefaultThemeKey = "tide"
 
-// Themes lists every theme defined in internal/web/static/themes.css. Adding a new theme means dropping a CSS block into themes.css and appending an entry here.
+// Themes lists every theme defined in internal/web/static/themes.css, default first.
 func Themes() []Theme {
 	return []Theme{
+		{Key: "tide", DisplayName: "Tide", SwatchHex: "#0f8a80"},
 		{Key: "slate", DisplayName: "Slate", SwatchHex: "#0f172a"},
 		{Key: "glacier", DisplayName: "Glacier", SwatchHex: "#0891b2"},
 		{Key: "savanna", DisplayName: "Savanna", SwatchHex: "#dc6b1d"},

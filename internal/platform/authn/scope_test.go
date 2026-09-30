@@ -76,6 +76,39 @@ func TestEveryScopeHasALevel(t *testing.T) {
 	}
 }
 
+// The console form hides the demo posts scopes, though they stay valid and mintable over the wire.
+func TestConsoleScopesHidesTheDemoScopes(t *testing.T) {
+	console := authn.ConsoleScopes()
+	for _, demo := range []string{authn.ScopePostsRead, authn.ScopePostsWrite, authn.ScopePostsAdmin} {
+		if slices.Contains(console, demo) {
+			t.Errorf("ConsoleScopes offered demo scope %q", demo)
+		}
+		if !authn.Mintable(demo) {
+			t.Errorf("%q must stay mintable over the wire", demo)
+		}
+	}
+	if slices.Contains(console, authn.ScopeAPIKeysWrite) {
+		t.Error("ConsoleScopes offered the retired apikeys:write")
+	}
+	for _, want := range []string{
+		authn.ScopeProjectsRead, authn.ScopeMembersRead, authn.ScopeAPIKeysRead,
+		authn.ScopeDevicesRead, authn.ScopeDevicesWrite, authn.ScopeMessagesRead,
+		authn.ScopeMessagesWrite, authn.ScopeChatsRead, authn.ScopeChatsWrite, authn.ScopeContactsRead,
+	} {
+		if !slices.Contains(console, want) {
+			t.Errorf("ConsoleScopes dropped %q", want)
+		}
+	}
+}
+
+func TestConsoleScopesReturnsACopy(t *testing.T) {
+	first := authn.ConsoleScopes()
+	first[0] = "mutated"
+	if slices.Contains(authn.ConsoleScopes(), "mutated") {
+		t.Fatal("ConsoleScopes leaked its backing array")
+	}
+}
+
 func TestAllScopes_ContainsTheOpenwaCatalog(t *testing.T) {
 	t.Parallel()
 	for _, s := range []string{"projects:read", "devices:read", "devices:write", "messages:read", "messages:write", "chats:read", "chats:write", "contacts:read"} {

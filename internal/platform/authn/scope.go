@@ -34,13 +34,15 @@ type scopeSpec struct {
 	name    string
 	level   ScopeLevel
 	retired bool
+	demo    bool
 }
 
 // NOTE: apikeys:write is retired because only a person may manage keys; keys holding it keep validating.
+// NOTE: the posts scopes belong to the demo blog module: valid and mintable over the wire, never offered in the console.
 var catalog = []scopeSpec{ //nolint:gochecknoglobals // immutable catalog, read only through the functions below.
-	{name: ScopePostsRead, level: LevelProject},
-	{name: ScopePostsWrite, level: LevelProject},
-	{name: ScopePostsAdmin, level: LevelProject},
+	{name: ScopePostsRead, level: LevelProject, demo: true},
+	{name: ScopePostsWrite, level: LevelProject, demo: true},
+	{name: ScopePostsAdmin, level: LevelProject, demo: true},
 	{name: ScopeAPIKeysRead, level: LevelProject},
 	{name: ScopeAPIKeysWrite, level: LevelProject, retired: true},
 	{name: ScopeMembersRead, level: LevelOrg},
@@ -68,6 +70,17 @@ func MintableScopes() []string {
 	out := make([]string, 0, len(catalog))
 	for _, s := range catalog {
 		if !s.retired {
+			out = append(out, s.name)
+		}
+	}
+	return out
+}
+
+// ConsoleScopes returns the scopes the console API-key form offers: mintable, minus the demo scopes.
+func ConsoleScopes() []string {
+	out := make([]string, 0, len(catalog))
+	for _, s := range catalog {
+		if !s.retired && !s.demo {
 			out = append(out, s.name)
 		}
 	}

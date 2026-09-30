@@ -30,7 +30,7 @@ func NewAPIKeyHandler(d Deps, projects *project.Service, keys *apikey.Service) *
 	return &APIKeyHandler{Deps: d, Keys: keys}
 }
 
-type listWriter func(minted *templates.APIKeyMinted, errKind, code string)
+type listWriter func(minted *templates.APIKeyMinted, revoked bool, errKind, code string)
 
 type keyChange func(ctx context.Context, r *http.Request, id uuid.UUID) error
 
@@ -40,13 +40,13 @@ func (h *APIKeyHandler) GetKeys(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	v, err := h.projectView(sc, nil, "", "")
+	v, err := h.projectView(sc, nil, false, "", "")
 	if err != nil {
 		h.listFailed(w, sc.req, err)
 		return
 	}
 	Render(w, sc.req, templates.APIKeysLayout(
-		h.LayoutForProject(sc.req, "API keys · "+sc.project.Name, sc.org.Slug, sc.project, "apikeys"),
+		h.LayoutForProject(sc.req, "API keys", sc.org.Slug, sc.project, "apikeys"),
 		v,
 	))
 }
@@ -68,7 +68,7 @@ func (h *APIKeyHandler) PostKeyRevoke(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	h.changeInto(w, sc.req, h.projectWriter(w, sc), h.revoke)
+	h.changeInto(w, sc.req, h.projectWriter(w, sc), h.revoke, true)
 }
 
 // GetOrgKeys renders the org API key list page.
@@ -77,12 +77,12 @@ func (h *APIKeyHandler) GetOrgKeys(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	v, err := h.orgView(sc, nil, "", "")
+	v, err := h.orgView(sc, nil, false, "", "")
 	if err != nil {
 		h.listFailed(w, sc.req, err)
 		return
 	}
-	Render(w, sc.req, templates.APIKeysLayout(h.LayoutForOrg(sc.req, "API keys · "+sc.org.Name, sc.org.Slug, "apikeys"), v))
+	Render(w, sc.req, templates.APIKeysLayout(h.LayoutForOrg(sc.req, "API keys", sc.org.Slug, "apikeys"), v))
 }
 
 // PostOrgKeyCreate mints an org key and renders the refreshed list with the one-time plaintext reveal.
@@ -98,25 +98,25 @@ func (h *APIKeyHandler) PostOrgKeyCreate(w http.ResponseWriter, r *http.Request)
 
 // PostOrgKeyProjects widens an org key by the submitted projects.
 func (h *APIKeyHandler) PostOrgKeyProjects(w http.ResponseWriter, r *http.Request) {
-	h.changeOrgKey(w, r, h.grantProjects)
+	h.changeOrgKey(w, r, h.grantProjects, false)
 }
 
 // PostOrgKeyAllProjects promotes an org key to every project of the org.
 func (h *APIKeyHandler) PostOrgKeyAllProjects(w http.ResponseWriter, r *http.Request) {
-	h.changeOrgKey(w, r, h.grantAllProjects)
+	h.changeOrgKey(w, r, h.grantAllProjects, false)
 }
 
 // PostOrgKeyRevoke revokes an org key and returns the refreshed list fragment.
 func (h *APIKeyHandler) PostOrgKeyRevoke(w http.ResponseWriter, r *http.Request) {
-	h.changeOrgKey(w, r, h.revoke)
+	h.changeOrgKey(w, r, h.revoke, true)
 }
 
-func (h *APIKeyHandler) changeOrgKey(w http.ResponseWriter, r *http.Request, change keyChange) {
+func (h *APIKeyHandler) changeOrgKey(w http.ResponseWriter, r *http.Request, change keyChange, revoked bool) {
 	sc, ok := h.RequireOrg(w, r)
 	if !ok {
 		return
 	}
-	h.changeInto(w, sc.req, h.orgWriter(w, sc), change)
+	h.changeInto(w, sc.req, h.orgWriter(w, sc), change, revoked)
 }
 
 func (h *APIKeyHandler) grantProjects(ctx context.Context, r *http.Request, id uuid.UUID) error {
@@ -151,7 +151,7 @@ func (h *APIKeyHandler) mintInto(w http.ResponseWriter, r *http.Request, write l
 	}
 	expiresAt, bad := expiryFor(r.PostForm.Get("expires_in"), time.Now().UTC())
 	if bad {
-		write(nil, templates.APIKeyErrorInvalidExpiry, "")
+		write(nil, false, templates.APIKeyErrorInvalidExpiry, "")
 		return
 	}
 	in := mintInput{
@@ -163,13 +163,13 @@ func (h *APIKeyHandler) mintInto(w http.ResponseWriter, r *http.Request, write l
 	k, plaintext, err := mint(in)
 	if err != nil {
 		h.LogErr("web apikey: mint", err)
-		write(nil, apiKeyErrorKind(err), ErrorRef(err))
+		write(nil, false, apiKeyErrorKind(err), ErrorRef(err))
 		return
 	}
-	write(&templates.APIKeyMinted{Name: k.Name, Plaintext: plaintext}, "", "")
+	write(&templates.APIKeyMinted{Name: k.Name, Plaintext: plaintext}, false, "", "")
 }
 
-func (h *APIKeyHandler) changeInto(w http.ResponseWriter, r *http.Request, write listWriter, change keyChange) {
+func (h *APIKeyHandler) changeInto(w http.ResponseWriter, r *http.Request, write listWriter, change keyChange, revoked bool) {
 	if err := r.ParseForm(); err != nil {
 		h.ErrorPage(w, r, http.StatusBadRequest, "Bad request", "Could not parse form body.")
 		return
@@ -181,10 +181,10 @@ func (h *APIKeyHandler) changeInto(w http.ResponseWriter, r *http.Request, write
 	}
 	if err := change(r.Context(), r, id); err != nil {
 		h.LogErr("web apikey: change", err)
-		write(nil, apiKeyErrorKind(err), ErrorRef(err))
+		write(nil, false, apiKeyErrorKind(err), ErrorRef(err))
 		return
 	}
-	write(nil, "", "")
+	write(nil, revoked, "", "")
 }
 
 func (h *APIKeyHandler) canManage(r *http.Request, orgID, userID uuid.UUID) bool {
@@ -195,23 +195,25 @@ func (h *APIKeyHandler) canManage(r *http.Request, orgID, userID uuid.UUID) bool
 	return ok
 }
 
-func baseView(base string, minted *templates.APIKeyMinted, errKind, code string) templates.APIKeysView {
+func baseView(base string, minted *templates.APIKeyMinted, revoked bool, errKind, code string) templates.APIKeysView {
 	return templates.APIKeysView{
 		Base:      base,
 		Scopes:    scopeOptions(),
 		Expiries:  expiryOptions(),
 		Minted:    minted,
+		Revoked:   revoked,
 		ErrorKind: errKind,
 		ErrorCode: code,
 	}
 }
 
-func (h *APIKeyHandler) projectView(sc ProjectScope, minted *templates.APIKeyMinted, errKind, code string) (templates.APIKeysView, error) {
+func (h *APIKeyHandler) projectView(sc ProjectScope, minted *templates.APIKeyMinted, revoked bool, errKind, code string) (templates.APIKeysView, error) {
 	items, err := h.Keys.List(sc.req.Context(), sc.project.ID)
 	if err != nil {
 		return templates.APIKeysView{}, err
 	}
-	v := baseView(h.ProjectURL(sc, "/apikeys"), minted, errKind, code)
+	v := baseView(h.ProjectURL(sc, "/apikeys"), minted, revoked, errKind, code)
+	v.Scopes = projectScopes(v.Scopes)
 	v.CanManage = h.canManage(sc.req, sc.org.ID, sc.principal.UserID)
 	for _, k := range items {
 		v.Items = append(v.Items, apiKeyRow(k, v.Base, nil))
@@ -219,7 +221,7 @@ func (h *APIKeyHandler) projectView(sc ProjectScope, minted *templates.APIKeyMin
 	return v, nil
 }
 
-func (h *APIKeyHandler) orgView(sc OrgScope, minted *templates.APIKeyMinted, errKind, code string) (templates.APIKeysView, error) {
+func (h *APIKeyHandler) orgView(sc OrgScope, minted *templates.APIKeyMinted, revoked bool, errKind, code string) (templates.APIKeysView, error) {
 	items, err := h.Keys.ListOrg(sc.req.Context())
 	if err != nil {
 		return templates.APIKeysView{}, err
@@ -228,7 +230,7 @@ func (h *APIKeyHandler) orgView(sc OrgScope, minted *templates.APIKeyMinted, err
 	if err != nil {
 		return templates.APIKeysView{}, err
 	}
-	v := baseView(web.Path(h.Cfg.HTTP.BasePath, "/orgs/"+sc.org.Slug+"/apikeys"), minted, errKind, code)
+	v := baseView(web.Path(h.Cfg.HTTP.BasePath, "/orgs/"+sc.org.Slug+"/apikeys"), minted, revoked, errKind, code)
 	v.OrgLevel, v.HasGrant, v.Projects = true, true, options
 	v.CanManage = h.canManage(sc.req, sc.org.ID, sc.principal.UserID)
 	for _, k := range items {
@@ -238,8 +240,8 @@ func (h *APIKeyHandler) orgView(sc OrgScope, minted *templates.APIKeyMinted, err
 }
 
 func (h *APIKeyHandler) projectWriter(w http.ResponseWriter, sc ProjectScope) listWriter {
-	return func(minted *templates.APIKeyMinted, errKind, code string) {
-		v, err := h.projectView(sc, minted, errKind, code)
+	return func(minted *templates.APIKeyMinted, revoked bool, errKind, code string) {
+		v, err := h.projectView(sc, minted, revoked, errKind, code)
 		if err != nil {
 			h.listFailed(w, sc.req, err)
 			return
@@ -249,8 +251,8 @@ func (h *APIKeyHandler) projectWriter(w http.ResponseWriter, sc ProjectScope) li
 }
 
 func (h *APIKeyHandler) orgWriter(w http.ResponseWriter, sc OrgScope) listWriter {
-	return func(minted *templates.APIKeyMinted, errKind, code string) {
-		v, err := h.orgView(sc, minted, errKind, code)
+	return func(minted *templates.APIKeyMinted, revoked bool, errKind, code string) {
+		v, err := h.orgView(sc, minted, revoked, errKind, code)
 		if err != nil {
 			h.listFailed(w, sc.req, err)
 			return
@@ -306,7 +308,7 @@ func selectedScopes(raw []string) []string {
 		set[strings.TrimSpace(s)] = true
 	}
 	out := make([]string, 0, len(raw))
-	for _, s := range authn.MintableScopes() {
+	for _, s := range authn.ConsoleScopes() {
 		if set[s] {
 			out = append(out, s)
 		}
@@ -385,7 +387,10 @@ func apiKeyRow(k *apikey.APIKey, base string, projects []templates.APIKeyProject
 		ScopeLabelKeys: labels,
 		HasGrant:       k.HasGrant(),
 		AllProjects:    k.AllProjects,
-		CreatedAt:      k.CreatedAt.Format(time.RFC3339),
+		CreatedAt:      k.CreatedAt,
+		ExpiresAt:      k.ExpiresAt,
+		LastUsedAt:     k.LastUsedAt,
+		RevokedAt:      k.RevokedAt,
 		Revoked:        k.RevokedAt != nil,
 	}
 	granted := make([]string, 0, len(k.ProjectIDs))
@@ -399,22 +404,21 @@ func apiKeyRow(k *apikey.APIKey, base string, projects []templates.APIKeyProject
 		}
 		row.Grantable = append(row.Grantable, p)
 	}
-	if k.ExpiresAt != nil {
-		row.HasExpiry = true
-		row.ExpiresAt = k.ExpiresAt.Format(time.RFC3339)
-	}
-	if k.LastUsedAt != nil {
-		row.HasLastUsed = true
-		row.LastUsedAt = k.LastUsedAt.Format(time.RFC3339)
-	}
-	if k.RevokedAt != nil {
-		row.RevokedAt = k.RevokedAt.Format(time.RFC3339)
-	}
 	return row
 }
 
+func projectScopes(all []templates.APIKeyScopeOption) []templates.APIKeyScopeOption {
+	out := make([]templates.APIKeyScopeOption, 0, len(all))
+	for _, opt := range all {
+		if lvl, ok := authn.LevelOf(opt.Value); ok && lvl == authn.LevelProject {
+			out = append(out, opt)
+		}
+	}
+	return out
+}
+
 func scopeOptions() []templates.APIKeyScopeOption {
-	all := authn.MintableScopes()
+	all := authn.ConsoleScopes()
 	out := make([]templates.APIKeyScopeOption, 0, len(all))
 	for _, s := range all {
 		out = append(out, templates.APIKeyScopeOption{Value: s, LabelKey: scopeLabelKey(s)})

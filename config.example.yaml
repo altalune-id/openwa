@@ -30,6 +30,10 @@ blog:
   # env: OPENWA_BLOG_PUBLIC_READS
   publicReads: ""
 
+brand:
+  # env: OPENWA_BRAND_NAME
+  name: OpenWA
+
 compliance:
   # env: OPENWA_COMPLIANCE_PRIVACY_URL
   privacyURL: ""
