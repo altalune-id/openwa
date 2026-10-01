@@ -11,13 +11,13 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/events"
-	"altalune.id/template/internal/platform/tenant"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/events"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 //nolint:gochecknoglobals // OTel tracer is a package-level fixture, not runtime state.
-var tracer = otel.Tracer("altalune.id/template/internal/blog")
+var tracer = otel.Tracer("altalune.id/openwa/internal/blog")
 
 // Webhooks is the port a post transition enqueues its outbound event through, inside the write's unit of work.
 type Webhooks interface {

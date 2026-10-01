@@ -10,6 +10,15 @@ const (
 	ScopeAPIKeysRead  = "apikeys:read"
 	ScopeAPIKeysWrite = "apikeys:write"
 	ScopeMembersRead  = "members:read"
+
+	ScopeProjectsRead  = "projects:read"
+	ScopeDevicesRead   = "devices:read"
+	ScopeDevicesWrite  = "devices:write"
+	ScopeMessagesRead  = "messages:read"
+	ScopeMessagesWrite = "messages:write"
+	ScopeChatsRead     = "chats:read"
+	ScopeChatsWrite    = "chats:write"
+	ScopeContactsRead  = "contacts:read"
 )
 
 // ScopeLevel names where a scope's authority lives: inside one project, or across the org itself.
@@ -25,16 +34,26 @@ type scopeSpec struct {
 	name    string
 	level   ScopeLevel
 	retired bool
+	demo    bool
 }
 
 // NOTE: apikeys:write is retired because only a person may manage keys; keys holding it keep validating.
+// NOTE: the posts scopes belong to the demo blog module: valid and mintable over the wire, never offered in the console.
 var catalog = []scopeSpec{ //nolint:gochecknoglobals // immutable catalog, read only through the functions below.
-	{name: ScopePostsRead, level: LevelProject},
-	{name: ScopePostsWrite, level: LevelProject},
-	{name: ScopePostsAdmin, level: LevelProject},
+	{name: ScopePostsRead, level: LevelProject, demo: true},
+	{name: ScopePostsWrite, level: LevelProject, demo: true},
+	{name: ScopePostsAdmin, level: LevelProject, demo: true},
 	{name: ScopeAPIKeysRead, level: LevelProject},
 	{name: ScopeAPIKeysWrite, level: LevelProject, retired: true},
 	{name: ScopeMembersRead, level: LevelOrg},
+	{name: ScopeProjectsRead, level: LevelProject},
+	{name: ScopeDevicesRead, level: LevelProject},
+	{name: ScopeDevicesWrite, level: LevelProject},
+	{name: ScopeMessagesRead, level: LevelProject},
+	{name: ScopeMessagesWrite, level: LevelProject},
+	{name: ScopeChatsRead, level: LevelProject},
+	{name: ScopeChatsWrite, level: LevelProject},
+	{name: ScopeContactsRead, level: LevelProject},
 }
 
 // AllScopes returns every scope in the catalog, retired ones included.
@@ -51,6 +70,17 @@ func MintableScopes() []string {
 	out := make([]string, 0, len(catalog))
 	for _, s := range catalog {
 		if !s.retired {
+			out = append(out, s.name)
+		}
+	}
+	return out
+}
+
+// ConsoleScopes returns the scopes the console API-key form offers: mintable, minus the demo scopes.
+func ConsoleScopes() []string {
+	out := make([]string, 0, len(catalog))
+	for _, s := range catalog {
+		if !s.retired && !s.demo {
 			out = append(out, s.name)
 		}
 	}

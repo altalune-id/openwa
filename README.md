@@ -1,32 +1,32 @@
-# altempl
+# openwa
 
-Reference multitenant Go template — Templ + HTMX SSR + Connect-RPC on one HTTP
-listener. Module path: `altalune.id/template`. Binary: `altempl`.
+Multitenant WhatsApp gateway — Templ + HTMX SSR + Connect-RPC on one HTTP listener. Module path: `altalune.id/openwa`. Binary: `openwa`.
+openwa is forked from altempl, the altalune template.
 
 ## Quick start
 
-Local binary (SQLite, single genesis admin):
-
-```bash
-make build
-ALT_GENESIS_EMAIL=admin@local ALT_GENESIS_PASSWORD=change-me ./bin/altempl serve
-# open http://127.0.0.1:5150/login
-```
-
-Full stack (Postgres + Mailpit + altempl) via `compose.yaml`:
+Local development (Postgres; the DSN user must have `CREATEDB`):
 
 ```bash
 make compose-up
-# altempl:  http://127.0.0.1:5150/login
+export TEST_PG_DSN=postgres://openwa:openwa@localhost:5432/openwa_test?sslmode=disable
+make check
+```
+
+Full stack (Postgres + Mailpit + openwa) via `compose.yaml`:
+
+```bash
+make compose-up
+# openwa:  http://127.0.0.1:5150/login    (compose sets OPENWA_HTTP_BASE_URL=http://localhost:5150)
 # mailpit:  http://127.0.0.1:8025    (every outbound email lands here)
 ```
 
 Cloud config (Postgres + OIDC):
 
 ```bash
-cp config.example.yaml config.yaml    # edit
+cp config.example.yaml config.yaml    # edit; set http.baseURL (OPENWA_HTTP_BASE_URL), the data plane needs it
 make build
-./bin/altempl -c config.yaml serve
+./bin/openwa -c config.yaml serve
 ```
 
 `make help` lists every target. `make check` is the pre-commit gate; releases are cut with
@@ -35,10 +35,10 @@ GoReleaser from `.goreleaser.yaml` — see [`CONTRIBUTING.md`](CONTRIBUTING.md#r
 ## Layout
 
 ```
-altempl/
+openwa/
 ├── api/                # buf-managed proto sources, incl. the (mcp.v1.tool) annotation
 ├── authl/              # RFC 8252 OIDC PKCE loopback (exported)
-├── cmd/altempl/        # main package
+├── cmd/openwa/        # main package
 ├── cmd/protoc-gen-mcp/ # protoc plugin: annotated RPCs → MCP tool registrations
 ├── cmd/…               # build-time tools: comment-lint, i18n-lint, gen-config-example, gen-tenant-tables
 ├── docs/               # architecture, surfaces, scopes, MCP, configuration, deployment, CLI contract, templates
@@ -102,23 +102,24 @@ Invite issuance requires `mode=cloud` or `oidc.issuer` set. `/signup/complete` r
 
 ## Documentation
 
-| Doc                                                   | For                                                  |
-| ----------------------------------------------------- | ---------------------------------------------------- |
-| [`config`](docs/config/README.md)                     | precedence, awareness tags, modes, first-boot        |
-| [`deployment`](docs/deployment/README.md)             | docker, DB roles, RLS, replica, observability, OIDC  |
-| [`cli`](docs/cli/README.md)                           | stable command tree, exit codes, output envelopes    |
-| [`architecture`](docs/architecture/README.md)         | the layer map: surfaces, domain, data                |
-| [`surfaces`](docs/surfaces/README.md)                 | the seven surfaces, their mounts, credentials, rules |
-| [`multitenancy`](docs/multitenancy/README.md)         | what a tenant is, how the schema and RLS enforce it  |
-| [`request scope`](docs/multitenancy/request-scope.md) | how a request gets its tenant scope                  |
-| [`scopes`](docs/scopes/README.md)                     | the scope catalog integrators mint keys against      |
-| [`mcp`](docs/mcp/README.md)                           | the MCP surface: mount, auth, tools, UI, testing     |
-| [`error codes`](docs/errors/README.md)                | stable error codes and their envelopes               |
-| [`modules`](docs/modules/README.md)                   | adding a domain module                               |
-| [`platform`](docs/platform/README.md)                 | adding a platform primitive                          |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md)                  | workflow, testing, release                           |
-| [`GLOSSARY.md`](GLOSSARY.md)                          | one concept, one name — canonical terminology        |
-| [`AGENTS.md`](AGENTS.md)                              | rules for AI coding agents                           |
+| Doc                                                   | For                                                                                             |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| [`config`](docs/config/README.md)                     | precedence, awareness tags, modes, first-boot                                                   |
+| [`deployment`](docs/deployment/README.md)             | docker, DB roles, RLS, replica, observability, OIDC                                             |
+| [`cli`](docs/cli/README.md)                           | stable command tree, exit codes, output envelopes                                               |
+| [`architecture`](docs/architecture/README.md)         | the layer map: surfaces, domain, data                                                           |
+| [`surfaces`](docs/surfaces/README.md)                 | the seven surfaces, their mounts, credentials, rules                                            |
+| [`multitenancy`](docs/multitenancy/README.md)         | what a tenant is, how the schema and RLS enforce it                                             |
+| [`request scope`](docs/multitenancy/request-scope.md) | how a request gets its tenant scope                                                             |
+| [`scopes`](docs/scopes/README.md)                     | the scope catalog integrators mint keys against                                                 |
+| [`mcp`](docs/mcp/README.md)                           | the MCP surface: mount, auth, tools, UI, testing                                                |
+| [`error codes`](docs/errors/README.md)                | stable error codes and their envelopes                                                          |
+| [`modules`](docs/modules/README.md)                   | adding a domain module                                                                          |
+| [`platform`](docs/platform/README.md)                 | adding a platform primitive                                                                     |
+| [`integration`](docs/integration/README.md)           | connecting a system to WhatsApp: keys, pairing, sending, webhooks, events, the AI-agent pattern |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md)                  | workflow, testing, release                                                                      |
+| [`GLOSSARY.md`](GLOSSARY.md)                          | one concept, one name — canonical terminology                                                   |
+| [`AGENTS.md`](AGENTS.md)                              | rules for AI coding agents                                                                      |
 
 ## License
 

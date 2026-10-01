@@ -1,0 +1,6 @@
+{
+  "devices": [
+    { "id": "dev_SalesDevice00001", "name": "Sales", "state": "connected", "phone": "628123456789", "lastSeenAt": "2026-09-28T09:00:00Z" },
+    { "id": "dev_SupportDevice001", "name": "Support", "state": "unlinked" }
+  ]
+}

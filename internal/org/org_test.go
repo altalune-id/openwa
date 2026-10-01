@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/org"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/org"
 )
 
 func TestRole_IsValid(t *testing.T) {

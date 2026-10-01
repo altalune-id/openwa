@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package openwatest.v1;
+
+import "mcp/v1/annotations.proto";
+
+option go_package = "altalune.id/openwa/cmd/protoc-gen-mcp/internal/gen/testdata/gen/openwatest/v1;openwatestv1";
+
+service BadEchoService {
+  // EchoTwice claims a tool name another file already claims.
+  rpc EchoTwice(BadEchoRequest) returns (BadEchoResponse) {
+    option (mcp.v1.tool) = {name: "poke_target"};
+  }
+}
+
+message BadEchoRequest {}
+
+message BadEchoResponse {}

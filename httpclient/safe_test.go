@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/httpclient"
+	"altalune.id/openwa/httpclient"
 )
 
 func TestIsPrivateOrLocal(t *testing.T) {

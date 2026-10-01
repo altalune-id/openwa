@@ -16,19 +16,19 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"altalune.id/template/internal/platform/events"
-	"altalune.id/template/internal/platform/outbox"
-	"altalune.id/template/internal/platform/sealer"
-	"altalune.id/template/internal/platform/tenant"
+	"altalune.id/openwa/internal/platform/events"
+	"altalune.id/openwa/internal/platform/outbox"
+	"altalune.id/openwa/internal/platform/sealer"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 // Delivery header names a receiver reads.
 const (
-	HeaderEventID    = "X-Altempl-Event-Id"
-	HeaderEventType  = "X-Altempl-Event-Type"
-	HeaderDeliveryID = "X-Altempl-Delivery-Id"
-	HeaderTimestamp  = "X-Altempl-Timestamp"
-	HeaderSignature  = "X-Altempl-Signature"
+	HeaderEventID    = "X-Openwa-Event-Id"
+	HeaderEventType  = "X-Openwa-Event-Type"
+	HeaderDeliveryID = "X-Openwa-Delivery-Id"
+	HeaderTimestamp  = "X-Openwa-Timestamp"
+	HeaderSignature  = "X-Openwa-Signature"
 )
 
 const (
@@ -36,7 +36,7 @@ const (
 	headerUserAgent   = "User-Agent"
 
 	contentTypeJSON = "application/json"
-	userAgent       = "Altempl-Webhooks/1"
+	userAgent       = "OpenWA-Webhooks/1"
 
 	attemptSaveTimeout = 5 * time.Second
 )

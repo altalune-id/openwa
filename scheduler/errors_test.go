@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/scheduler"
+	"altalune.id/openwa/scheduler"
 )
 
 func TestTypedErrors_MessagesAndHelpers(t *testing.T) {

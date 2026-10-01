@@ -1,0 +1,48 @@
+{
+  "device": {
+    "id": "dev_V1StGXR8Z5jdHi6B",
+    "name": "sales-01",
+    "phone": "628123456789"
+  },
+  "chat": {
+    "id": "cht_Gr5Tn8Vc1Hs6Jq0b",
+    "jid": "120363012345678901@g.us",
+    "kind": "group",
+    "name": "Tim Sales"
+  },
+  "sender": {
+    "jid": "628111222333@s.whatsapp.net",
+    "lid": "12345678901234@lid",
+    "phone": "628111222333",
+    "push_name": "Budi",
+    "from_me": false
+  },
+  "message": {
+    "id": "msg_Mj6Zc1Ld9Fs4Kb2c",
+    "wa_id": "3A5F0C1D2E3F4A5B6C7E",
+    "type": "image",
+    "body": "",
+    "caption": "@628123456789 cek ini",
+    "timestamp": "2026-09-28T10:16:00Z",
+    "quoted": {
+      "wa_id": "3EB00199C1F000007000800000000000E000",
+      "body": "kirim foto produk"
+    },
+    "mentions": [
+      "628123456789"
+    ],
+    "media": {
+      "mime": "image/jpeg",
+      "size": 48213,
+      "filename": "",
+      "url": "https://wa.example.com/api/v1/orgs/acme/projects/main/messages/msg_Mj6Zc1Ld9Fs4Kb2c/media",
+      "voice": false
+    },
+    "location": null
+  },
+  "matched": {
+    "reasons": [
+      "group_mention"
+    ]
+  }
+}

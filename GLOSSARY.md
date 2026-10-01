@@ -87,18 +87,18 @@ Three DB credentials, three jobs:
 Tenant scope answers _whose rows_. A scope answers _which verbs_. They are independent
 checks and both run.
 
-| Term                  | Where                                      | What it is                                                                                                                                                     |
-| --------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| scope                 | `internal/platform/authn/scope.go`         | A permission string minted into an API key or JWT: `posts:read`, `posts:write`, `posts:admin`, `apikeys:read`, `members:read`; `apikeys:write` is retired.     |
-| scope catalog         | `authn.MintableScopes()` / `authn.Valid()` | The closed set minting is gated on. A **wire contract** — additive only; a retired scope still validates but is never minted.                                  |
-| scope level           | `authn.LevelOf()`                          | `project` (acts on data inside the projects a key reaches) or `org` (acts on the org itself; refused on a project key).                                        |
-| project key           | `apikey.KindProject`                       | An API key bound to one project for life.                                                                                                                      |
-| org key               | `apikey.KindOrg`                           | An API key reaching its grant (`apikey.ProjectGrant`: all projects, or named ones in `api_key_projects`). Created by an owner or admin; the grant only widens. |
-| personal access token | `apikey.KindPersonal`                      | A key a member mints for themselves in one org, under Settings. Never exceeds its owner; dies when the owner leaves.                                           |
-| reach                 | `session.Principal.Reaches*`               | The one rule every surface asks: may this caller act inside this org, project, resource.                                                                       |
-| `ScopeTable`          | `internal/controlplane/scopes.go:12`       | Maps each RPC procedure to the scope it requires. Read by both the control plane interceptor and the MCP surface.                                              |
-| `Principal`           | `internal/platform/session/session.go:21`  | The authenticated caller. A key principal keeps `UserID == uuid.Nil`, so it is never mistaken for a signed-in human.                                           |
-| `authn.Chain`         | `internal/platform/authn/authn.go:48`      | Tries each `Authenticator` in order and returns the first `Principal`; otherwise `UnauthorizedError`.                                                          |
+| Term                  | Where                                      | What it is                                                                                                                                                                                                                                                                   |
+| --------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| scope                 | `internal/platform/authn/scope.go`         | A permission string minted into an API key or JWT: `posts:read`, `posts:write`, `posts:admin`, `apikeys:read`, `members:read`, `devices:read`, `devices:write`, `messages:read`, `messages:write`, `chats:read`, `chats:write`, `contacts:read`; `apikeys:write` is retired. |
+| scope catalog         | `authn.MintableScopes()` / `authn.Valid()` | The closed set minting is gated on. A **wire contract** — additive only; a retired scope still validates but is never minted.                                                                                                                                                |
+| scope level           | `authn.LevelOf()`                          | `project` (acts on data inside the projects a key reaches) or `org` (acts on the org itself; refused on a project key).                                                                                                                                                      |
+| project key           | `apikey.KindProject`                       | An API key bound to one project for life.                                                                                                                                                                                                                                    |
+| org key               | `apikey.KindOrg`                           | An API key reaching its grant (`apikey.ProjectGrant`: all projects, or named ones in `api_key_projects`). Created by an owner or admin; the grant only widens.                                                                                                               |
+| personal access token | `apikey.KindPersonal`                      | A key a member mints for themselves in one org, under Settings. Never exceeds its owner; dies when the owner leaves.                                                                                                                                                         |
+| reach                 | `session.Principal.Reaches*`               | The one rule every surface asks: may this caller act inside this org, project, resource.                                                                                                                                                                                     |
+| `ScopeTable`          | `internal/controlplane/scopes.go:12`       | Maps each RPC procedure to the scope it requires. Read by both the control plane interceptor and the MCP surface.                                                                                                                                                            |
+| `Principal`           | `internal/platform/session/session.go:21`  | The authenticated caller. A key principal keeps `UserID == uuid.Nil`, so it is never mistaken for a signed-in human.                                                                                                                                                         |
+| `authn.Chain`         | `internal/platform/authn/authn.go:48`      | Tries each `Authenticator` in order and returns the first `Principal`; otherwise `UnauthorizedError`.                                                                                                                                                                        |
 
 NOTE: scopes do **not** imply one another — the check is `slices.Contains`. A key needing
 read plus delete holds both strings. Full catalog and per-surface enforcement:
@@ -136,10 +136,48 @@ Receiver contract: [`webhooks`](docs/webhooks/README.md).
 | endpoint       | `webhook.Endpoint`, `webhook_endpoints`    | A tenant's HTTPS URL on one project, subscribed to a set of event types. At most 10 per project.                                 |
 | delivery       | `outbox.Entry`, `webhook.Delivery`         | One event bound for one endpoint: `dlv_<outbox entry id>`. The unit receivers dedupe on and the console retries.                 |
 | attempt        | `webhook.Attempt`, `webhook_deliveries`    | One POST of a delivery, with status code, error and duration. Up to `outbox.MaxAttempts` (8) per delivery.                       |
-| signing secret | `whsec_…`, sealed in `secret_primary`      | The HMAC key for `X-Altempl-Signature`. Shown once; a rotation keeps the old one as secondary until retired.                     |
+| signing secret | `whsec_…`, sealed in `secret_primary`      | The HMAC key for `X-Openwa-Signature`. Shown once; a rotation keeps the old one as secondary until retired.                      |
 
 NOTE: the table `webhook_deliveries` holds **attempts**, one row per POST. "Delivery" always
 means the outbox row.
+
+## WhatsApp
+
+Two contexts: `device` is the product (a named slot and its inbound rules); `whatsapp` is the
+protocol (the session, the lease, the engine). They meet only through `device.Sessions`.
+
+| Term             | Where                                          | What it is                                                                                                                                                                  |
+| ---------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| device           | `internal/device/`, `openwa_devices`           | A named slot in a project that one WhatsApp account is paired into. Carries the inbound `Rules`. Deleting it logs the account out first.                                    |
+| public id        | `internal/platform/publicid`, `public_id`      | The prefixed nanoid (`dev_`, `cht_`, `msg_`, `lnk_` + 16 characters) every outside surface uses for a row. The UUID v7 stays the primary key and never leaves the database. |
+| inbound rules    | `device.Rules`, `internal/device/rules.go`     | Group mode, allowed senders and groups, trigger prefix, ignore-from-me. `Rules.Match` is pure and returns the reasons it matched.                                           |
+| WhatsApp session | `whatsapp.Session`, `openwa_whatsapp_sessions` | One device's link to an account: JID, phone, state (`unlinked → linking → connected ⇄ disconnected → logged_out`). **Not** the login session.                               |
+| lease            | `whatsapp.Lease`, `openwa_whatsapp_leases`     | The cross-tenant row saying which process runs a linked device. No RLS. A row exists iff the device is linked. Only the runtime writes it.                                  |
+| owner            | `RuntimeConfig.Owner`                          | `hostname/pid/nanoid` naming this process in lease rows; a restart never inherits the old owner's leases.                                                                   |
+| runtime          | `whatsapp.Runtime`, worker `whatsapp.runtime`  | Claims and renews leases, holds one engine session per lease, runs link attempts. Registered only in full `serve` mode.                                                     |
+| engine           | `whatsapp.Engine`, `internal/whatsapp/meow`    | The swappable transport behind the port; `meow` (whatsmeow) is the only importer of `go.mau.fi`.                                                                            |
+| link attempt     | `whatsapp.LinkState`                           | One in-memory pairing try (QR or phone code). Its outcome stays visible for `whatsapp.linkTimeout`, then it is dropped.                                                     |
+| parked           | runtime, `whatsapp.parkFor`                    | A device the runtime will not reopen for a while after `stream_replaced`, a temporary ban or a connect failure; its lease stays held.                                       |
+
+NOTE: "session" alone means the **login** session (`internal/platform/session`, `openwa_sessions`).
+Always say "WhatsApp session" for `openwa_whatsapp_sessions`.
+
+## Messaging
+
+| Term            | Where                                               | What it is                                                                                                                                                                                  |
+| --------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| chat            | `internal/chat/`, `openwa_chats`                    | One conversation of one device: a direct chat (`dm`) or a group. Unique on `(device_id, jid)`; a LID alias is kept beside the JID. Archived, never deleted, when the device leaves a group. |
+| thread          | console inbox, `inbox_thread.templ`                 | The console's view of one chat's messages. Not a stored thing: say "chat" in code and the API.                                                                                              |
+| message         | `internal/message/`, `openwa_messages`              | One inbound or outbound WhatsApp message. Reactions, revokes and edits are messages that point at another one (`target_wa_id`).                                                             |
+| WA id           | `messages.wa_message_id`, `message.WAIDFor`         | WhatsApp's own message id. Outbound ids are `3EB0` plus our id in hex, so a retried send reuses it; the recipient's app shows one message per id.                                           |
+| outbound queue  | `messages` rows with `status = queued`, `ClaimNext` | Per-device FIFO of messages to send. The sender claims one at a time with `FOR UPDATE SKIP LOCKED`; there is no separate queue table.                                                       |
+| sender          | `internal/whatsapp/sender.go`                       | The goroutine that drains one device's outbound queue while the runtime holds its lease: spacing, typing, send, ack. One per held device.                                                   |
+| recorder        | `message.Recorder`, `internal/message/inbound.go`   | Stores one inbound message, its chat and its sender's contact hint in one transaction and emits the events. Receipts go to `message.Service.RecordReceipt`, not here.                       |
+| contact         | `internal/contact/`, `openwa_contacts`              | What one device knows about one WhatsApp account: phone, name, push name, business name. A merge upsert; empty fields never overwrite.                                                      |
+| LID             | `...@lid` JIDs                                      | WhatsApp's privacy id for an account whose phone number is hidden. `sender.phone` is empty for a LID-only sender.                                                                           |
+| matched         | `message.matched`, `device.Rules.Match`             | An inbound message that passed the device's inbound rules. `message.received` fires for every inbound message; `matched` fires in addition.                                                 |
+| retention       | `openwa_message_retention`, `retention.messageDays` | Days a project keeps messages (default 30). The nightly `message-retention` job deletes older rows in batches and repairs chat previews.                                                    |
+| media reference | `messages.media`, `media.store = wa`                | The keys to download a file from WhatsApp, not the file. `GET /messages/{message}/media` fetches it on demand; a file WhatsApp dropped answers 410.                                         |
 
 ## Queue
 
@@ -191,8 +229,8 @@ structurally, with no adapter and no import of `worker`.
 
 | Term        | What it is                                                                                                                                                                           |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| module path | `altalune.id/template`                                                                                                                                                               |
-| binary      | `altempl`                                                                                                                                                                            |
+| module path | `altalune.id/openwa`                                                                                                                                                                 |
+| binary      | `openwa`                                                                                                                                                                             |
 | fork        | Downstream services fork this repo and swap the domain modules. Signatures under the exported roots and `internal/platform/` are copied verbatim, so changing them costs every fork. |
 
 ## Business terms

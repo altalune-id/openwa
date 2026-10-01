@@ -7,7 +7,7 @@ import (
 )
 
 func TestEnvKeys_GenesisEmailIsNoLongerBootstrap(t *testing.T) {
-	keys := WalkEnvKeys("ALT")
+	keys := WalkEnvKeys(EnvPrefix)
 	var found bool
 	for _, k := range keys {
 		if k.YAML != "genesis.email" {
@@ -21,7 +21,7 @@ func TestEnvKeys_GenesisEmailIsNoLongerBootstrap(t *testing.T) {
 }
 
 func TestEnvKeys_OnboardSetupTokenIsSecret(t *testing.T) {
-	keys := WalkEnvKeys("ALT")
+	keys := WalkEnvKeys(EnvPrefix)
 	var found bool
 	for _, k := range keys {
 		if k.YAML != "onboard.setupToken" {
@@ -35,8 +35,9 @@ func TestEnvKeys_OnboardSetupTokenIsSecret(t *testing.T) {
 }
 
 func TestLoad_OnboardSetupTokenFromEnv(t *testing.T) {
+	withRequiredEnv(t)
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("ALT_ONBOARD_SETUP_TOKEN", "pinned-token")
+	t.Setenv("OPENWA_ONBOARD_SETUP_TOKEN", "pinned-token")
 	t.Chdir(t.TempDir())
 
 	cfg, err := Load("")
@@ -45,7 +46,7 @@ func TestLoad_OnboardSetupTokenFromEnv(t *testing.T) {
 }
 
 func TestEnvKeys_QueueTokenIsSecret(t *testing.T) {
-	keys := WalkEnvKeys("ALT")
+	keys := WalkEnvKeys(EnvPrefix)
 	var found bool
 	for _, k := range keys {
 		if k.YAML != "queue.token" {
@@ -58,7 +59,7 @@ func TestEnvKeys_QueueTokenIsSecret(t *testing.T) {
 }
 
 func TestEnvKeys_QueueURLIsSecret(t *testing.T) {
-	keys := WalkEnvKeys("ALT")
+	keys := WalkEnvKeys(EnvPrefix)
 	var found bool
 	for _, k := range keys {
 		if k.YAML != "queue.url" {
@@ -72,8 +73,9 @@ func TestEnvKeys_QueueURLIsSecret(t *testing.T) {
 }
 
 func TestLoad_QueueTokenFromEnv(t *testing.T) {
+	withRequiredEnv(t)
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("ALT_QUEUE_TOKEN", "pinned-nats-token")
+	t.Setenv("OPENWA_QUEUE_TOKEN", "pinned-nats-token")
 	t.Chdir(t.TempDir())
 
 	cfg, err := Load("")

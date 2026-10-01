@@ -1,0 +1,202 @@
+syntax = "proto3";
+
+package device.v1;
+
+import "google/protobuf/timestamp.proto";
+import "mcp/v1/annotations.proto";
+
+option go_package = "altalune.id/openwa/gen/go/device/v1;devicev1";
+
+service DeviceService {
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse) {
+    option (mcp.v1.tool) = {
+      name: "device_list"
+      description: "List a project's WhatsApp devices with their connection state and phone number. Omit projectId to use the credential's active project; call project_list to discover the others."
+      ui: "app"
+    };
+  }
+  rpc GetDevice(GetDeviceRequest) returns (GetDeviceResponse) {
+    option (mcp.v1.tool) = {
+      name: "device_get"
+      description: "Read one device: its state, phone number, inbound rules and, while a pairing attempt runs, the current QR code or pairing code."
+      required: ["deviceId"]
+    };
+  }
+  rpc CreateDevice(CreateDeviceRequest) returns (CreateDeviceResponse);
+  rpc UpdateDevice(UpdateDeviceRequest) returns (UpdateDeviceResponse);
+  rpc DeleteDevice(DeleteDeviceRequest) returns (DeleteDeviceResponse);
+  rpc StartLink(StartLinkRequest) returns (StartLinkResponse) {
+    option (mcp.v1.tool) = {
+      name: "device_pair"
+      title: "Pair device"
+      description: "Start pairing a device with a WhatsApp account by QR code. Omit deviceId when the project has exactly one device. With an org key or personal token (no active project) pass projectId, or the call is refused (PRJ005). The QR code changes about every 20 seconds; call device_get to refresh it."
+      mutation: true
+      destructive: false
+      ui: "app"
+    };
+  }
+  rpc GetLinkState(GetLinkStateRequest) returns (GetLinkStateResponse);
+  rpc LinkWithPhone(LinkWithPhoneRequest) returns (LinkWithPhoneResponse);
+  rpc Unlink(UnlinkRequest) returns (UnlinkResponse) {
+    option (mcp.v1.tool) = {
+      name: "device_logout"
+      title: "Log out device"
+      description: "Log a device's WhatsApp account out. The device stays and can be paired again. Omit deviceId when the project has exactly one device."
+      mutation: true
+      destructive: true
+    };
+  }
+}
+
+message Rules {
+  // Which group messages match: "ignore", "mention" or "open"
+  string group_mode = 1;
+  // E.164 digits without "+"; empty allows every sender
+  repeated string allowed_senders = 2;
+  // Group JIDs ending in @g.us; empty allows every group
+  repeated string allowed_groups = 3;
+  // Only messages starting with this text match; empty matches all
+  string trigger_prefix = 4;
+  // Skip messages sent from the paired account itself
+  bool ignore_from_me = 5;
+}
+
+message LinkState {
+  // "qr" or "phone"
+  string method = 1;
+  // "pending", "connected", "timeout", "failed" or "none"
+  string outcome = 2;
+  // Raw QR payload while a QR attempt is pending
+  string qr = 3;
+  // PNG rendering of the QR payload, base64 in JSON
+  bytes png = 4;
+  // 8-character code to type on the phone for a phone-code attempt
+  string pairing_code = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  string error = 7;
+  google.protobuf.Timestamp started_at = 8;
+  // Public id of the pairing attempt (lnk_…)
+  string id = 9;
+}
+
+message Device {
+  // Public id (dev_…); every device RPC takes it as device_id
+  string id = 1;
+  string project_id = 2;
+  string name = 3;
+  Rules rules = 4;
+  // Optimistic-concurrency version; pass it back as version on UpdateDevice
+  int32 version = 5;
+  // "unlinked", "linking", "connected", "disconnected" or "logged_out"
+  string state = 6;
+  // Paired phone number, E.164 digits without "+"
+  string phone = 7;
+  string push_name = 8;
+  // Reason recorded with the last state change
+  string reason = 9;
+  google.protobuf.Timestamp last_seen_at = 10;
+  // True when this server holds the device's session and it is connected
+  bool live = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+  // The pairing attempt in progress, when there is one
+  LinkState link = 14;
+}
+
+message ListDevicesRequest {
+  // UUID of the project; omit to use the credential's active project
+  string project_id = 1;
+}
+
+message ListDevicesResponse {
+  repeated Device devices = 1;
+}
+
+message GetDeviceRequest {
+  // Public id of the device (dev_…); the internal UUID is never accepted
+  string device_id = 1;
+}
+
+message GetDeviceResponse {
+  Device device = 1;
+}
+
+message CreateDeviceRequest {
+  // UUID of the project; omit to use the credential's active project
+  string project_id = 1;
+  // 1 to 64 characters, unique in the project
+  string name = 2;
+}
+
+message CreateDeviceResponse {
+  Device device = 1;
+}
+
+message UpdateDeviceRequest {
+  string device_id = 1;
+  // New name; omit to keep it
+  optional string name = 2;
+  // New rules; omit to keep them
+  Rules rules = 3;
+  // Version the write is conditioned on; 0 writes unconditionally
+  int32 version = 4;
+}
+
+message UpdateDeviceResponse {
+  Device device = 1;
+}
+
+message DeleteDeviceRequest {
+  string device_id = 1;
+}
+
+message DeleteDeviceResponse {}
+
+message StartLinkRequest {
+  // Public id of the device (dev_…); the internal UUID is never accepted; omit when the project has exactly one device
+  string device_id = 1;
+  // UUID of the project; omit to use the credential's active project
+  string project_id = 2;
+}
+
+message StartLinkResponse {
+  string device_id = 1;
+  LinkState link = 2;
+}
+
+message GetLinkStateRequest {
+  // Public id of the device (dev_…); the internal UUID is never accepted; omit when the project has exactly one device
+  string device_id = 1;
+  // UUID of the project; omit to use the credential's active project
+  string project_id = 2;
+}
+
+message GetLinkStateResponse {
+  string device_id = 1;
+  LinkState link = 2;
+}
+
+message LinkWithPhoneRequest {
+  // Public id of the device (dev_…); the internal UUID is never accepted; omit when the project has exactly one device
+  string device_id = 1;
+  // UUID of the project; omit to use the credential's active project
+  string project_id = 2;
+  // Phone number in international format, e.g. +62 812 3456 7890
+  string phone = 3;
+}
+
+message LinkWithPhoneResponse {
+  string device_id = 1;
+  LinkState link = 2;
+}
+
+message UnlinkRequest {
+  // Public id of the device (dev_…); the internal UUID is never accepted; omit when the project has exactly one device
+  string device_id = 1;
+  // UUID of the project; omit to use the credential's active project
+  string project_id = 2;
+}
+
+message UnlinkResponse {
+  string device_id = 1;
+}

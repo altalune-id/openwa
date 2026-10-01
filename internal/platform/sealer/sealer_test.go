@@ -11,7 +11,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 
-	"altalune.id/template/internal/apperror"
+	"altalune.id/openwa/internal/apperror"
 )
 
 func testKey(t *testing.T) []byte {

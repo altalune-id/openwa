@@ -1,19 +1,19 @@
-name: altempl
+name: openwa
 
 services:
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: altempl
-      POSTGRES_PASSWORD: altempl
-      POSTGRES_DB: altempl
+      POSTGRES_USER: openwa
+      POSTGRES_PASSWORD: openwa
+      POSTGRES_DB: openwa
     ports:
       - "5432:5432"
     volumes:
       - ./docker/data/pg:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U altempl -d altempl"]
+      test: ["CMD-SHELL", "pg_isready -U openwa -d openwa"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -32,20 +32,20 @@ services:
   nats:
     image: nats:2.15-alpine
     restart: unless-stopped
-    command: ["-js", "-sd", "/data", "--auth", "altempl-dev"]
+    command: ["-js", "-sd", "/data", "--auth", "openwa-dev"]
     ports:
       - "4222:4222"
     volumes:
       - ./docker/data/nats:/data
 
-  altempl:
+  openwa:
     build:
       context: .
       args:
         VERSION: dev
         COMMIT: local
         BUILD_TIME: unknown
-    image: altempl:dev
+    image: openwa:dev
     restart: unless-stopped
     stop_grace_period: 20s
     depends_on:
@@ -58,30 +58,30 @@ services:
     ports:
       - "5150:5150"
     environment:
-      ALT_MODE: selfhosted
-      ALT_HTTP_ADDR: "0.0.0.0:5150"
+      OPENWA_MODE: selfhosted
+      OPENWA_HTTP_ADDR: "0.0.0.0:5150"
+      OPENWA_HTTP_BASE_URL: "http://localhost:5150"
 
-      ALT_DB_DRIVER: postgres
-      ALT_DB_DSN: "postgres://altempl:altempl@postgres:5432/altempl?sslmode=disable"
-      ALT_DB_ALLOW_BYPASS_RLS: "true"
-      ALT_DB_AUTO_MIGRATE: "true"
+      OPENWA_DB_DSN: "postgres://openwa:openwa@postgres:5432/openwa?sslmode=disable"
+      OPENWA_DB_ALLOW_BYPASS_RLS: "true"
+      OPENWA_DB_AUTO_MIGRATE: "true"
 
-      ALT_MAIL_DRIVER: smtp
-      ALT_MAIL_FROM: "no-reply@altempl.local"
-      ALT_MAIL_SMTP_HOST: mailpit
-      ALT_MAIL_SMTP_PORT: "1025"
-      ALT_MAIL_SMTP_USER: ""
-      ALT_MAIL_SMTP_PASS: ""
-      ALT_MAIL_SMTP_TLS: "false"
+      OPENWA_MAIL_DRIVER: smtp
+      OPENWA_MAIL_FROM: "no-reply@openwa.local"
+      OPENWA_MAIL_SMTP_HOST: mailpit
+      OPENWA_MAIL_SMTP_PORT: "1025"
+      OPENWA_MAIL_SMTP_USER: ""
+      OPENWA_MAIL_SMTP_PASS: ""
+      OPENWA_MAIL_SMTP_TLS: "false"
 
-      ALT_QUEUE_ENABLED: "true"
-      ALT_QUEUE_URL: "nats://nats:4222"
-      ALT_QUEUE_TOKEN: "altempl-dev"
+      OPENWA_QUEUE_ENABLED: "true"
+      OPENWA_QUEUE_URL: "nats://nats:4222"
+      OPENWA_QUEUE_TOKEN: "openwa-dev"
 
-      ALT_GENESIS_EMAIL: admin@altempl.local
-      ALT_GENESIS_PASSWORD: change-me
+      OPENWA_GENESIS_EMAIL: admin@openwa.local
+      OPENWA_GENESIS_PASSWORD: change-me
     healthcheck:
-      test: ["CMD", "/altempl", "healthz"]
+      test: ["CMD", "/openwa", "healthz"]
       interval: 10s
       timeout: 5s
       retries: 5

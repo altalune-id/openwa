@@ -20,9 +20,9 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/worker"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/worker"
 )
 
 const (
@@ -301,12 +301,12 @@ func TestConsumer_ExhaustedGoesToDLQ(t *testing.T) {
 
 	d := waitDLQ(t, e.client)
 	assert.Equal(t, int32(5), calls.Load())
-	assert.Equal(t, "exhausted", d.Header.Get("Altempl-Dlq-Reason"))
-	assert.Equal(t, "boom", d.Header.Get("Altempl-Dlq-Error"))
-	assert.Equal(t, "5", d.Header.Get("Altempl-Dlq-Attempts"))
-	assert.Equal(t, "1", d.Header.Get("Altempl-Dlq-Stream-Seq"))
+	assert.Equal(t, "exhausted", d.Header.Get("Openwa-Dlq-Reason"))
+	assert.Equal(t, "boom", d.Header.Get("Openwa-Dlq-Error"))
+	assert.Equal(t, "5", d.Header.Get("Openwa-Dlq-Attempts"))
+	assert.Equal(t, "1", d.Header.Get("Openwa-Dlq-Stream-Seq"))
 	assert.Equal(t, sent.Header.Get("Nats-Msg-Id"), d.Header.Get("Nats-Msg-Id"))
-	assert.Equal(t, "test.run", d.Header.Get("Altempl-Job"))
+	assert.Equal(t, "test.run", d.Header.Get("Openwa-Job"))
 	assert.Equal(t, sent.Data, d.Data)
 	require.Eventually(t, func() bool { return streamMsgs(t, e.client, streamWork) == 0 }, waitFor, tick)
 	require.Eventually(t, func() bool { return len(e.rec.messages()) == 1 }, waitFor, tick)
@@ -326,9 +326,9 @@ func TestConsumer_PermanentGoesToDLQAtOnce(t *testing.T) {
 
 	d := waitDLQ(t, e.client)
 	assert.Equal(t, int32(1), calls.Load())
-	assert.Equal(t, "permanent", d.Header.Get("Altempl-Dlq-Reason"))
-	assert.Contains(t, d.Header.Get("Altempl-Dlq-Error"), "bad payload")
-	assert.Equal(t, "1", d.Header.Get("Altempl-Dlq-Attempts"))
+	assert.Equal(t, "permanent", d.Header.Get("Openwa-Dlq-Reason"))
+	assert.Contains(t, d.Header.Get("Openwa-Dlq-Error"), "bad payload")
+	assert.Equal(t, "1", d.Header.Get("Openwa-Dlq-Attempts"))
 }
 
 func TestConsumer_PanicIsRetried(t *testing.T) {
@@ -381,10 +381,10 @@ func TestConsumer_MalformedOrgHeaderIsPermanent(t *testing.T) {
 	e := newConsumerEnv(t, o)
 	msg := nats.NewMsg("jobs.test.run.v1")
 	msg.Data = []byte(`{}`)
-	msg.Header.Set("Altempl-Job", "test.run")
-	msg.Header.Set("Altempl-Job-Version", "1")
-	msg.Header.Set("Altempl-Created-At", time.Now().UTC().Format(time.RFC3339Nano))
-	msg.Header.Set("Altempl-Org-Id", "not-a-uuid")
+	msg.Header.Set("Openwa-Job", "test.run")
+	msg.Header.Set("Openwa-Job-Version", "1")
+	msg.Header.Set("Openwa-Created-At", time.Now().UTC().Format(time.RFC3339Nano))
+	msg.Header.Set("Openwa-Org-Id", "not-a-uuid")
 	_, err := e.client.js.PublishMsg(t.Context(), msg, jetstream.WithMsgID(uuid.NewString()))
 	require.NoError(t, err)
 
@@ -396,8 +396,8 @@ func TestConsumer_MalformedOrgHeaderIsPermanent(t *testing.T) {
 	runWorker(t, cons)
 
 	d := waitDLQ(t, e.client)
-	assert.Equal(t, "permanent", d.Header.Get("Altempl-Dlq-Reason"))
-	assert.Contains(t, d.Header.Get("Altempl-Dlq-Error"), "Altempl-Org-Id")
+	assert.Equal(t, "permanent", d.Header.Get("Openwa-Dlq-Reason"))
+	assert.Contains(t, d.Header.Get("Openwa-Dlq-Error"), "Openwa-Org-Id")
 	assert.Equal(t, int32(0), calls.Load())
 	require.Eventually(t, func() bool {
 		for _, s := range sr.Ended() {
@@ -434,8 +434,8 @@ func TestConsumer_DLQPublishFailureRetriesWithoutHandler(t *testing.T) {
 	require.NoError(t, ensureStreams(t.Context(), e.client.js))
 	d := waitDLQ(t, e.client)
 	assert.Equal(t, int32(5), calls.Load())
-	assert.Equal(t, "exhausted", d.Header.Get("Altempl-Dlq-Reason"))
-	assert.Equal(t, "6", d.Header.Get("Altempl-Dlq-Attempts"))
+	assert.Equal(t, "exhausted", d.Header.Get("Openwa-Dlq-Reason"))
+	assert.Equal(t, "6", d.Header.Get("Openwa-Dlq-Attempts"))
 	require.Eventually(t, func() bool { return streamMsgs(t, e.client, streamWork) == 0 }, waitFor, tick)
 
 	got := collectMetrics(t, reader)
@@ -482,10 +482,10 @@ func TestConsumer_PermanentRedeliveredAfterDLQFailureRunsHandlerAgain(t *testing
 
 	d := waitDLQ(t, e.client)
 	assert.Equal(t, int32(2), calls.Load(), "the handler must run again on redelivery, not skip straight to the DLQ")
-	assert.Equal(t, "permanent", d.Header.Get("Altempl-Dlq-Reason"))
-	assert.Contains(t, d.Header.Get("Altempl-Dlq-Error"), "permanent cause 2")
-	assert.NotContains(t, d.Header.Get("Altempl-Dlq-Error"), "cause 1")
-	assert.Equal(t, "2", d.Header.Get("Altempl-Dlq-Attempts"))
+	assert.Equal(t, "permanent", d.Header.Get("Openwa-Dlq-Reason"))
+	assert.Contains(t, d.Header.Get("Openwa-Dlq-Error"), "permanent cause 2")
+	assert.NotContains(t, d.Header.Get("Openwa-Dlq-Error"), "cause 1")
+	assert.Equal(t, "2", d.Header.Get("Openwa-Dlq-Attempts"))
 }
 
 func TestConsumer_PastCapOnArrivalSkipsHandler(t *testing.T) {
@@ -516,9 +516,9 @@ func TestConsumer_PastCapOnArrivalSkipsHandler(t *testing.T) {
 
 	d := waitDLQ(t, e.client)
 	assert.Equal(t, int32(0), calls.Load())
-	assert.Equal(t, "exhausted", d.Header.Get("Altempl-Dlq-Reason"))
-	assert.Equal(t, "6", d.Header.Get("Altempl-Dlq-Attempts"))
-	assert.Equal(t, "outcome unknown: redelivered past the attempt cap", d.Header.Get("Altempl-Dlq-Error"))
+	assert.Equal(t, "exhausted", d.Header.Get("Openwa-Dlq-Reason"))
+	assert.Equal(t, "6", d.Header.Get("Openwa-Dlq-Attempts"))
+	assert.Equal(t, "outcome unknown: redelivered past the attempt cap", d.Header.Get("Openwa-Dlq-Error"))
 }
 
 func TestConsumer_ConsumeSpanIsChildOfPublish(t *testing.T) {

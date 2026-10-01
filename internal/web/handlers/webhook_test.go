@@ -22,18 +22,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/i18n"
-	"altalune.id/template/internal/platform/events"
-	"altalune.id/template/internal/platform/outbox"
-	"altalune.id/template/internal/platform/sealer"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/testutil/fakes"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/handlers"
-	"altalune.id/template/internal/web/templates"
-	"altalune.id/template/internal/webhook"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/i18n"
+	"altalune.id/openwa/internal/platform/events"
+	"altalune.id/openwa/internal/platform/outbox"
+	"altalune.id/openwa/internal/platform/sealer"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/testutil/fakes"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/handlers"
+	"altalune.id/openwa/internal/web/templates"
+	"altalune.id/openwa/internal/webhook"
 )
 
 const webhookBase = "/orgs/acme/projects/alpha/webhooks"
@@ -55,10 +55,9 @@ type webhookFixture struct {
 	project *project.Project
 }
 
-func newWebhookFixture(t *testing.T, ephemeral bool) *webhookFixture {
+func newWebhookFixture(t *testing.T) *webhookFixture {
 	t.Helper()
 	f := newFixture(t)
-	f.Deps.Caps.EphemeralEncryptionKey = ephemeral
 
 	key, err := sealer.GenerateKey()
 	require.NoError(t, err)
@@ -134,7 +133,7 @@ var reSecret = regexp.MustCompile(`whsec_[A-Za-z0-9_-]{20,}`)
 // TestWebhookHandler_CreateShowsTheSecretOnce pins the one-time reveal: the create response carries it, a later GET never does.
 func TestWebhookHandler_CreateShowsTheSecretOnce(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 
 	rec := x.do(t, http.MethodPost, webhookBase, endpointForm("https://example.com/hook", string(events.PostPublished)))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -142,6 +141,7 @@ func TestWebhookHandler_CreateShowsTheSecretOnce(t *testing.T) {
 	require.NotEmpty(t, secret, "the create response must reveal the new secret")
 	assert.Contains(t, rec.Body.String(), "data-webhook-secret")
 	assert.Contains(t, rec.Body.String(), "data-copy=", "the reveal carries the copy button")
+	assert.Contains(t, rec.Body.String(), ">flash.webhook_saved<", "the create response pushes a saved toast")
 
 	items, err := x.Hooks.List(x.ctx())
 	require.NoError(t, err)
@@ -157,7 +157,7 @@ func TestWebhookHandler_CreateShowsTheSecretOnce(t *testing.T) {
 // TestWebhookHandler_RotateShowsTheNewSecretOnceAndTheRotationState covers rotate, the secondary state and retire.
 func TestWebhookHandler_RotateShowsTheNewSecretOnceAndTheRotationState(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	e := x.create(t)
 	detail := webhookBase + "/" + e.ID.String()
 
@@ -179,31 +179,19 @@ func TestWebhookHandler_RotateShowsTheNewSecretOnceAndTheRotationState(t *testin
 	assert.Nil(t, got.Secrets.Secondary)
 }
 
-// TestWebhookHandler_EphemeralKeyBanner renders the restart warning only when boot reports the key ephemeral.
-func TestWebhookHandler_EphemeralKeyBanner(t *testing.T) {
-	t.Parallel()
-	for _, ephemeral := range []bool{true, false} {
-		x := newWebhookFixture(t, ephemeral)
-		e := x.create(t)
-		for _, path := range []string{webhookBase, webhookBase + "/new", webhookBase + "/" + e.ID.String()} {
-			rec := x.do(t, http.MethodGet, path, nil)
-			require.Equal(t, http.StatusOK, rec.Code)
-			assert.Equal(t, ephemeral, strings.Contains(rec.Body.String(), "data-ephemeral-key"), "%s ephemeral=%v", path, ephemeral)
-		}
-	}
-}
-
 // TestWebhookHandler_EventPickerListsOnlySubscribableTypes keeps webhook.ping out of the subscription form.
 func TestWebhookHandler_EventPickerListsOnlySubscribableTypes(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 
 	rec := x.do(t, http.MethodGet, webhookBase+"/new", nil)
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
+	hidden := map[events.Type]bool{events.PostPublished: true, events.PostUnpublished: true, events.PostDeleted: true}
 	for _, s := range events.All() {
 		want := `name="event_types" value="` + string(s.Type) + `"`
-		assert.Equal(t, s.Subscribable, strings.Contains(body, want), "%s subscribable=%v", s.Type, s.Subscribable)
+		shown := s.Subscribable && !hidden[s.Type]
+		assert.Equal(t, shown, strings.Contains(body, want), "%s shown=%v", s.Type, shown)
 	}
 	assert.Contains(t, body, `maxlength="2048"`)
 	assert.Contains(t, body, `maxlength="200"`)
@@ -212,7 +200,7 @@ func TestWebhookHandler_EventPickerListsOnlySubscribableTypes(t *testing.T) {
 // TestWebhookHandler_CreateErrorsRenderTheirCode shows a WHK code in the form banner and keeps the input.
 func TestWebhookHandler_CreateErrorsRenderTheirCode(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 
 	rec := x.do(t, http.MethodPost, webhookBase, endpointForm("http://example.com/hook", string(events.PostPublished)))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -228,13 +216,14 @@ func TestWebhookHandler_CreateErrorsRenderTheirCode(t *testing.T) {
 // TestWebhookHandler_UpdateAndDelete covers the edit round trip and the delete redirect.
 func TestWebhookHandler_UpdateAndDelete(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	e := x.create(t)
 	detail := webhookBase + "/" + e.ID.String()
 
 	form := endpointForm("https://example.com/other", string(events.PostDeleted), string(events.PostPublished))
 	rec := x.do(t, http.MethodPost, detail, form)
 	require.Equal(t, http.StatusSeeOther, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Header().Get("Set-Cookie"), web.FlashCookieName+"=")
 	got, err := x.Hooks.ByID(x.ctx(), e.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "https://example.com/other", got.URL)
@@ -243,15 +232,31 @@ func TestWebhookHandler_UpdateAndDelete(t *testing.T) {
 
 	rec = x.do(t, http.MethodPost, detail+"/delete", nil)
 	require.Equal(t, http.StatusSeeOther, rec.Code)
+	assert.Contains(t, rec.Header().Get("Set-Cookie"), web.FlashCookieName+"=")
 	assert.Equal(t, webhookBase, rec.Header().Get("Location"))
 	_, err = x.Hooks.ByID(x.ctx(), e.ID)
 	require.True(t, webhook.IsNotFoundError(err))
 }
 
+func TestWebhookHandler_DetailUsesConfirmDialogsAndTime(t *testing.T) {
+	t.Parallel()
+	x := newWebhookFixture(t)
+	e := x.create(t)
+	require.NoError(t, x.Hooks.SendTest(x.ctx(), e.ID))
+	rec := x.do(t, http.MethodGet, webhookBase+"/"+e.ID.String(), nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	assert.Contains(t, body, `<dialog id="delete-`+e.ID.String()+`"`)
+	assert.Contains(t, body, `action="`+webhookBase+"/"+e.ID.String()+`/delete"`)
+	assert.Regexp(t, `<time datetime="[^"]+" title="[^"]+ UTC">`, body)
+	assert.Contains(t, body, `aria-label="nav.breadcrumb"`)
+	assert.NotRegexp(t, colourLiteral, body)
+}
+
 // TestWebhookHandler_DeliveriesTestRetryAndAttempts drives send test, the delivery row, retry one and retry all.
 func TestWebhookHandler_DeliveriesTestRetryAndAttempts(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	e := x.create(t)
 	detail := webhookBase + "/" + e.ID.String()
 
@@ -284,6 +289,8 @@ func TestWebhookHandler_DeliveriesTestRetryAndAttempts(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), `id="delivery-`+did+`"`)
 	assert.Contains(t, rec.Body.String(), "webhooks.status.pending")
 	assert.Contains(t, rec.Body.String(), `hx-target="#webhook-retry-all"`)
+	assert.Contains(t, rec.Body.String(), `<template hx type="partial" hx-target="#webhook-retry-all" hx-swap="outerHTML" hx-nonce=`, "htmx 4.0.0 reads template[hx][type=partial]; <hx-partial> is inert")
+	assert.NotContains(t, rec.Body.String(), "<hx-partial")
 
 	x.settle(t, true)
 	rec = x.do(t, http.MethodPost, detail+"/retry-failed", nil)
@@ -297,7 +304,7 @@ func TestWebhookHandler_DeliveriesTestRetryAndAttempts(t *testing.T) {
 // TestWebhookHandler_RetryOnADeliveredRowShowsWHK005 renders the not-retryable code in the row fragment.
 func TestWebhookHandler_RetryOnADeliveredRowShowsWHK005(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	e := x.create(t)
 	require.NoError(t, x.Hooks.SendTest(x.ctx(), e.ID))
 	x.settle(t, false)
@@ -312,7 +319,7 @@ func TestWebhookHandler_RetryOnADeliveredRowShowsWHK005(t *testing.T) {
 
 func TestWebhookHandler_RotateRacingARotateShowsWHK008(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	e := x.create(t)
 	loads := 0
 	x.Store.AfterByID = func() {
@@ -352,7 +359,7 @@ func webhookRoutes(id, did string) []struct{ method, path string } {
 // TestWebhookHandler_EveryRouteGatesOnRequireProject: no session redirects to login, and a member of another org gets 404 with no endpoint data.
 func TestWebhookHandler_EveryRouteGatesOnRequireProject(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	e := x.create(t)
 	require.NoError(t, x.Hooks.SendTest(x.ctx(), e.ID))
 	did := x.Outbox.Entries()[0].ID.String()
@@ -381,7 +388,7 @@ func TestWebhookHandler_EveryRouteGatesOnRequireProject(t *testing.T) {
 // TestWebhookHandler_ASiblingProjectsEndpointIs404 pins the service's project check behind the console.
 func TestWebhookHandler_ASiblingProjectsEndpointIs404(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	e := x.create(t)
 	_, err := x.Projects.Create(setTenant(context.Background(), x.org, x.uid), x.org, "beta", "Beta")
 	require.NoError(t, err)
@@ -393,7 +400,7 @@ func TestWebhookHandler_ASiblingProjectsEndpointIs404(t *testing.T) {
 // TestWebhookHandler_HTMXCreatePushesTheDetailURL swaps the detail in with the secret and pushes its URL, so a reload is a GET.
 func TestWebhookHandler_HTMXCreatePushesTheDetailURL(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	x.Cfg.HTTP.BasePath = "/app"
 
 	rec := x.doHX(t, http.MethodPost, webhookBase, endpointForm("https://example.com/hook", string(events.PostPublished)))
@@ -418,7 +425,7 @@ func TestWebhookHandler_HTMXCreatePushesTheDetailURL(t *testing.T) {
 // TestWebhookHandler_HTMXCreateErrorRendersTheNewPageFragment keeps the URL and shows the code.
 func TestWebhookHandler_HTMXCreateErrorRendersTheNewPageFragment(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 
 	rec := x.doHX(t, http.MethodPost, webhookBase, endpointForm("http://example.com/hook", string(events.PostPublished)))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -434,7 +441,7 @@ func TestWebhookHandler_HTMXCreateErrorRendersTheNewPageFragment(t *testing.T) {
 // TestWebhookHandler_HTMXRotateRotatesOnce swaps the detail in with the new secret, pushes nothing, and leaves the original secret as the one secondary.
 func TestWebhookHandler_HTMXRotateRotatesOnce(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	var got http.Header
 	var body []byte
 	rcv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -460,16 +467,16 @@ func TestWebhookHandler_HTMXRotateRotatesOnce(t *testing.T) {
 	d := webhook.NewDeliverer(x.Store, x.Sealer, rcv.Client(), discardLogger())
 	require.NoError(t, d.Deliver(setTenant(context.Background(), x.org, x.uid), claimed[0]))
 
-	ts := got.Get("X-Altempl-Timestamp")
+	ts := got.Get("X-Openwa-Timestamp")
 	want := []string{webhook.Sign(rotated, ts, body), webhook.Sign(original, ts, body)}
-	assert.ElementsMatch(t, want, strings.Fields(got.Get("X-Altempl-Signature")),
+	assert.ElementsMatch(t, want, strings.Fields(got.Get("X-Openwa-Signature")),
 		"exactly one rotation: the new primary plus the original secret as the secondary")
 }
 
 // TestWebhookHandler_AttemptCopy covers "not attempted yet" and the separator between runs after a Retry.
 func TestWebhookHandler_AttemptCopy(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	e := x.create(t)
 	require.NoError(t, x.Hooks.SendTest(x.ctx(), e.ID))
 	entry := x.Outbox.Entries()[0]
@@ -494,7 +501,7 @@ func TestWebhookHandler_AttemptCopy(t *testing.T) {
 
 func TestWebhookHandler_DeliveryShowsThePayloadAndHeaders(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	e := x.create(t)
 	require.NoError(t, x.Hooks.SendTest(x.ctx(), e.ID))
 	entry := x.Outbox.Entries()[0]
@@ -509,26 +516,26 @@ func TestWebhookHandler_DeliveryShowsThePayloadAndHeaders(t *testing.T) {
 	assert.Contains(t, body, pretty.String(), "the body is pretty-printed server-side")
 	assert.Contains(t, body, `data-copy="`+pretty.String()+`"`, "the copy button carries the shown body")
 	for _, want := range []string{
-		"X-Altempl-Event-Id", "evt_" + entry.EventID.String(),
-		"X-Altempl-Event-Type", string(events.WebhookPing),
-		"X-Altempl-Delivery-Id", "dlv_" + entry.ID.String(),
+		"X-Openwa-Event-Id", "evt_" + entry.EventID.String(),
+		"X-Openwa-Event-Type", string(events.WebhookPing),
+		"X-Openwa-Delivery-Id", "dlv_" + entry.ID.String(),
 		"Content-Type", "application/json",
-		"User-Agent", "Altempl-Webhooks/1",
+		"User-Agent", "OpenWA-Webhooks/1",
 		"webhooks.headers_signature_note",
 	} {
 		assert.Contains(t, body, want)
 	}
-	assert.NotContains(t, body, "X-Altempl-Signature", "per-attempt headers are never shown")
+	assert.NotContains(t, body, "X-Openwa-Signature", "per-attempt headers are never shown")
 	assert.Less(t, strings.Index(body, "webhooks.payload_heading"), strings.Index(body, "webhooks.attempts_heading"),
 		"the payload sits above the attempts")
 
 	page := x.do(t, http.MethodGet, webhookBase+"/"+e.ID.String(), nil)
-	assert.Contains(t, page.Body.String(), "altemplCopyBound", "the detail page binds the copy handler the fragment's button needs")
+	assert.Contains(t, page.Body.String(), "openwaCopyBound", "the detail page binds the copy handler the fragment's button needs")
 }
 
 func TestWebhookHandler_DeliveryFallsBackToTheRawBody(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	e := x.create(t)
 	id := uuid.Must(uuid.NewV7())
 	require.NoError(t, x.Outbox.Enqueue(x.ctx(), outbox.Entry{
@@ -542,12 +549,12 @@ func TestWebhookHandler_DeliveryFallsBackToTheRawBody(t *testing.T) {
 	assert.Contains(t, body, "not json &lt;b&gt;raw&lt;/b&gt;", "the raw body is shown, escaped")
 	assert.NotContains(t, body, "<b>raw</b>")
 	assert.NotContains(t, body, "webhooks.headers_heading", "an undecodable envelope was never sent, so no headers to show")
-	assert.NotContains(t, body, "X-Altempl-Event-Id")
+	assert.NotContains(t, body, "X-Openwa-Event-Id")
 }
 
 func TestWebhookHandler_DeliveryOutsideTheListedWindowStillLoads(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	e := x.create(t)
 	for range webhook.MaxDeliveriesListed + 1 {
 		require.NoError(t, x.Hooks.SendTest(x.ctx(), e.ID))
@@ -563,7 +570,7 @@ func TestWebhookHandler_DeliveryOutsideTheListedWindowStillLoads(t *testing.T) {
 
 func TestWebhookHandler_DeliveryOfAnotherScopeIs404(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	e := x.create(t)
 	other := x.create(t)
 	require.NoError(t, x.Hooks.SendTest(x.ctx(), e.ID))
@@ -587,7 +594,7 @@ func TestWebhookHandler_DeliveryOfAnotherScopeIs404(t *testing.T) {
 // TestWebhookHandler_RetryOfAnUnlistedRowRetargetsTheDeliveries avoids swapping a bare row for one the page does not show.
 func TestWebhookHandler_RetryOfAnUnlistedRowRetargetsTheDeliveries(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	e := x.create(t)
 	for range webhook.MaxDeliveriesListed + 1 {
 		require.NoError(t, x.Hooks.SendTest(x.ctx(), e.ID))
@@ -607,7 +614,7 @@ func TestWebhookHandler_RetryOfAnUnlistedRowRetargetsTheDeliveries(t *testing.T)
 // TestWebhookHandler_ActionFailuresUseTheActionCopy keeps "could not save" off a failed send.
 func TestWebhookHandler_ActionFailuresUseTheActionCopy(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	e := x.create(t)
 	x.Outbox.EnqueueErr = errors.New("outbox down")
 
@@ -619,7 +626,7 @@ func TestWebhookHandler_ActionFailuresUseTheActionCopy(t *testing.T) {
 // TestWebhookHandler_RefusalsAreNotLoggedAsErrors logs only failures that are ours.
 func TestWebhookHandler_RefusalsAreNotLoggedAsErrors(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	var buf bytes.Buffer
 	x.Deps.Logger = log.New(&buf, "", 0)
 	x.Mux = http.NewServeMux()
@@ -679,7 +686,7 @@ func TestWebhookErrorRules(t *testing.T) {
 // TestWebhookHandler_IntegrationGuide opens the steps on an empty list and puts the verifiers on the endpoint page.
 func TestWebhookHandler_IntegrationGuide(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 
 	rec := x.do(t, http.MethodGet, webhookBase, nil)
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -722,8 +729,8 @@ func TestWebhookHandler_IntegrationGuide(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, visible, "exactly one panel is visible")
-	assert.Contains(t, body, "window.altemplTabsBound", "the tab switcher script ships nonced with the panel")
-	assert.Contains(t, body, "(function() {\n\tif (window.altemplTabsBound) return;", "the tab switcher keeps its helpers out of window")
+	assert.Contains(t, body, "window.openwaTabsBound", "the tab switcher script ships nonced with the panel")
+	assert.Contains(t, body, "(function() {\n\tif (window.openwaTabsBound) return;", "the tab switcher keeps its helpers out of window")
 	for _, h := range []string{webhook.HeaderTimestamp, webhook.HeaderSignature, webhook.HeaderDeliveryID, webhook.HeaderEventID} {
 		assert.Contains(t, body, ">"+h+"</code>", "%s is quoted from the webhook constant", h)
 	}
@@ -731,7 +738,7 @@ func TestWebhookHandler_IntegrationGuide(t *testing.T) {
 
 func TestWebhookHandler_DeliveryShowsEachAttemptsResponse(t *testing.T) {
 	t.Parallel()
-	x := newWebhookFixture(t, false)
+	x := newWebhookFixture(t)
 	e := x.create(t)
 	require.NoError(t, x.Hooks.SendTest(x.ctx(), e.ID))
 	entry := x.Outbox.Entries()[0]

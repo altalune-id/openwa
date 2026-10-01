@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"altalune.id/template/logger"
+	"altalune.id/openwa/logger"
 )
 
 func TestRedact_MasksSensitiveKeys(t *testing.T) {

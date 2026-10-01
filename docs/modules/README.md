@@ -3,27 +3,26 @@
 A **module** is one bounded context under `internal/<name>/`. It owns the rules and never knows which
 surface called it. Surfaces expose it; `internal/boot` introduces the two.
 
-Reference impls: `internal/todo/` (flat) and `internal/blog/` (relations, plus `category/` and `tag/`
-subdomains). Infrastructure primitives are not modules — see [`platform`](../platform/README.md).
+Reference impls: `internal/todo/` (flat), `internal/blog/` (relations, plus `category/` and `tag/`
+subdomains) `internal/device/` (a product aggregate behind a port to another context) and `internal/message/` (an aggregate with a runtime-driven queue and a recorder port). Infrastructure primitives are not modules — see [`platform`](../platform/README.md).
 
 This doc is the **shape** and is canonical for it. Ordered steps: [`howto/module.md`](../howto/module.md). The
 `altalune-go-convention` skill routes to both and adds scaffolding and the review traps.
 
 ## 1. Files
 
-| File                           | Holds                                                      |
-| ------------------------------ | ---------------------------------------------------------- |
-| `<name>.go`                    | Aggregate root, `New()` with invariants, value types       |
-| `store.go`                     | `Store` interface — the driven port                        |
-| `errors.go`                    | Typed error structs, `Is<FullTypeName>`, `ToAppError()`    |
-| `service.go`                   | `Service` struct, `NewService(...)`, application methods   |
-| `factory.go`                   | `NewStore(cfg, pool, pc) Store` — driver dispatch          |
-| `postgres.go`                  | `postgresStore` on go-jet + `tenant.PgConn`                |
-| `sqlite.go`                    | `sqliteStore` on `pool.W`                                  |
-| `<name>_test.go`               | Aggregate invariants, table-driven, pure Go                |
-| `service_test.go`              | Application tests on `internal/testutil/fakes.<Name>`      |
-| `sqlite_test.go`               | `:memory:` DB + SQLite migrations                          |
-| `postgres_integration_test.go` | `//go:build integration`, `pgtest.New(t)` or `TEST_PG_DSN` |
+| File                      | Holds                                                       |
+| ------------------------- | ----------------------------------------------------------- |
+| `<name>.go`               | Aggregate root, `New()` with invariants, value types        |
+| `store.go`                | `Store` interface — the driven port                         |
+| `errors.go`               | Typed error structs, `Is<FullTypeName>`, `ToAppError()`     |
+| `service.go`              | `Service` struct, `NewService(...)`, application methods    |
+| `factory.go`              | `NewStore(cfg, pool, pc) Store` — builds the Postgres store |
+| `postgres.go`             | `postgresStore` on go-jet + `tenant.PgConn`                 |
+| `<name>_test.go`          | Aggregate invariants, table-driven, pure Go                 |
+| `service_test.go`         | Application tests on `internal/testutil/fakes.<Name>`       |
+| `postgres_test.go`        | Store tests on `pgtest.New(t)` or `TEST_PG_DSN`             |
+| `postgres_hijack_test.go` | Guard tests, run where the guard is the only protection     |
 
 Those names are fixed; extra files are free — `pgreader.go` / `pgwriter.go` when `postgres.go` grows,
 `scheduler.go` (Section 6), a workflow file (Section 7), a pure helper like `blog/markdown.go`.
@@ -37,12 +36,10 @@ flowchart TB
   I["<b>store.go</b> — Store<br/>an interface the Service owns"]
   F["<b>factory.go</b> — NewStore(cfg, pool, pc)"]
   P["postgres.go<br/>(+ pgreader.go / pgwriter.go)"]
-  Q["sqlite.go"]
   S --> A
   S --> I
-  F -. "cfg.Driver" .-> P & Q
+  F --> P
   P -. implements .-> I
-  Q -. implements .-> I
 ```
 
 **Package boundary.**
@@ -66,17 +63,17 @@ interface), module-specific deps after — `uow tenant.UnitOfWork` first when a 
 atomically (`blog.NewService`).
 
 - Every method opens `ctx, span := tracer.Start(ctx, "<name>.<Method>")`, off a package-level
-  `otel.Tracer("altalune.id/template/internal/<name>")`. Expected failures return the typed error; unexpected
+  `otel.Tracer("altalune.id/openwa/internal/<name>")`. Expected failures return the typed error; unexpected
   ones go through `s.unexpected(ctx, "<name>.<Method>: <situation>", err, k, v...)`.
 - **A method taking a bare id checks org _and_ project.** The store filters by org only, so without it a
   sibling project's row is reachable. Shape: `category.Service.ByID`.
 
 **Factory and adapters.**
 
-- `NewStore(cfg db.DBConfig, pool db.Pool, pc *tenant.PgConn) Store` dispatches on `cfg.Driver`. Each module
-  owns its own; there is no central `newRepos(...)`.
-- Queries are go-jet statements over the bindings in `internal/platform/db/entity/{postgres,sqlite}`.
-- **Never wrap jet's `NULL` singleton** — use those packages' `Null*` helpers, matched to the column's
+- `NewStore(cfg db.DBConfig, pool db.Pool, pc *tenant.PgConn) Store` builds the module's Postgres store.
+  Each module owns its own; there is no central `newRepos(...)`.
+- Queries are go-jet statements over the bindings in `internal/platform/db/entity/postgres`.
+- **Never wrap jet's `NULL` singleton** — use that package's `Null*` helpers, matched to the column's
   declared type.
 - **Translate at the boundary.** A driver error never travels upward. Both rules, with the failure they
   cause: [`howto/store-method.md`](../howto/store-method.md).
@@ -92,18 +89,18 @@ atomically (`blog.NewService`).
 ## 3. Tenant scoping
 
 - **Every query carries an explicit `org_id` predicate from `tenant.From(ctx)`.** RLS is the backstop, not
-  the guard — SQLite has none, and a `BYPASSRLS` role slips past Postgres.
+  the guard — a `BYPASSRLS` role slips past Postgres RLS.
 - **An upsert's conflict clause carries the tenant predicate**, plus a `RowsAffected() == 0` branch returning
   `&NotFoundError{}` — otherwise a `Save` carrying another org's row id rewrites that org's row.
   `TestStoreUpserts_GuardConflictClauseByOrg` (`schema/upsert_tenant_guard_test.go`) fails the build on an
   unguarded `DO_UPDATE`; builder form in [`howto/store-method.md`](../howto/store-method.md).
-- **Migrations are goose files run through Go's `text/template`** — `schema/migrations/{postgres,sqlite}/NNN_<name>.sql`,
+- **Migrations are goose files run through Go's `text/template`** — `schema/migrations/postgres/NNN_<name>.sql`,
   with `{{.Schema}}`, `{{.TablePrefix}}` and `{{.RLSEnforce}}`. What a tenant-scoped table must carry, and the
   `make tenant-tables` that registers it: [`multitenancy`](../multitenancy/README.md#adding-a-tenant-scoped-table).
 - **A guard's test must run where the guard is the only protection** — on an RLS-enforcing fixture a hijack test
-  passes with or without the code under test. Put those on SQLite or a superuser fixture; prove each by reverting the guard.
-- **Unit of work.** A service opens one through its `uow` field, built in boot by `tenant.NewUnitOfWork(cfg, pool, pc)`
-  (`tenant.RunInTx` with `set_config` on Postgres, `db.RunInTx` on SQLite). Stores join `db.CurrentTx(ctx)`
+  passes with or without the code under test. Run them as a `NOBYPASSRLS` role through `pgtest.CreateRole` with `RLSEnforce: true`; prove each by reverting the guard.
+- **Unit of work.** A service opens one through its `uow` field, built in boot by `tenant.NewUnitOfWork(pc)`
+  (`tenant.RunInTx` with `set_config`). Stores join `db.CurrentTx(ctx)`
   when set, else open their own (`todo.postgresStore.txAcquire`). Nesting returns `db.ErrNestedUnitOfWork`: a retry is a
   second `s.uow` call. `fakes.UnitOfWork` puts a nil tx on ctx — fake stores only. [`multitenancy`](../multitenancy/README.md#unit-of-work)
 
@@ -193,7 +190,6 @@ Sections 2–5 are the rules; these are the things a reviewer has to look for ra
 - File set matches Section 1 — no `postgres_repo.go`, no `domain/` subpackage.
 - Every query filters by `org_id`; every upsert's conflict clause carries the tenant predicate.
 - Every `List` orders by a total order. Every DB-touching method opens a span. No `panic` on any path.
-- Service tests use fakes, not a `:memory:` DB; SQLite tests pass; integration tests exist under
-  `//go:build integration`. Coverage: aggregate ≥ 90%, service ≥ 85%.
+- Service tests use fakes, not a database; store tests run on Postgres in `postgres_test.go`. Coverage: aggregate ≥ 90%, service ≥ 85%.
 - Comments: 1-line godoc on exported symbols plus `SECURITY:` / `NOTE:` / `TODO:` markers only.
 - `make check` clean, depguard included.

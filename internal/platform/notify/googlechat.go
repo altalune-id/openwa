@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"altalune.id/template/internal/apperror"
+	"altalune.id/openwa/internal/apperror"
 )
 
 // GoogleChatSink posts incident notifications to a Google Chat webhook.

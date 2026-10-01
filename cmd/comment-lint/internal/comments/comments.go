@@ -81,6 +81,7 @@ var skipDirs = map[string]bool{
 	".github":      true,
 	"bin":          true,
 	"dist":         true,
+	"examples":     true,
 	"gen":          true,
 	"node_modules": true,
 	"testdata":     true,

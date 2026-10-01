@@ -5,7 +5,7 @@
 package apikeyv1connect
 
 import (
-	v1 "altalune.id/template/gen/go/apikey/v1"
+	v1 "altalune.id/openwa/gen/go/apikey/v1"
 	connect "connectrpc.com/connect"
 	context "context"
 	errors "errors"

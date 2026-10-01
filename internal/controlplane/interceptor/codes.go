@@ -4,7 +4,7 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/grpc/codes"
 
-	"altalune.id/template/internal/apperror"
+	"altalune.id/openwa/internal/apperror"
 )
 
 func connectCodeOf(ae *apperror.AppError) connect.Code {

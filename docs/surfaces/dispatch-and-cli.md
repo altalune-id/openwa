@@ -31,9 +31,9 @@ Unix seconds — the same string sent in the header, so a verifier recomputes fr
 received. Signature is lowercase hex. Grammar, pinned:
 
 ```
-X-Altempl-Timestamp: 1758153600
-X-Altempl-Signature: v1=<hex>
-X-Altempl-Signature: v1=<hex-primary> v1=<hex-secondary>   # during rotation only
+X-Openwa-Timestamp: 1758153600
+X-Openwa-Signature: v1=<hex>
+X-Openwa-Signature: v1=<hex-primary> v1=<hex-secondary>   # during rotation only
 ```
 
 Space-separated, **primary first**; a verifier accepts the delivery if any listed signature
@@ -55,7 +55,7 @@ fan-out is the same `tenant.Enumerator` the scheduler uses
 ([`request scope`](../multitenancy/request-scope.md)). The sender is `internal/webhook`: boot
 always registers the worker with `webhook.NewDeliverer`. `UNIQUE (org_id, event_id, target)`
 makes a repeat enqueue a no-op; tenants treat deliveries as idempotent and dedupe on the
-delivery id (`X-Altempl-Delivery-Id`). Receiver contract — envelope, headers, retry schedule:
+delivery id (`X-Openwa-Delivery-Id`). Receiver contract — envelope, headers, retry schedule:
 [`webhooks`](../webhooks/README.md). Adding an event: [`howto/webhook-out.md`](../howto/webhook-out.md).
 
 ### R11 — the CLI is a client, not a plane
@@ -68,10 +68,10 @@ exact path, so a break in the public contract breaks your own tooling first. Pro
 
 Two client shapes are therefore shipped and both are reference implementations:
 
-| Client                | Speaks      | Credential | Built by                  | Reference command |
-| --------------------- | ----------- | ---------- | ------------------------- | ----------------- |
-| `controlplane.Client` | Connect, S2 | Bearer JWT | `internal/boot/client.go` | `altempl todo …`  |
-| `dataplane.Client`    | REST, S3    | API key    | `internal/cli/blog.go`    | `altempl blog …`  |
+| Client                | Speaks      | Credential | Built by                  | Reference command                  |
+| --------------------- | ----------- | ---------- | ------------------------- | ---------------------------------- |
+| `controlplane.Client` | Connect, S2 | Bearer JWT | `internal/boot/client.go` | `openwa device …`                  |
+| `dataplane.Client`    | REST, S3    | API key    | `internal/cli/blog.go`    | `openwa blog …` (hidden reference) |
 
 **A client, not a peer of the server.** Single-user, local-first CLIs own their protocol
 session in the CLI process and keep state on the operator's disk. Borrow their **ergonomics** —
@@ -90,7 +90,7 @@ resolve without its project.
 **Output, retargeting and credential binding are already contracts of this repo.** Output is
 `--output=text|json|ndjson` through `internal/cli/render` — do not adopt another tool's output
 flags, `ndjson` already covers the streaming case. Every fork is self-hostable, so the CLI is
-retargetable without editing a config file: a root persistent `--url` / `ALT_URL` and a saved
+retargetable without editing a config file: a root persistent `--url` / `OPENWA_URL` and a saved
 profile keyed by URL (`internal/cli/url.go`, `internal/cli/profile.go`), which is why
 `credentialFor` answers `HostMismatchError` rather than forwarding a saved credential to a
 host named on the command line. The envelopes and the exit codes are [`cli`](../cli/README.md);

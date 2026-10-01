@@ -22,7 +22,7 @@ coverage.*
 # Local state
 *.db
 *.db-journal
-~/.altempl/
+~/.openwa/
 
 # Editor
 .idea/
@@ -38,7 +38,7 @@ node_modules/
 /docs/superpowers/
 
 # App data
-.altempl-data
+.openwa-data
 .cache
 
 # Local make timestamp; the vendored UI assets themselves are committed.
@@ -52,3 +52,6 @@ node_modules/
 # Track the dir via .gitkeep, ignore every child (pg, future subdirs).
 /docker/data/*
 !/docker/data/.gitkeep
+
+# compiled example binary (go build ./examples/webhook-pong from repo root)
+/webhook-pong

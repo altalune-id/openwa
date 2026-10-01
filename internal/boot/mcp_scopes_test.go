@@ -3,10 +3,10 @@ package boot
 import (
 	"testing"
 
-	"altalune.id/template/internal/controlplane"
-	mcpinternal "altalune.id/template/internal/mcp"
-	"altalune.id/template/internal/platform/authn"
-	rootmcp "altalune.id/template/mcp"
+	"altalune.id/openwa/internal/controlplane"
+	mcpinternal "altalune.id/openwa/internal/mcp"
+	"altalune.id/openwa/internal/platform/authn"
+	rootmcp "altalune.id/openwa/mcp"
 )
 
 // TestEveryMCPToolHasAScope is the S7 twin of controlplane's TestEveryRPCHasAScope, run against the registry registerTools actually builds rather than a restatement of it. SECURITY: a registered tool with no scope, or one the catalog does not name, is a tool every credential in the fleet could call unchecked.

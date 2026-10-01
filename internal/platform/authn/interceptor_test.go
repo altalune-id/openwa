@@ -8,8 +8,8 @@ import (
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 type stubAuth struct{ p session.Principal }

@@ -56,7 +56,7 @@
       e.detail = "";
       e.view = null;
       e.onaction = null;
-      if (tag === "altempl-app") globalThis.__appEl = e;
+      if (tag === "openwa-app") globalThis.__appEl = e;
       return e;
     },
   };

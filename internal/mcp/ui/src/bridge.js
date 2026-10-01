@@ -12,7 +12,7 @@ function createBridge(handlers, loadModule) {
   async function connect() {
     mod = await loadModule();
     // NOTE: capabilities is the SECOND positional argument; omitting the third keeps autoResize on.
-    app = new mod.App({ name: "altempl", version: "1.0.0" }, { availableDisplayModes: ["inline"] });
+    app = new mod.App({ name: "openwa", version: "1.0.0" }, { availableDisplayModes: ["inline"] });
     app.ontoolinput = function (params) {
       const ctx = app.getHostContext();
       const tool = ctx && ctx.toolInfo && ctx.toolInfo.tool ? ctx.toolInfo.tool.name : "";

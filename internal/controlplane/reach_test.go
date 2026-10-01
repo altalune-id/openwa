@@ -10,15 +10,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	apikeyv1 "altalune.id/template/gen/go/apikey/v1"
-	blogv1 "altalune.id/template/gen/go/blog/v1"
-	projectv1 "altalune.id/template/gen/go/project/v1"
-	todov1 "altalune.id/template/gen/go/todo/v1"
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/todo"
+	apikeyv1 "altalune.id/openwa/gen/go/apikey/v1"
+	blogv1 "altalune.id/openwa/gen/go/blog/v1"
+	projectv1 "altalune.id/openwa/gen/go/project/v1"
+	todov1 "altalune.id/openwa/gen/go/todo/v1"
+	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/todo"
 )
 
 type reachFixture struct {
@@ -63,7 +63,7 @@ func (f *reachFixture) key(scopes []string, resourceIDs ...uuid.UUID) string {
 }
 
 func allScopes() []string {
-	return []string{authn.ScopePostsRead, authn.ScopePostsWrite, authn.ScopePostsAdmin, authn.ScopeAPIKeysRead, authn.ScopeAPIKeysWrite}
+	return []string{authn.ScopePostsRead, authn.ScopeProjectsRead, authn.ScopePostsWrite, authn.ScopePostsAdmin, authn.ScopeAPIKeysRead, authn.ScopeAPIKeysWrite}
 }
 
 // TestKeyNeverReachesASiblingProject pins a key to the project it was minted in. SECURITY: every row names a verb that took a sibling project's id; revert the reach check and each one fails.

@@ -16,10 +16,10 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/pluginpb"
 
-	_ "altalune.id/template/gen/go/mcp/v1"
+	_ "altalune.id/openwa/gen/go/mcp/v1"
 )
 
-const fixturePrefix = "ui://altempltest"
+const fixturePrefix = "ui://openwatest"
 
 //nolint:gochecknoglobals // a -update flag for golden files has to be package level.
 var update = flag.Bool("update", false, "rewrite the golden files instead of comparing against them")
@@ -34,37 +34,37 @@ func TestGenerateRefusals(t *testing.T) {
 	}{
 		{
 			name:  "tool name that fails the regex",
-			file:  "altempltest/v1/bad_name.proto",
+			file:  "openwatest/v1/bad_name.proto",
 			wants: []string{"ShoutLoudly", "Shout-Loudly"},
 		},
 		{
 			name:  "duplicate tool name inside one service",
-			file:  "altempltest/v1/bad_dup.proto",
+			file:  "openwatest/v1/bad_dup.proto",
 			wants: []string{"SecondTwin", "twin_tool", "FirstTwin"},
 		},
 		{
 			name:  "streaming rpc",
-			file:  "altempltest/v1/bad_stream.proto",
+			file:  "openwatest/v1/bad_stream.proto",
 			wants: []string{"WatchForever", "unary"},
 		},
 		{
 			name:  "ui name that fails the regex",
-			file:  "altempltest/v1/bad_ui.proto",
+			file:  "openwatest/v1/bad_ui.proto",
 			wants: []string{"BadUI", "App_1"},
 		},
 		{
 			name:  "required naming a field the request message does not have",
-			file:  "altempltest/v1/bad_required.proto",
+			file:  "openwatest/v1/bad_required.proto",
 			wants: []string{"RequireGhost", "ghostField", "projectId"},
 		},
 		{
 			name:  "no description and no leading comment",
-			file:  "altempltest/v1/bad_nodesc.proto",
+			file:  "openwatest/v1/bad_nodesc.proto",
 			wants: []string{"Silent", "silent_tool", "description"},
 		},
 		{
 			name:  "two tool names that generate one Go constant",
-			file:  "altempltest/v1/bad_constclash.proto",
+			file:  "openwatest/v1/bad_constclash.proto",
 			wants: []string{"SecondClash", "_twin", "TwinToolName", "FirstClash"},
 		},
 	}
@@ -86,7 +86,7 @@ func TestGenerateRefusals(t *testing.T) {
 }
 
 func TestGenerateRefusesDuplicateToolNamesAcrossFiles(t *testing.T) {
-	p := newPlugin(t, "altempltest/v1/fixture.proto", "altempltest/v1/bad_echo.proto")
+	p := newPlugin(t, "openwatest/v1/fixture.proto", "openwatest/v1/bad_echo.proto")
 	err := Generate(p, Options{UIPrefix: fixturePrefix})
 	if err == nil {
 		t.Fatal("Generate() error = nil, want a refusal on the cross-file duplicate")
@@ -99,7 +99,7 @@ func TestGenerateRefusesDuplicateToolNamesAcrossFiles(t *testing.T) {
 }
 
 func TestGenerateRefusesUISetWithoutUIPrefix(t *testing.T) {
-	p := newPlugin(t, "altempltest/v1/fixture.proto")
+	p := newPlugin(t, "openwatest/v1/fixture.proto")
 	err := Generate(p, Options{})
 	if err == nil {
 		t.Fatal("Generate() = nil, want a refusal when ui is set but ui_prefix is absent")
@@ -110,7 +110,7 @@ func TestGenerateRefusesUISetWithoutUIPrefix(t *testing.T) {
 }
 
 func TestGenerateWritesOneFilePerAnnotatedService(t *testing.T) {
-	p := newPlugin(t, "altempltest/v1/fixture.proto")
+	p := newPlugin(t, "openwatest/v1/fixture.proto")
 	if err := Generate(p, Options{UIPrefix: fixturePrefix}); err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -122,14 +122,14 @@ func TestGenerateWritesOneFilePerAnnotatedService(t *testing.T) {
 	if len(resp.File) != 1 {
 		t.Fatalf("got %d generated files, want 1", len(resp.File))
 	}
-	if got, want := resp.File[0].GetName(), "altempltest/v1/altempltestv1mcp/fixture_service.mcp.go"; got != want {
+	if got, want := resp.File[0].GetName(), "openwatest/v1/openwatestv1mcp/fixture_service.mcp.go"; got != want {
 		t.Fatalf("generated file name = %q, want %q", got, want)
 	}
 	checkGolden(t, "fixture.mcp.go.golden", resp.File[0].GetContent())
 }
 
 func TestGenerateSkipsServicesWithoutAnnotatedMethods(t *testing.T) {
-	p := newPlugin(t, "altempltest/v1/unannotated.proto")
+	p := newPlugin(t, "openwatest/v1/unannotated.proto")
 	if err := Generate(p, Options{UIPrefix: fixturePrefix}); err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -140,8 +140,8 @@ func TestGenerateSkipsServicesWithoutAnnotatedMethods(t *testing.T) {
 
 func TestInputSchemas(t *testing.T) {
 	tests := []struct{ name, file, golden string }{
-		{"every scalar, nested and repeated shape", "altempltest/v1/fixture.proto", "schemas.json.golden"},
-		{"every well-known type", "altempltest/v1/wellknown.proto", "wellknown_schemas.json.golden"},
+		{"every scalar, nested and repeated shape", "openwatest/v1/fixture.proto", "schemas.json.golden"},
+		{"every well-known type", "openwatest/v1/wellknown.proto", "wellknown_schemas.json.golden"},
 	}
 
 	for _, tt := range tests {
@@ -174,7 +174,7 @@ func TestInputSchemas(t *testing.T) {
 }
 
 func TestRequiredAcceptsEitherProtoJSONSpelling(t *testing.T) {
-	p := newPlugin(t, "altempltest/v1/wellknown.proto")
+	p := newPlugin(t, "openwatest/v1/wellknown.proto")
 
 	for _, file := range p.Files {
 		for _, svc := range file.Services {
@@ -353,7 +353,7 @@ func TestGenerateHonoursRuntimePackage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := newPlugin(t, "altempltest/v1/fixture.proto")
+			p := newPlugin(t, "openwatest/v1/fixture.proto")
 			if err := Generate(p, Options{UIPrefix: fixturePrefix, RuntimePackage: tt.runtime}); err != nil {
 				t.Fatalf("Generate() error = %v", err)
 			}
@@ -373,7 +373,7 @@ func TestGenerateHonoursRuntimePackage(t *testing.T) {
 }
 
 func TestGenerateWithNoRuntimePackageMatchesTheGolden(t *testing.T) {
-	p := newPlugin(t, "altempltest/v1/fixture.proto")
+	p := newPlugin(t, "openwatest/v1/fixture.proto")
 	if err := Generate(p, Options{UIPrefix: fixturePrefix}); err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}

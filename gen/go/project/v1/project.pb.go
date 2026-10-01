@@ -7,7 +7,7 @@
 package projectv1
 
 import (
-	_ "altalune.id/template/gen/go/mcp/v1"
+	_ "altalune.id/openwa/gen/go/mcp/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -204,11 +204,11 @@ const file_project_v1_project_proto_rawDesc = "" +
 	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\x15\n" +
 	"\x13ListProjectsRequest\"G\n" +
 	"\x14ListProjectsResponse\x12/\n" +
-	"\bprojects\x18\x01 \x03(\v2\x13.project.v1.ProjectR\bprojects2\x95\x02\n" +
-	"\x0eProjectService\x12\x82\x02\n" +
-	"\fListProjects\x12\x1f.project.v1.ListProjectsRequest\x1a .project.v1.ListProjectsResponse\"\xae\x01\xca\xf3\x18\xa9\x01\n" +
-	"\fproject_list\x12\x98\x01List the projects the calling credential can reach, with each project's id, slug and name. Call this first to obtain the projectId the other tools take.B\x99\x01\n" +
-	"\x0ecom.project.v1B\fProjectProtoP\x01Z0altalune.id/template/gen/go/project/v1;projectv1\xa2\x02\x03PXX\xaa\x02\n" +
+	"\bprojects\x18\x01 \x03(\v2\x13.project.v1.ProjectR\bprojects2\x9a\x02\n" +
+	"\x0eProjectService\x12\x87\x02\n" +
+	"\fListProjects\x12\x1f.project.v1.ListProjectsRequest\x1a .project.v1.ListProjectsResponse\"\xb3\x01\xca\xf3\x18\xae\x01\n" +
+	"\fproject_list\x12\x98\x01List the projects the calling credential can reach, with each project's id, slug and name. Call this first to obtain the projectId the other tools take.*\x03appB\x97\x01\n" +
+	"\x0ecom.project.v1B\fProjectProtoP\x01Z.altalune.id/openwa/gen/go/project/v1;projectv1\xa2\x02\x03PXX\xaa\x02\n" +
 	"Project.V1\xca\x02\n" +
 	"Project\\V1\xe2\x02\x16Project\\V1\\GPBMetadata\xea\x02\vProject::V1b\x06proto3"
 

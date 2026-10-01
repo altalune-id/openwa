@@ -5,8 +5,8 @@ import (
 
 	"google.golang.org/grpc/codes"
 
-	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
-	"altalune.id/template/internal/apperror"
+	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	"altalune.id/openwa/internal/apperror"
 )
 
 // NotFoundError reports a key that does not exist or is outside the caller's reach.
@@ -221,5 +221,41 @@ func (*ExpiryTooLongError) ToAppError() *apperror.AppError {
 // IsExpiryTooLongError reports whether err is a *ExpiryTooLongError.
 func IsExpiryTooLongError(err error) bool {
 	_, ok := errors.AsType[*ExpiryTooLongError](err)
+	return ok
+}
+
+// InvalidResourceError reports a mint-time resource reference that is neither a known device public id nor a UUID.
+type InvalidResourceError struct{ Raw string }
+
+func (e *InvalidResourceError) Error() string { return "apikey: invalid resource id: " + e.Raw }
+
+// ToAppError maps the error to an InvalidArgument envelope naming the entry.
+func (e *InvalidResourceError) ToAppError() *apperror.AppError {
+	return apperror.New(apperror.CodeAPIKeyInvalidResource, "Unknown device or resource id: "+e.Raw, codes.InvalidArgument,
+		&apperrorv1.ErrorDetail{Code: apperror.CodeAPIKeyInvalidResource, Meta: map[string]string{"field": "resource_ids", "value": e.Raw}})
+}
+
+// IsInvalidResourceError reports whether err's tree contains an *InvalidResourceError.
+func IsInvalidResourceError(err error) bool {
+	_, ok := errors.AsType[*InvalidResourceError](err)
+	return ok
+}
+
+// DeviceBindingScopeError reports a key that binds devices but also carries a scope that is not a device scope.
+type DeviceBindingScopeError struct{}
+
+func (*DeviceBindingScopeError) Error() string {
+	return "apikey: a device-bound key may carry only device scopes"
+}
+
+// ToAppError maps the error to an InvalidArgument envelope.
+func (*DeviceBindingScopeError) ToAppError() *apperror.AppError {
+	return apperror.New(apperror.CodeAPIKeyDeviceBindingScope, "A key bound to devices may carry only device scopes", codes.InvalidArgument,
+		&apperrorv1.ErrorDetail{Code: apperror.CodeAPIKeyDeviceBindingScope, Meta: map[string]string{"field": "scopes"}})
+}
+
+// IsDeviceBindingScopeError reports whether err's tree contains a *DeviceBindingScopeError.
+func IsDeviceBindingScopeError(err error) bool {
+	_, ok := errors.AsType[*DeviceBindingScopeError](err)
 	return ok
 }

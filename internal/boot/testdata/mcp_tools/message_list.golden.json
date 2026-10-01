@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": true
+  },
+  "description": "List the messages of a chat (chatId, cht_...) or a device (deviceId, dev_...), newest first. Pass nextCursor back as cursor for older messages, or a message id (msg_...) as sinceId to get newer ones oldest first.",
+  "inputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "chatId": {
+        "description": "Chat public id (cht_...); list its messages",
+        "type": "string"
+      },
+      "cursor": {
+        "description": "next_cursor of a previous page",
+        "type": "string"
+      },
+      "deviceId": {
+        "description": "Device public id (dev_...); list its messages across chats",
+        "type": "string"
+      },
+      "limit": {
+        "description": "Page size, 1 to 200; default 50",
+        "type": "integer"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "sinceId": {
+        "description": "Message public id (msg_...); return newer messages, oldest first",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "name": "message_list",
+  "title": "Message list"
+}

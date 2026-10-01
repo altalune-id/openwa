@@ -26,7 +26,7 @@ flowchart TB
     ST["<b>Store</b> — an interface the Service owns"]
   end
 
-  DATA["<b>DATA</b> — postgres.go │ sqlite.go, chosen by factory.go<br/>every query filters by org; Postgres adds RLS underneath"]
+  DATA["<b>DATA</b> — postgres.go, built by factory.go<br/>every query filters by org; RLS sits underneath"]
 
   OUT["<b>S5 dispatch</b> — DRIVEN<br/><code>internal/platform/outbox</code> → the tenant's endpoint"]
 

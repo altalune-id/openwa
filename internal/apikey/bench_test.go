@@ -6,12 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/apikey"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/testutil/fakes"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/testutil/fakes"
 )
 
 const benchKeyRows = 1000
@@ -19,7 +20,8 @@ const benchKeyRows = 1000
 func benchCredentials(b *testing.B) (*apikey.Authenticator, map[string]string) {
 	b.Helper()
 
-	store, _, tc := newAPIKeyStoreForTest(b)
+	store := fakes.NewAPIKey()
+	tc := tenant.Context{OrgID: uuid.New(), ProjectID: uuid.New(), UserID: uuid.New()}
 	ctx := tenant.Into(b.Context(), tc)
 
 	var valid string

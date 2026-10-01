@@ -7,11 +7,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
-	mcpinternal "altalune.id/template/internal/mcp"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/db"
+	mcpinternal "altalune.id/openwa/internal/mcp"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/db"
 )
 
 type metadataDoc struct {
@@ -185,11 +186,14 @@ func TestNewSurfaceRejectsAnUnusableResource(t *testing.T) {
 func mcpConfig(t *testing.T, basePath string) *config.Config {
 	t.Helper()
 	c := &config.Config{
-		Mode:     config.ModeSelfhosted,
-		DB:       db.DBConfig{Driver: db.DriverSQLite, DSN: ":memory:"},
-		Genesis:  config.GenesisConfig{Email: "root@example.com", Password: "x"},
-		Security: config.SecurityConfig{EncryptionKey: strings.Repeat("ab", 32)},
+		Mode:      config.ModeSelfhosted,
+		DB:        db.DBConfig{DSN: "postgres://openwa:openwa@localhost:5432/openwa?sslmode=disable"},
+		Genesis:   config.GenesisConfig{Email: "root@example.com", Password: "x"},
+		Security:  config.SecurityConfig{EncryptionKey: strings.Repeat("ab", 32)},
+		WhatsApp:  config.WhatsAppConfig{Engine: "whatsmeow", ClientName: "OpenWA", LeaseTTL: 45 * time.Second, LeaseInterval: 15 * time.Second, LinkTimeout: 3 * time.Minute, MediaMaxBytes: 32 << 20},
+		Retention: config.RetentionConfig{MessageDays: 30},
 	}
+	c.Media.Store = "wa"
 	c.Tenant.SingletonOrg.Slug = "default"
 	c.Tenant.SingletonOrg.Name = "Default Organization"
 	c.HTTP.BaseURL = "https://app.example.com"

@@ -5,9 +5,11 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"altalune.id/openwa/internal/platform/config"
 )
 
-// NOTE: precedence is --url > ALT_URL > the sole saved profile > http.baseURL from config.
+// NOTE: precedence is --url > OPENWA_URL > the sole saved profile > http.baseURL from config.
 func resolveURL(cmd *cobra.Command) string {
 	if v := explicitURL(cmd); v != "" {
 		return v
@@ -26,7 +28,7 @@ func explicitURL(cmd *cobra.Command) string {
 	if f := cmd.Root().PersistentFlags().Lookup("url"); f != nil && f.Changed {
 		return strings.TrimSpace(f.Value.String())
 	}
-	return strings.TrimSpace(os.Getenv("ALT_URL"))
+	return strings.TrimSpace(os.Getenv(config.EnvVar("url")))
 }
 
 func savedProfileURL(path string) string {

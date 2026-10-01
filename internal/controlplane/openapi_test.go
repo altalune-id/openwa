@@ -9,18 +9,18 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/blog/category"
-	"altalune.id/template/internal/blog/tag"
-	"altalune.id/template/internal/controlplane"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform"
-	"altalune.id/template/internal/platform/capabilities"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/testutil/fakes"
-	"altalune.id/template/internal/todo"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/blog/category"
+	"altalune.id/openwa/internal/blog/tag"
+	"altalune.id/openwa/internal/controlplane"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform"
+	"altalune.id/openwa/internal/platform/capabilities"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/testutil/fakes"
+	"altalune.id/openwa/internal/todo"
 )
 
 func openAPIServer(t *testing.T, enabled bool, auth *controlplane.BasicAuth) *httptest.Server {
@@ -50,6 +50,7 @@ func openAPIServer(t *testing.T, enabled bool, auth *controlplane.BasicAuth) *ht
 		blog.NewService(posts, log, reporter.Unexpected, fakes.UnitOfWork, &fakes.Webhooks{}),
 		category.NewService(cats, log, reporter.Unexpected),
 		tag.NewService(tags, log, reporter.Unexpected),
+		nil,
 	)
 	srv.OpenAPIEnabled = enabled
 	srv.OpenAPIBasicAuth = auth
@@ -132,7 +133,7 @@ func TestOpenAPI_BasicAuth_MissingHeader_Returns401(t *testing.T) {
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("status=%d, want 401", resp.StatusCode)
 	}
-	if got := resp.Header.Get("WWW-Authenticate"); !strings.Contains(got, `Basic realm="altempl openapi"`) {
+	if got := resp.Header.Get("WWW-Authenticate"); !strings.Contains(got, `Basic realm="openwa openapi"`) {
 		t.Errorf("WWW-Authenticate=%q", got)
 	}
 }
@@ -216,7 +217,7 @@ func TestOpenAPI_Docs_BasicAuth_MissingHeader_Returns401(t *testing.T) {
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("status=%d, want 401", resp.StatusCode)
 	}
-	if got := resp.Header.Get("WWW-Authenticate"); !strings.Contains(got, `Basic realm="altempl openapi"`) {
+	if got := resp.Header.Get("WWW-Authenticate"); !strings.Contains(got, `Basic realm="openwa openapi"`) {
 		t.Errorf("WWW-Authenticate=%q — must match spec-endpoint realm so browsers reuse creds", got)
 	}
 }

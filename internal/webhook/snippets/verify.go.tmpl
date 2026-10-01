@@ -42,7 +42,7 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unreadable body", http.StatusBadRequest)
 		return
 	}
-	if !verifyWebhook(os.Getenv("ALTEMPL_WEBHOOK_SECRET"), r.Header, body, time.Now()) {
+	if !verifyWebhook(os.Getenv("OPENWA_WEBHOOK_SECRET"), r.Header, body, time.Now()) {
 		http.Error(w, "invalid signature", http.StatusUnauthorized)
 		return
 	}

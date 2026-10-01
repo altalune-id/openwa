@@ -5,8 +5,8 @@ import (
 	"slices"
 	"sync"
 
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tokens"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tokens"
 )
 
 // TokenVerifier is an in-memory tokens.Verifier for tests, accepting a minted token only when its audience matches.

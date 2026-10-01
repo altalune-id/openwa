@@ -7,7 +7,7 @@ import (
 
 	jetpg "github.com/go-jet/jet/v2/postgres"
 
-	pgent "altalune.id/template/internal/platform/db/entity/postgres"
+	pgent "altalune.id/openwa/internal/platform/db/entity/postgres"
 )
 
 func TestNullHelpersCarryTheColumnType(t *testing.T) {

@@ -6,10 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/templates"
+	"github.com/google/uuid"
+
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/templates"
 )
 
 // WelcomeHandler renders the per-user welcome page (T&C accept + display name fixup).
@@ -52,11 +54,11 @@ func (h *WelcomeHandler) PostWelcome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		h.ErrorPage(w, r, http.StatusBadRequest, "Bad request", "Could not parse form body.")
+		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.bad_request", err)
 		return
 	}
 	retTo := SanitizeReturnTo(r.PostForm.Get("return_to"))
-	askAccept := h.Cfg.Compliance.RequireAcceptance
+	askAccept := needsTerms(p, h.TermsUpdatedAt, h.Cfg.Compliance.RequireAcceptance)
 	askName := strings.TrimSpace(p.Name) == ""
 
 	if askAccept && r.PostForm.Get("accept_terms") != "1" {
@@ -87,27 +89,39 @@ func (h *WelcomeHandler) PostWelcome(w http.ResponseWriter, r *http.Request) {
 	if err := h.UpdateSession(r, sid, p); err != nil {
 		h.LogErr("welcome: update session", err)
 	}
+	h.SetFlash(w, r, web.FlashOK, "flash.welcome_saved")
 	http.Redirect(w, r, ResolveReturnTo(h.Cfg.HTTP.BasePath, retTo), http.StatusSeeOther) //nolint:gosec // G710: return_to sanitized via ResolveReturnTo → SanitizeReturnTo
 }
 
 func (h *WelcomeHandler) needsWelcome(p session.Principal) bool {
-	if h.Cfg.Compliance.RequireAcceptance && p.TermsAcceptedAt.IsZero() {
+	if needsTerms(p, h.TermsUpdatedAt, h.Cfg.Compliance.RequireAcceptance) {
 		return true
 	}
 	return strings.TrimSpace(p.Name) == ""
 }
 
+func needsTerms(p session.Principal, since time.Time, required bool) bool {
+	if !required {
+		return false
+	}
+	return p.TermsAcceptedAt.IsZero() || p.TermsAcceptedAt.Before(since)
+}
+
 func (h *WelcomeHandler) view(p session.Principal, retTo, errMsg string) templates.WelcomeView {
-	return templates.WelcomeView{
+	v := templates.WelcomeView{
 		Email:          p.Email,
 		Name:           p.Name,
 		AskDisplayName: strings.TrimSpace(p.Name) == "",
-		AskAccept:      h.Cfg.Compliance.RequireAcceptance && p.TermsAcceptedAt.IsZero(),
+		AskAccept:      needsTerms(p, h.TermsUpdatedAt, h.Cfg.Compliance.RequireAcceptance),
 		TermsURL:       h.termsURL(),
 		PrivacyURL:     h.privacyURL(),
 		ReturnTo:       retTo,
 		Error:          errMsg,
 	}
+	if v.AskAccept && !p.TermsAcceptedAt.IsZero() {
+		v.TermsChangedOn = h.TermsUpdatedAt.Format("2 Jan 2006")
+	}
+	return v
 }
 
 func (h *WelcomeHandler) termsURL() string {
@@ -118,24 +132,16 @@ func (h *WelcomeHandler) privacyURL() string {
 	return cmp.Or(strings.TrimSpace(h.Cfg.Compliance.PrivacyURL), web.Path(h.Cfg.HTTP.BasePath, "/privacy"))
 }
 
-// WelcomeGate redirects signed-in users to /welcome when compliance requires acceptance and their session's TermsAcceptedAt is zero.
-func WelcomeGate(basePath string, requireAcceptance bool) func(http.Handler) http.Handler {
+// WelcomeGate redirects signed-in users to /welcome while compliance requires acceptance and their last acceptance predates termsUpdatedAt; a zero date gates first acceptance only.
+func WelcomeGate(basePath string, requireAcceptance bool, termsUpdatedAt time.Time) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !requireAcceptance {
-				next.ServeHTTP(w, r)
-				return
-			}
-			if isWelcomeSkipped(r.URL.Path) {
+			if !requireAcceptance || isWelcomeSkipped(r.URL.Path) {
 				next.ServeHTTP(w, r)
 				return
 			}
 			p := session.PrincipalFrom(r.Context())
-			if p.UserID == [16]byte{} {
-				next.ServeHTTP(w, r)
-				return
-			}
-			if !p.TermsAcceptedAt.IsZero() {
+			if p.UserID == uuid.Nil || !needsTerms(p, termsUpdatedAt, true) {
 				next.ServeHTTP(w, r)
 				return
 			}

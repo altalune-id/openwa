@@ -16,8 +16,8 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/worker"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/worker"
 )
 
 // ListenerName is the name the broadcast listener worker registers under.

@@ -9,23 +9,23 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"go.opentelemetry.io/otel/propagation"
 
-	"altalune.id/template/internal/platform/tenant"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 const (
 	headerMsgID            = jetstream.MsgIDHeader
-	headerJob              = "Altempl-Job"
-	headerJobVersion       = "Altempl-Job-Version"
-	headerBroadcast        = "Altempl-Broadcast"
-	headerBroadcastVersion = "Altempl-Broadcast-Version"
-	headerCreatedAt        = "Altempl-Created-At"
-	headerOrgID            = "Altempl-Org-Id"
-	headerProjectID        = "Altempl-Project-Id"
-	headerUserID           = "Altempl-User-Id"
-	headerDlqReason        = "Altempl-Dlq-Reason"
-	headerDlqError         = "Altempl-Dlq-Error"
-	headerDlqAttempts      = "Altempl-Dlq-Attempts"
-	headerDlqStreamSeq     = "Altempl-Dlq-Stream-Seq"
+	headerJob              = "Openwa-Job"
+	headerJobVersion       = "Openwa-Job-Version"
+	headerBroadcast        = "Openwa-Broadcast"
+	headerBroadcastVersion = "Openwa-Broadcast-Version"
+	headerCreatedAt        = "Openwa-Created-At"
+	headerOrgID            = "Openwa-Org-Id"
+	headerProjectID        = "Openwa-Project-Id"
+	headerUserID           = "Openwa-User-Id"
+	headerDlqReason        = "Openwa-Dlq-Reason"
+	headerDlqError         = "Openwa-Dlq-Error"
+	headerDlqAttempts      = "Openwa-Dlq-Attempts"
+	headerDlqStreamSeq     = "Openwa-Dlq-Stream-Seq"
 )
 
 type natsCarrier nats.Header

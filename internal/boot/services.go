@@ -3,28 +3,37 @@ package boot
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
-	"altalune.id/template/internal/apikey"
-	"altalune.id/template/internal/auth"
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/blog/category"
-	"altalune.id/template/internal/blog/tag"
-	"altalune.id/template/internal/invite"
-	"altalune.id/template/internal/onboard"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/password"
-	"altalune.id/template/internal/platform"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/capabilities"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/platform/tokens"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/todo"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/webhook"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/auth"
+	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/blog/category"
+	"altalune.id/openwa/internal/blog/tag"
+	"altalune.id/openwa/internal/chat"
+	"altalune.id/openwa/internal/contact"
+	"altalune.id/openwa/internal/device"
+	"altalune.id/openwa/internal/invite"
+	"altalune.id/openwa/internal/message"
+	"altalune.id/openwa/internal/onboard"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/password"
+	"altalune.id/openwa/internal/platform"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/capabilities"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/platform/tokens"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/todo"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/webhook"
+	"altalune.id/openwa/internal/whatsapp"
+	"altalune.id/openwa/internal/whatsapp/meow"
+	"altalune.id/openwa/nanoid"
 )
 
 const apiKeyUsageFlushInterval = 30 * time.Second
@@ -38,6 +47,7 @@ type Services struct {
 	InviteStore  invite.Store
 	OnboardStore onboard.Store
 	WebhookStore webhook.Store
+	DeviceStore  device.Store
 
 	Auth       *auth.Service
 	Users      *user.Service
@@ -50,6 +60,12 @@ type Services struct {
 	Categories *category.Service
 	Tags       *tag.Service
 	Webhooks   *webhook.Service
+	Devices    *device.Service
+	WhatsApp   *whatsapp.Service
+	Runtime    *whatsapp.Runtime
+	Chats      *chat.Service
+	Contacts   *contact.Service
+	Messages   *message.Service
 
 	Onboard *user.OnboardWorkflow
 
@@ -59,7 +75,7 @@ type Services struct {
 	APIKeyUsage *apikey.UsageWorker
 }
 
-func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Capabilities) (*Services, error) {
+func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Capabilities, wa *meow.Container) (*Services, error) {
 	pool := k.Pool
 	pgConn := k.PgConn
 	log := k.Log
@@ -77,12 +93,67 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 	projects := project.NewService(projectStore, log, reporter.Unexpected)
 	todos := todo.NewService(todoStore, log, reporter.Unexpected, k.Queue)
 	onboards := onboard.NewService(onboardStore, log, reporter.Unexpected)
-	uow := tenant.NewUnitOfWork(cfg.DB, pool, pgConn)
+	uow := tenant.NewUnitOfWork(pgConn)
 	webhookStore := webhook.NewStore(cfg.DB, pool, pgConn)
-	webhooks := webhook.NewService(webhookStore, log, reporter.Unexpected, k.Sealer, k.Outbox, projectSlugs{svc: projects})
+	webhooks := webhook.NewService(webhookStore, log, reporter.Unexpected, k.Sealer, k.Outbox, projectSlugs{svc: projects}, webhookServiceOptions(cfg)...)
 	posts := blog.NewService(blog.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected, uow, webhooks)
 	categories := category.NewService(category.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected)
 	tags := tag.NewService(tag.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected)
+
+	owner, err := runtimeOwner()
+	if err != nil {
+		return nil, err
+	}
+	deviceStore := device.NewStore(cfg.DB, pool, pgConn)
+	runtime := whatsapp.NewRuntime(
+		meow.NewEngine(wa, meow.Options{InboundQueueSize: cfg.WhatsApp.InboundQueueSize, Log: log}),
+		whatsapp.NewLeaseStore(cfg.DB, pool),
+		whatsapp.RuntimeConfig{
+			Owner:         owner,
+			LeaseTTL:      cfg.WhatsApp.LeaseTTL,
+			LeaseInterval: cfg.WhatsApp.LeaseInterval,
+			LinkTimeout:   cfg.WhatsApp.LinkTimeout,
+			ParkFor:       cfg.WhatsApp.ParkFor,
+			Sender: whatsapp.SenderConfig{
+				SpacingMin:       cfg.WhatsApp.SendSpacingMin,
+				SpacingMax:       cfg.WhatsApp.SendSpacingMax,
+				TypingBeforeText: cfg.WhatsApp.TypingBeforeText,
+			},
+		},
+		log,
+	)
+	waStore := whatsapp.NewStore(cfg.DB, pool, pgConn)
+	whatsappSvc := whatsapp.NewService(waStore, log, reporter.Unexpected, uow,
+		runtime, webhooks, deviceDescriber{store: deviceStore}, time.Now)
+	runtime.Subscribe(whatsappSvc)
+	devices := device.NewService(deviceStore, log, reporter.Unexpected, uow, deviceSessions{svc: whatsappSvc})
+
+	chats := chat.NewService(chat.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected, uow, groupsForChat{wa: whatsappSvc, devices: deviceStore})
+	contacts := contact.NewService(contact.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected)
+	transport := transportForMessage{wa: whatsappSvc}
+	messages := message.NewService(message.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected, uow, message.Deps{
+		Devices:   devicesForMessage{devices: deviceStore, sessions: waStore},
+		Chats:     chatsForMessage{svc: chats},
+		Contacts:  contactsForMessage{svc: contacts},
+		Transport: transport,
+		Media:     message.NewWAMedia(transport, message.DefaultMediaConcurrency, cfg.WhatsApp.MediaMaxBytes),
+		Fetcher:   newMediaFetcher(cfg.WhatsApp.MediaMaxBytes),
+		Waker:     runtime,
+		Webhooks:  webhooks,
+		Tenants:   tenantsForMessage{orgs: orgStore, projects: projectStore},
+	}, message.Options{
+		BaseURL:       strings.TrimRight(cfg.HTTP.BaseURL, "/") + cfg.HTTP.BasePath,
+		MaxMediaBytes: cfg.WhatsApp.MediaMaxBytes,
+		RetentionDays: cfg.Retention.MessageDays,
+		StaleAfter:    whatsapp.StaleAfter(cfg.WhatsApp.SendSpacingMax),
+	})
+	// NOTE: both setters are set-once and run before Runtime.Run and sup.Register, so the fields they write are never raced.
+	if err := runtime.SetOutbound(outboundForRuntime{svc: messages}); err != nil {
+		return nil, fmt.Errorf("boot: whatsapp outbound: %w", err)
+	}
+	if err := whatsappSvc.SetInbound(inboundForWhatsApp{recorder: messages.Recorder(), messages: messages, contacts: contacts}); err != nil {
+		return nil, fmt.Errorf("boot: whatsapp inbound: %w", err)
+	}
 
 	invitesEnabled := cfg.Mode == config.ModeCloud || cfg.OIDC.Issuer != ""
 
@@ -174,6 +245,7 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 	keyScheme := apikey.NewScheme(cfg.API.KeyPrefix)
 	keyAuthn := apikey.NewAuthenticator(keyStore, keyUsage, keyScheme, orgs)
 	keys := apikey.NewService(keyStore, keyScheme, orgs, projectServiceForAPIKeys{svc: projects}, log, reporter.Unexpected)
+	keys.Devices = apikeyDevices{svc: devices}
 	orgs.OnMemberRemoved(keys.RevokePersonalOf)
 	// SECURITY: key first, so its shape gate rejects a non-key credential without a DB call.
 	tenantResolution := user.WithTenantResolution(
@@ -190,6 +262,7 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 		InviteStore:  inviteStore,
 		OnboardStore: onboardStore,
 		WebhookStore: webhookStore,
+		DeviceStore:  deviceStore,
 		Auth:         auths,
 		Users:        users,
 		Orgs:         orgs,
@@ -201,6 +274,12 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 		Categories:   categories,
 		Tags:         tags,
 		Webhooks:     webhooks,
+		Devices:      devices,
+		WhatsApp:     whatsappSvc,
+		Runtime:      runtime,
+		Chats:        chats,
+		Contacts:     contacts,
+		Messages:     messages,
 		Onboard:      onboardWorkflow,
 		Authn:        chain,
 		KeyAuthn:     keyAuthn,
@@ -222,4 +301,17 @@ func hashGenesisPassword(plain string) (string, error) {
 		return "", nil
 	}
 	return password.Hash(plain)
+}
+
+// NOTE: hostname/pid/nanoid names this process in lease rows, so a restart on the same host never inherits the old owner's leases.
+func runtimeOwner() (string, error) {
+	host, err := os.Hostname()
+	if err != nil || host == "" {
+		host = "unknown-host"
+	}
+	suffix, err := nanoid.New(8)
+	if err != nil {
+		return "", fmt.Errorf("boot: runtime owner: %w", err)
+	}
+	return host + "/" + strconv.Itoa(os.Getpid()) + "/" + suffix, nil
 }

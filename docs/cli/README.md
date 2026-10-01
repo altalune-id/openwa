@@ -1,33 +1,32 @@
-# altempl CLI contract
+# openwa CLI contract
 
 Surface **S6** ([`surfaces`](../surfaces/README.md)). The stable interface for scripting, automation and
 agents. Semver applies from v1.0.0; pre-v1 any minor release may break it, so pin exact versions.
 
 ```
-altempl [global flags] <command> [subcommand] [args] [flags]
+openwa [global flags] <command> [subcommand] [args] [flags]
 ```
 
 Built by Cobra factories in `internal/cli/`, rooted at `NewRootCmd`. The `--help` group headings
 (Runtime, Auth, Tenancy, Domain, Meta) are cosmetic and not part of the contract. Adding a command
 is a procedure, not a contract: [`howto/cli-command.md`](../howto/cli-command.md).
 
-| Part                          | Covers                                                                                  |
-| ----------------------------- | --------------------------------------------------------------------------------------- |
-| [`commands`](commands.md)     | every command with its args, flags and printed contract; `todo`; `blog`; payload fields |
-| [`resolution`](resolution.md) | global flags, token and URL precedence, the `healthz` carve-out                         |
+| Part                          | Covers                                                                  |
+| ----------------------------- | ----------------------------------------------------------------------- |
+| [`commands`](commands.md)     | every command with its args, flags and printed contract; payload fields |
+| [`resolution`](resolution.md) | global flags, token and URL precedence, the `healthz` carve-out         |
 
 ## How a command reaches the domain
 
 R11: the CLI owns no verbs. What a command calls decides which credential it needs.
 
-| Reaches                                    | Commands                                                                    | Credential          |
-| ------------------------------------------ | --------------------------------------------------------------------------- | ------------------- |
-| in-process services (`ServerBootFn`)       | `init`, `serve`, `migrate`, `scheduler`, `auth`, `org`, `project`, `invite` | session file, or DB |
-| control plane S2, Connect (`ClientBootFn`) | `todo`                                                                      | bearer token        |
-| data plane S3, REST                        | `blog`                                                                      | API key             |
-| nothing but `config.Load`                  | `version`, `healthz`, `completion`                                          | none                |
+| Reaches                              | Commands                                                                    | Credential          |
+| ------------------------------------ | --------------------------------------------------------------------------- | ------------------- |
+| in-process services (`ServerBootFn`) | `init`, `serve`, `migrate`, `scheduler`, `auth`, `org`, `project`, `invite` | session file, or DB |
+| control plane (Connect client)       | `device`, `send`, `chat`, `message`, `contact`, `group`                     | bearer token        |
+| nothing but `config.Load`            | `version`, `healthz`, `completion`                                          | none                |
 
-`org`, `project`, `invite` and `todo` resolve a principal before doing anything, so they fail with
+`org`, `project` and `invite` resolve a principal before doing anything, so they fail with
 `not signed in` without a session or `--token`.
 
 ## Command tree
@@ -35,12 +34,16 @@ R11: the CLI owns no verbs. What a command calls decides which credential it nee
 Args, flags and what each command prints: [`commands`](commands.md).
 
 ```
-altempl
+openwa
 ├─ Runtime   init · serve · migrate {up,status,down-to} · scheduler {list,run}
 ├─ Auth      auth {login,logout,whoami,token mint}
 ├─ Tenancy   org {list,create} · project {list,create} · invite {list,send,revoke}
-├─ Domain    todo {list,add,toggle,delete}                             control plane S2
-│            blog {list,get,create,update,publish,unpublish,delete}    data plane S3
+├─ Domain    device {list,get,create,pair,logout,delete}                    control plane S2
+│            send {text,image,document,location}                   control plane S2
+│            chat {list,show}                                      control plane S2
+│            message list                                          control plane S2
+│            contact list                                          control plane S2
+│            group {list,join,leave}                               control plane S2
 └─ Meta      version · healthz · completion
 ```
 
@@ -69,27 +72,26 @@ Error code strings (`GEN005`, `TDO001`, …): [`error codes`](../errors/README.m
 
 ## Output
 
-`--output` picks the format; `render.Detect` falls back to `ALT_OUTPUT`, then to text on a TTY and
+`--output` picks the format; `render.Detect` falls back to `OPENWA_OUTPUT`, then to text on a TTY and
 json otherwise. An unrecognised value falls back to text.
 
-| Format   | Envelope                                                        |
-| -------- | --------------------------------------------------------------- |
-| `text`   | aligned table for lists, `key: value` lines for single records  |
-| `json`   | `{"data": <shape>}` — indented, HTML escaping off, no `meta`    |
-| `ndjson` | one compact JSON object per line, no envelope — **`blog` only** |
+| Format   | Envelope                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------------ |
+| `text`   | aligned table for lists, `key: value` lines for single records                                   |
+| `json`   | `{"data": <shape>}` — indented, HTML escaping off, no `meta`                                     |
+| `ndjson` | one compact JSON object per line, no envelope — list commands of blog, chat, message and contact |
 
-Every command except `blog` treats `ndjson` as `json` and emits the `data` envelope. Only
-`renderPosts` / `renderPost` call `render.NDJSON`.
+List commands (`blog list`, `chat list`, `message list`, `contact list`) stream `ndjson` through `render.NDJSON`; every other command, single-record messaging commands included, treats `ndjson` as `json` and emits the `data` envelope. List `json` is `{"data":{"items":[…],"next_cursor":"…"}}`; list `text` prints a table and, when a next page exists, `more: --cursor <c>` on stderr. `--all` follows `next_cursor` to the last page and is refused together with `--cursor`.
 
 Per-command fields under `data`: [`commands`](commands.md#payload-fields).
 
 ### Errors
 
-`cmd/altempl/main.go` writes the failure through `slog` and returns the exit code. There is no
+`cmd/openwa/main.go` writes the failure through `slog` and returns the exit code. There is no
 error envelope on stdout and `--output` does not affect it. One line on **stderr**:
 
 ```
-2026/01/02 15:04:05 ERROR altempl error="blog get: no such org, project or post"
+2026/01/02 15:04:05 ERROR openwa error="project create: slug already taken"
 ```
 
 `internal/cli/render/error.go` defines a structured alternative
@@ -111,16 +113,15 @@ calls yet. Scripts must key off the **exit code**, not stderr text.
 Present in `--help` and accepted on the command line, but no code reads them. Listed so a script
 does not depend on them; each has a `BACKLOG.md` entry.
 
-| Flag                                | Today                                                     |
-| ----------------------------------- | --------------------------------------------------------- |
-| `--no-interactive`                  | never consulted; prompts still appear                     |
-| `--log-level`, `--log-format`       | flags ignored; `ALT_LOG_LEVEL` / `ALT_LOG_FORMAT` do work |
-| `auth login --print-token`          | plumbed into `loginOpts`, never read; no token is printed |
-| `init --project-slug`               | echoed in the success line; no project is created         |
-| `--org`, `--project` outside `blog` | ignored; the session principal decides                    |
+| Flag                          | Today                                                           |
+| ----------------------------- | --------------------------------------------------------------- |
+| `--no-interactive`            | never consulted; prompts still appear                           |
+| `--log-level`, `--log-format` | flags ignored; `OPENWA_LOG_LEVEL` / `OPENWA_LOG_FORMAT` do work |
+| `auth login --print-token`    | plumbed into `loginOpts`, never read; no token is printed       |
+| `init --project-slug`         | echoed in the success line; no project is created               |
+| `--org`, `--project`          | ignored; the session principal decides                          |
 
-No command writes a session profile (`saveProfile` has no production caller), so `blog` in practice
-needs an explicit `--token` / `ALT_TOKEN` plus `--org` and `--project`.
+No command writes a session profile (`saveProfile` has no production caller).
 
 ## Not on this surface
 

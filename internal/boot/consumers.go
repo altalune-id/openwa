@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"altalune.id/template/internal/platform/queue"
-	"altalune.id/template/internal/todo"
+	"altalune.id/openwa/internal/platform/queue"
+	"altalune.id/openwa/internal/todo"
 )
 
 func consumerDomains() []string { return []string{"todo"} }

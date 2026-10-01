@@ -19,11 +19,11 @@ no SSR gate (R5).
 ## Setup
 
 ```bash
-ALT_TOKENS_ISSUER=https://auth.example.com   # must be reachable — OIDC discovery runs at boot
-ALT_HTTP_BASE_URL=https://app.example.com
-ALT_MCP_ENABLED=true
-ALT_MCP_CHALLENGE_TOKEN=<issued by authl>
-ALT_MCP_APPS_UI=true                         # only if the host renders MCP Apps
+OPENWA_TOKENS_ISSUER=https://auth.example.com   # must be reachable — OIDC discovery runs at boot
+OPENWA_HTTP_BASE_URL=https://app.example.com
+OPENWA_MCP_ENABLED=true
+OPENWA_MCP_CHALLENGE_TOKEN=<issued by authl>
+OPENWA_MCP_APPS_UI=true                         # only if the host renders MCP Apps
 ```
 
 Order is enforced — each step's omission is a boot error:
@@ -100,6 +100,33 @@ sequenceDiagram
 **SECURITY:** a tool failure answers _in the result_, never as a JSON-RPC error — a bare error
 yields a wire error with code zero, which is invalid. Codes: [`error codes`](../errors/README.md).
 
+## Tools
+
+Every tool calls the Connect handler instance S2 serves (`TestMCP_ToolsShareTheConnectHandlerInstance`),
+so its authorization is the RPC's. A device-bound key reaches only its device: a device tool that names
+that device is served, a project-wide tool (`device_list`, `device_pair` with no `deviceId`) is refused —
+the same `Principal.ReachesResource`/`ReachesWholeProject` rule the RPCs apply.
+
+| Tool            | RPC                           | Scope            | App tool (`_meta`) | Mutation | Destructive |
+| --------------- | ----------------------------- | ---------------- | ------------------ | -------- | ----------- |
+| `project_list`  | `ProjectService.ListProjects` | `projects:read`  | yes                | no       | no          |
+| `device_list`   | `DeviceService.ListDevices`   | `devices:read`   | yes                | no       | no          |
+| `device_get`    | `DeviceService.GetDevice`     | `devices:read`   | no                 | no       | no          |
+| `device_pair`   | `DeviceService.StartLink`     | `devices:write`  | yes                | yes      | no          |
+| `device_logout` | `DeviceService.Unlink`        | `devices:write`  | no                 | yes      | yes         |
+| `message_send`  | `MessageService.Send`         | `messages:write` | yes                | yes      | no          |
+| `message_list`  | `MessageService.List`         | `messages:read`  | no                 | no       | no          |
+| `chat_list`     | `ChatService.List`            | `chats:read`     | yes                | no       | no          |
+| `contact_list`  | `ContactService.List`         | `contacts:read`  | no                 | no       | no          |
+| `group_list`    | `ChatService.ListGroups`      | `chats:read`     | no                 | no       | no          |
+| `group_join`    | `ChatService.JoinGroup`       | `chats:write`    | no                 | yes      | no          |
+
+A device-bound API key is refused on the messaging tools (`PermissionDenied`), because they enter through the
+project scope, whose reach check a bound key never satisfies; it reaches its device only over the per-device REST verbs (S3).
+
+The Apps UI (`ui://openwa/app`) renders three views: `project_list`, `device_list` and `device_pair`
+(`internal/mcp/ui/src/views/`). `device_get` and `device_logout` are plain tools with no view.
+
 ## Adding a tool
 
 Steps, in order: [`howto/mcp-tool.md`](../howto/mcp-tool.md) — the annotation on a **unary** RPC,
@@ -135,11 +162,11 @@ blank panel in every host.
 
 ### UI link
 
-`mcp.appsUI=true` publishes one self-contained bundle at `ui://altempl/app`, media type
+`mcp.appsUI=true` publishes one self-contained bundle at `ui://openwa/app`, media type
 `text/html;profile=mcp-app`, and binds every tool carrying a `ui:`:
 
 ```json
-"_meta": { "ui": { "resourceUri": "ui://altempl/app" } }
+"_meta": { "ui": { "resourceUri": "ui://openwa/app" } }
 ```
 
 - **Exactly one key. No flat `ui/resourceUri` sibling.** Both meta schemas are
@@ -156,7 +183,7 @@ blank panel in every host.
 | `go test ./mcp/... ./internal/mcp/...` | transport, registry, scope, meta |
 | `make check`                           | everything but the smoke script  |
 
-The smoke script boots on ephemeral SQLite against a stub issuer and asserts capabilities, tool
+The smoke script boots on Postgres against a stub issuer and asserts capabilities, tool
 names and schemas, `_meta.ui` carrying one key, the bundle's media type and self-containment,
 the 401 challenge, an in-result scope denial, and the metadata document. Needs `go`, `curl`,
 `jq`, `python3`. CI runs it as its own job.

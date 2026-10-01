@@ -1,0 +1,10 @@
+{
+  "deviceId": "dev_SupportDevice001",
+  "link": {
+    "method": "qr",
+    "outcome": "pending",
+    "qr": "2@abc",
+    "png": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "expiresAt": "2026-09-28T09:01:00Z"
+  }
+}

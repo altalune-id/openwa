@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"altalune.id/template/httpclient"
-	"altalune.id/template/nanoid"
+	"altalune.id/openwa/httpclient"
+	"altalune.id/openwa/nanoid"
 
 	"github.com/go-resty/resty/v2"
 )
@@ -24,7 +24,7 @@ const (
 )
 
 const (
-	resendUserAgent      = "altempl-mailer-resend/1"
+	resendUserAgent      = "openwa-mailer-resend/1"
 	resendBodyLimit      = 64 << 10
 	resendTimeout        = 10 * time.Second
 	resendIdempotencyLen = 24

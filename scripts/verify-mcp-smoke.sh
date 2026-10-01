@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Boots `altempl serve` with the MCP surface (S7) on ephemeral SQLite and asserts its wire shape.
+# Boots `openwa serve` with the MCP surface (S7) on Postgres and asserts its wire shape.
 set -uo pipefail
 
 cd "$(dirname -- "$0")/.."
@@ -11,11 +11,11 @@ for tool in go curl jq python3; do
     fi
 done
 
-tmpdir=$(mktemp -d -t altempl-mcp-smoke.XXXXXX)
+tmpdir=$(mktemp -d -t openwa-mcp-smoke.XXXXXX)
 
-BIN="${tmpdir}/altempl"
-if ! go build -o "$BIN" ./cmd/altempl; then
-    echo "go build ./cmd/altempl failed" >&2
+BIN="${tmpdir}/openwa"
+if ! go build -o "$BIN" ./cmd/openwa; then
+    echo "go build ./cmd/openwa failed" >&2
     exit 1
 fi
 
@@ -27,6 +27,9 @@ cleanup() {
         fi
     done
     rm -rf "$tmpdir"
+    if [ -n "${PGC:-}" ]; then "$runtime" rm -f "$PGC" >/dev/null 2>&1 || true
+    elif [ -n "${TEST_PG_DSN:-}" ]; then psql "$TEST_PG_DSN" -q -c "DROP DATABASE IF EXISTS ${SMOKE_DB} WITH (FORCE)" >/dev/null 2>&1 || true
+    fi
 }
 trap cleanup EXIT
 
@@ -58,8 +61,8 @@ pick_port() {
 }
 
 ISSUER_PORT=$(pick_port) || fail "no free port for the stub issuer"
-APP_PORT=$(pick_port) || fail "no free port for altempl"
-[ "$ISSUER_PORT" != "$APP_PORT" ] || fail "stub issuer and altempl drew the same port"
+APP_PORT=$(pick_port) || fail "no free port for openwa"
+[ "$ISSUER_PORT" != "$APP_PORT" ] || fail "stub issuer and openwa drew the same port"
 
 ISSUER="http://127.0.0.1:${ISSUER_PORT}"
 BASE="http://127.0.0.1:${APP_PORT}"
@@ -91,25 +94,37 @@ for _ in $(seq 1 60); do
 done
 [ "$issuer_ready" -eq 1 ] || fail "stub issuer did not come up on ${ISSUER}"
 
-export ALT_DB_DRIVER=sqlite
-export ALT_DB_DSN="${tmpdir}/altempl.db"
-export ALT_DB_AUTO_MIGRATE=true
-export ALT_HTTP_ADDR="127.0.0.1:${APP_PORT}"
-export ALT_HTTP_BASE_URL="$BASE"
-export ALT_SESSION_PATH="${tmpdir}/session.json"
-export ALT_MAIL_DRIVER=console
-export ALT_GENESIS_EMAIL="admin@altempl.local"
-export ALT_GENESIS_PASSWORD="mcp-smoke-genesis-pw"
-export ALT_SECURITY_ENCRYPTION_KEY="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-export ALT_API_KEY_PREFIX="key_"
-export ALT_TOKENS_ISSUER="$ISSUER"
-export ALT_MCP_ENABLED=true
-export ALT_MCP_APPS_UI=true
+SMOKE_DB="openwa_smoke_$(LC_ALL=C tr -dc a-z0-9 </dev/urandom | head -c 8)"
+if [ -n "${TEST_PG_DSN:-}" ]; then
+    command -v psql >/dev/null || { echo "psql is required to create the smoke database on TEST_PG_DSN" >&2; exit 1; }
+    psql "$TEST_PG_DSN" -v ON_ERROR_STOP=1 -q -c "CREATE DATABASE ${SMOKE_DB} TEMPLATE template0"
+    SMOKE_DSN=$(printf '%s' "$TEST_PG_DSN" | sed -E "s#(postgres(ql)?://[^/]+)/[^?]*#\1/${SMOKE_DB}#")
+else
+    runtime=$(command -v docker || command -v podman) || { echo "need TEST_PG_DSN or docker/podman" >&2; exit 1; }
+    PGC=$("$runtime" run -d --rm -e POSTGRES_USER=openwa -e POSTGRES_PASSWORD=openwa -e POSTGRES_DB="$SMOKE_DB" -p 127.0.0.1::5432 postgres:17-alpine)
+    pgport=$("$runtime" port "$PGC" 5432/tcp | sed 's/.*://')
+    for _ in $(seq 1 30); do "$runtime" exec "$PGC" pg_isready -U openwa >/dev/null 2>&1 && break; sleep 1; done
+    SMOKE_DSN="postgres://openwa:openwa@127.0.0.1:${pgport}/${SMOKE_DB}?sslmode=disable"
+fi
+export OPENWA_DB_DSN="$SMOKE_DSN"
+export OPENWA_DB_AUTO_MIGRATE=true
+export OPENWA_DB_ALLOW_BYPASS_RLS=true
+export OPENWA_HTTP_ADDR="127.0.0.1:${APP_PORT}"
+export OPENWA_HTTP_BASE_URL="$BASE"
+export OPENWA_SESSION_PATH="${tmpdir}/session.json"
+export OPENWA_MAIL_DRIVER=console
+export OPENWA_GENESIS_EMAIL="admin@openwa.local"
+export OPENWA_GENESIS_PASSWORD="mcp-smoke-genesis-pw"
+export OPENWA_SECURITY_ENCRYPTION_KEY="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+export OPENWA_API_KEY_PREFIX="key_"
+export OPENWA_TOKENS_ISSUER="$ISSUER"
+export OPENWA_MCP_ENABLED=true
+export OPENWA_MCP_APPS_UI=true
 
-if ! "$BIN" init --email admin@altempl.local --org-slug smoke-org --org-name "Smoke Org" \
+if ! "$BIN" init --email admin@openwa.local --org-slug smoke-org --org-name "Smoke Org" \
     >"${tmpdir}/init.log" 2>&1; then
     cat "${tmpdir}/init.log" >&2
-    fail "altempl init failed"
+    fail "openwa init failed"
 fi
 
 "$BIN" serve >"$servelog" 2>&1 &
@@ -140,7 +155,7 @@ console_post() {
 }
 
 code=$(console_post /login "${tmpdir}/login.html" \
-    --data-urlencode "email=${ALT_GENESIS_EMAIL}" --data-urlencode "password=${ALT_GENESIS_PASSWORD}")
+    --data-urlencode "email=${OPENWA_GENESIS_EMAIL}" --data-urlencode "password=${OPENWA_GENESIS_PASSWORD}")
 [ "$code" = "303" ] || fail "console login returned ${code}, want 303"
 
 code=$(console_post /orgs/smoke-org/projects "${tmpdir}/project.html" \
@@ -148,19 +163,23 @@ code=$(console_post /orgs/smoke-org/projects "${tmpdir}/project.html" \
 [ "$code" = "303" ] || fail "project create returned ${code}, want 303"
 
 mint_key() {
-    local name scopes out code key
+    local name out code key
+    local -a scope_args=()
     name="$1"
-    scopes="$2"
+    shift
+    for scope in "$@"; do
+        scope_args+=(--data-urlencode "scopes=${scope}")
+    done
     out="${tmpdir}/mint-${name}.html"
     code=$(console_post /orgs/smoke-org/projects/smoke-proj/apikeys "$out" \
-        --data-urlencode "name=${name}" --data-urlencode "scopes=${scopes}" --data-urlencode "expires_in=30")
+        --data-urlencode "name=${name}" "${scope_args[@]}" --data-urlencode "expires_in=30")
     [ "$code" = "200" ] || fail "minting API key ${name} returned ${code}, want 200"
     key=$(grep -oE 'select-all[^>]*>key_[A-Za-z0-9_-]{20,}' "$out" | grep -oE 'key_[A-Za-z0-9_-]{20,}' | head -1)
     [ -n "$key" ] || fail "minting API key ${name} revealed no plaintext"
     printf "%s" "$key"
 }
 
-READ_KEY=$(mint_key "mcp-reader" "posts:read")
+READ_KEY=$(mint_key "mcp-reader" "projects:read" "devices:read" "messages:read" "chats:read" "contacts:read")
 NOSCOPE_KEY=$(mint_key "mcp-keys-only" "apikeys:read")
 
 rpc() {
@@ -212,8 +231,8 @@ require_true "$init_out" '.result.capabilities.resources.listChanged == true' \
     "initialize did not advertise resources.listChanged — mcp.appsUI publishes resources"
 require_true "$init_out" '.result.protocolVersion | type == "string" and length > 0' \
     "initialize returned no protocolVersion"
-require_true "$init_out" '.result.serverInfo.name == "altempl"' \
-    "initialize named a server other than altempl"
+require_true "$init_out" '.result.serverInfo.name == "openwa"' \
+    "initialize named a server other than openwa"
 
 tools_out="${tmpdir}/tools-list.json"
 code=$(rpc "$tools_out" "$READ_KEY" '{"jsonrpc":"2.0","id":2,"method":"tools/list"}')
@@ -221,10 +240,10 @@ code=$(rpc "$tools_out" "$READ_KEY" '{"jsonrpc":"2.0","id":2,"method":"tools/lis
 
 names=$(jqx "$tools_out" '[.result.tools[].name] | sort | join(",")') \
     || fail "tools/list returned no tools array"
-[ "$names" = "blog_list,blog_publish,member_list,project_list,todo_create" ] \
-    || fail "tools/list published [${names}], want [blog_list,blog_publish,member_list,project_list,todo_create]"
+[ "$names" = "chat_list,contact_list,device_get,device_list,device_logout,device_pair,group_join,group_list,member_list,message_list,message_send,project_list" ] \
+    || fail "tools/list published [${names}], want [chat_list,contact_list,device_get,device_list,device_logout,device_pair,group_join,group_list,member_list,message_list,message_send,project_list] — 12 tools"
 
-for tool in blog_list blog_publish project_list todo_create; do
+for tool in chat_list contact_list device_get device_list device_logout device_pair group_join group_list member_list message_list message_send project_list; do
     require_true "$tools_out" \
         ".result.tools[] | select(.name == \"${tool}\") | .description | type == \"string\" and length > 0" \
         "tool ${tool} carries no description — a host renders it unlabelled"
@@ -233,16 +252,65 @@ for tool in blog_list blog_publish project_list todo_create; do
         "tool ${tool} carries no object inputSchema"
 done
 
-meta_keys=$(jqx "$tools_out" '.result.tools[] | select(.name == "blog_list") | ._meta | keys | join(",")') \
-    || fail "blog_list carries no _meta — mcp.appsUI must bind it to the app resource"
+meta_keys=$(jqx "$tools_out" '.result.tools[] | select(.name == "project_list") | ._meta | keys | join(",")') \
+    || fail "project_list carries no _meta — mcp.appsUI must bind it to the app resource"
 [ "$meta_keys" = "ui" ] \
-    || fail "blog_list _meta carries keys [${meta_keys}], want exactly [ui] — a strict host rejects any extra sibling"
+    || fail "project_list _meta carries keys [${meta_keys}], want exactly [ui] — a strict host rejects any extra sibling"
 require_true "$tools_out" \
-    '.result.tools[] | select(.name == "blog_list") | ._meta.ui.resourceUri == "ui://altempl/app"' \
-    "blog_list _meta.ui.resourceUri is not ui://altempl/app"
+    '.result.tools[] | select(.name == "project_list") | ._meta.ui.resourceUri == "ui://openwa/app"' \
+    "project_list _meta.ui.resourceUri is not ui://openwa/app"
 require_true "$tools_out" \
-    '.result.tools[] | select(.name == "blog_list") | ._meta | has("ui/resourceUri") | not' \
-    'blog_list _meta carries the deprecated flat "ui/resourceUri" sibling — the pair breaks strict hosts'
+    '.result.tools[] | select(.name == "project_list") | ._meta | has("ui/resourceUri") | not' \
+    'project_list _meta carries the deprecated flat "ui/resourceUri" sibling — the pair breaks strict hosts'
+
+meta_keys_device_list=$(jqx "$tools_out" '.result.tools[] | select(.name == "device_list") | ._meta | keys | join(",")') \
+    || fail "device_list carries no _meta — mcp.appsUI must bind it to the app resource"
+[ "$meta_keys_device_list" = "ui" ] \
+    || fail "device_list _meta carries keys [${meta_keys_device_list}], want exactly [ui] — a strict host rejects any extra sibling"
+require_true "$tools_out" \
+    '.result.tools[] | select(.name == "device_list") | ._meta.ui.resourceUri == "ui://openwa/app"' \
+    "device_list _meta.ui.resourceUri is not ui://openwa/app"
+require_true "$tools_out" \
+    '.result.tools[] | select(.name == "device_list") | ._meta | has("ui/resourceUri") | not' \
+    'device_list _meta carries the deprecated flat "ui/resourceUri" sibling — the pair breaks strict hosts'
+
+meta_keys_device_pair=$(jqx "$tools_out" '.result.tools[] | select(.name == "device_pair") | ._meta | keys | join(",")') \
+    || fail "device_pair carries no _meta — mcp.appsUI must bind it to the app resource"
+[ "$meta_keys_device_pair" = "ui" ] \
+    || fail "device_pair _meta carries keys [${meta_keys_device_pair}], want exactly [ui] — a strict host rejects any extra sibling"
+require_true "$tools_out" \
+    '.result.tools[] | select(.name == "device_pair") | ._meta.ui.resourceUri == "ui://openwa/app"' \
+    "device_pair _meta.ui.resourceUri is not ui://openwa/app"
+require_true "$tools_out" \
+    '.result.tools[] | select(.name == "device_pair") | ._meta | has("ui/resourceUri") | not' \
+    'device_pair _meta carries the deprecated flat "ui/resourceUri" sibling — the pair breaks strict hosts'
+
+meta_keys_message_send=$(jqx "$tools_out" '.result.tools[] | select(.name == "message_send") | ._meta | keys | join(",")') \
+    || fail "message_send carries no _meta — mcp.appsUI must bind it to the app resource"
+[ "$meta_keys_message_send" = "ui" ] \
+    || fail "message_send _meta carries keys [${meta_keys_message_send}], want exactly [ui] — a strict host rejects any extra sibling"
+require_true "$tools_out" \
+    '.result.tools[] | select(.name == "message_send") | ._meta.ui.resourceUri == "ui://openwa/app"' \
+    "message_send _meta.ui.resourceUri is not ui://openwa/app"
+require_true "$tools_out" \
+    '.result.tools[] | select(.name == "message_send") | ._meta | has("ui/resourceUri") | not' \
+    'message_send _meta carries the deprecated flat "ui/resourceUri" sibling — the pair breaks strict hosts'
+
+meta_keys_chat_list=$(jqx "$tools_out" '.result.tools[] | select(.name == "chat_list") | ._meta | keys | join(",")') \
+    || fail "chat_list carries no _meta — mcp.appsUI must bind it to the app resource"
+[ "$meta_keys_chat_list" = "ui" ] \
+    || fail "chat_list _meta carries keys [${meta_keys_chat_list}], want exactly [ui] — a strict host rejects any extra sibling"
+require_true "$tools_out" \
+    '.result.tools[] | select(.name == "chat_list") | ._meta.ui.resourceUri == "ui://openwa/app"' \
+    "chat_list _meta.ui.resourceUri is not ui://openwa/app"
+require_true "$tools_out" \
+    '.result.tools[] | select(.name == "chat_list") | ._meta | has("ui/resourceUri") | not' \
+    'chat_list _meta carries the deprecated flat "ui/resourceUri" sibling — the pair breaks strict hosts'
+
+require_true "$tools_out" '.result.tools[] | select(.name == "message_list") | has("_meta") | not' \
+    "message_list carries _meta; only message_send and chat_list are the messaging app tools"
+require_true "$tools_out" '.result.tools[] | select(.name == "device_get") | has("_meta") | not' \
+    "device_get carries _meta — only device_list and device_pair are app tools"
 
 projects_out="${tmpdir}/project-list.json"
 code=$(rpc "$projects_out" "$READ_KEY" \
@@ -253,52 +321,59 @@ require_true "$projects_out" '.result.isError != true' \
 require_true "$projects_out" '[.result.content[].text] | join(" ") | test("smoke-proj")' \
     "project_list did not name the caller's own project"
 
-blog_default_out="${tmpdir}/blog-list-default.json"
-code=$(rpc "$blog_default_out" "$READ_KEY" \
-    '{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"blog_list","arguments":{}}}')
-[ "$code" = "200" ] || fail "argument-less blog_list returned HTTP ${code}, want 200"
-require_true "$blog_default_out" '.result.isError != true' \
-    "blog_list with no projectId did not fall back to the credential's active project"
+devices_out="${tmpdir}/device-list.json"
+code=$(rpc "$devices_out" "$READ_KEY" \
+    '{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"device_list","arguments":{}}}')
+[ "$code" = "200" ] || fail "device_list returned HTTP ${code}, want 200"
+require_true "$devices_out" '.result.isError != true' \
+    "device_list with no projectId did not fall back to the credential's active project"
+
+chats_out="${tmpdir}/chat-list.json"
+code=$(rpc "$chats_out" "$READ_KEY" \
+    '{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"chat_list","arguments":{}}}')
+[ "$code" = "200" ] || fail "chat_list returned HTTP ${code}, want 200"
+require_true "$chats_out" '.result.isError != true' \
+    "chat_list with no projectId did not fall back to the credential's active project"
 
 res_out="${tmpdir}/resources-list.json"
 code=$(rpc "$res_out" "$READ_KEY" '{"jsonrpc":"2.0","id":3,"method":"resources/list"}')
 [ "$code" = "200" ] || fail "resources/list returned HTTP ${code}, want 200"
 require_true "$res_out" \
-    '[.result.resources[] | select(.uri == "ui://altempl/app" and .mimeType == "text/html;profile=mcp-app")] | length == 1' \
-    'resources/list does not publish ui://altempl/app at text/html;profile=mcp-app'
+    '[.result.resources[] | select(.uri == "ui://openwa/app" and .mimeType == "text/html;profile=mcp-app")] | length == 1' \
+    'resources/list does not publish ui://openwa/app at text/html;profile=mcp-app'
 
 read_out="${tmpdir}/resources-read.json"
 code=$(rpc "$read_out" "$READ_KEY" \
-    '{"jsonrpc":"2.0","id":4,"method":"resources/read","params":{"uri":"ui://altempl/app"}}')
+    '{"jsonrpc":"2.0","id":4,"method":"resources/read","params":{"uri":"ui://openwa/app"}}')
 [ "$code" = "200" ] || fail "resources/read returned HTTP ${code}, want 200"
 require_true "$read_out" \
-    '.result.contents[0].uri == "ui://altempl/app" and .result.contents[0].mimeType == "text/html;profile=mcp-app"' \
-    'resources/read did not return ui://altempl/app at text/html;profile=mcp-app'
+    '.result.contents[0].uri == "ui://openwa/app" and .result.contents[0].mimeType == "text/html;profile=mcp-app"' \
+    'resources/read did not return ui://openwa/app at text/html;profile=mcp-app'
 
 bundle="${tmpdir}/app.html"
 jqx "$read_out" '.result.contents[0].text' >"$bundle" || fail "resources/read returned no text body"
 bundle_size=$(wc -c <"$bundle" | tr -d ' ')
 if [ "$bundle_size" -lt 400000 ]; then
-    fail "ui://altempl/app is ${bundle_size} bytes, want >= 400000 — a vendored bundle is missing"
+    fail "ui://openwa/app is ${bundle_size} bytes, want >= 400000 — a vendored bundle is missing"
 fi
 for global in __extApps __lit; do
     grep -q "globalThis\.${global}=" "$bundle" \
-        || fail "ui://altempl/app does not inline globalThis.${global} — its vendored bundle is missing"
+        || fail "ui://openwa/app does not inline globalThis.${global} — its vendored bundle is missing"
 done
 
 # A host renders the bundle in a sandboxed frame with no network, so any external reference is dead.
 if grep -oE '(src|href)[[:space:]]*=[[:space:]]*"[^"]*"' "$bundle" >"${tmpdir}/refs.txt"; then
     if [ -s "${tmpdir}/refs.txt" ]; then
         fail_context=$(sort -u "${tmpdir}/refs.txt")
-        fail "ui://altempl/app references external files — an MCP Apps bundle must be self-contained"
+        fail "ui://openwa/app references external files — an MCP Apps bundle must be self-contained"
     fi
 fi
 if grep -q '@import' "$bundle"; then
     fail_context=$(grep -n '@import' "$bundle")
-    fail "ui://altempl/app contains an @import — an MCP Apps bundle must be self-contained"
+    fail "ui://openwa/app contains an @import — an MCP Apps bundle must be self-contained"
 fi
 
-call_body='{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"blog_list","arguments":{"projectId":"00000000-0000-0000-0000-000000000000"}}}'
+call_body='{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"project_list","arguments":{}}}'
 
 unauth_headers="${tmpdir}/unauth.headers"
 unauth_out="${tmpdir}/unauth.json"
@@ -321,9 +396,9 @@ noscope_out="${tmpdir}/noscope.json"
 code=$(rpc "$noscope_out" "$NOSCOPE_KEY" "$call_body")
 [ "$code" = "200" ] || fail "scope-denied tools/call returned HTTP ${code}, want 200"
 require_true "$noscope_out" '.result.isError == true' \
-    "a credential without posts:read was allowed to run blog_list"
+    "a credential without projects:read was allowed to run project_list"
 require_true "$noscope_out" '[.result.content[].text] | join(" ") | test("scope")' \
-    "the scope denial for blog_list does not name a scope"
+    "the scope denial for project_list does not name a scope"
 
 meta_out="${tmpdir}/metadata.json"
 code=$(curl -s -o "$meta_out" -w "%{http_code}" "$metadata_url")
@@ -333,7 +408,7 @@ resource=$(jqx "$meta_out" '.resource') || fail "${metadata_url} names no resour
     || fail "metadata resource is ${resource}, want ${AUDIENCE} — the verifier enforces that audience"
 require_true "$meta_out" "[.authorization_servers[]] | index(\"${ISSUER}\") != null" \
     "metadata does not name ${ISSUER} as an authorization server"
-require_true "$meta_out" '[.scopes_supported[]] | index("posts:read") != null and index("posts:write") != null' \
+require_true "$meta_out" '[.scopes_supported[]] | index("projects:read") != null and index("members:read") != null and index("devices:read") != null and index("messages:write") != null and index("chats:read") != null and index("contacts:read") != null' \
     "metadata scopes_supported does not cover the registered tools' scopes"
 
 kill -TERM "$SERVE_PID"
@@ -367,5 +442,5 @@ fi
 mkdir -p .cache
 cp "$servelog" .cache/verify-mcp.log 2>/dev/null || true
 
-echo "OK: initialize + 5 tools + ui://altempl/app (${bundle_size} bytes) + RFC 9728 challenge; shutdown in ${elapsed}s"
+echo "OK: initialize + 12 tools + ui://openwa/app (${bundle_size} bytes) + RFC 9728 challenge; shutdown in ${elapsed}s"
 exit 0

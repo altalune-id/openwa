@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/i18n"
+	"altalune.id/openwa/internal/i18n"
 )
 
 func TestSanitizeRedirect(t *testing.T) {
@@ -144,4 +144,25 @@ func TestSwitcher_NilBundlePanics(t *testing.T) {
 		}
 	}()
 	i18n.Switcher(i18n.SwitcherOpts{})
+}
+
+func TestSwitcher_CallsOnSwitchedBeforeRedirect(t *testing.T) {
+	t.Parallel()
+	b := i18n.NewEmbeddedBundle(i18n.EnUS)
+	called := false
+	h := i18n.Switcher(i18n.SwitcherOpts{Bundle: b, OnSwitched: func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.Header().Set("X-Hook", "ran")
+	}})
+	form := url.Values{"locale": {"id-ID"}, "redirect": {"/x"}}
+	req := httptest.NewRequest(http.MethodPost, "/locale", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if !called || rr.Header().Get("X-Hook") != "ran" {
+		t.Fatalf("OnSwitched must run before the redirect is written")
+	}
+	if rr.Code != http.StatusSeeOther {
+		t.Errorf("status=%d", rr.Code)
+	}
 }

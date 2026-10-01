@@ -4,7 +4,7 @@ package main
 import (
 	"google.golang.org/protobuf/compiler/protogen"
 
-	"altalune.id/template/cmd/protoc-gen-mcp/internal/gen"
+	"altalune.id/openwa/cmd/protoc-gen-mcp/internal/gen"
 )
 
 func main() {

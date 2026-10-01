@@ -41,8 +41,15 @@ flowchart LR
 | S6 cli           | the resolved principal, or slugs      | in-process: the principal; remote: `--org` / `--project`      |
 | S7 mcp           | the principal — **no path segment**   | a `projectId` argument checked against the principal's org    |
 
-Two non-surface sources: the **scheduler**, on the same `tenant.Enumerator` fan-out, and **boot / onboarding**,
-which enters the org it is creating because none exists yet.
+Three non-surface sources: the **scheduler**, on the same `tenant.Enumerator` fan-out; **boot / onboarding**,
+which enters the org it is creating because none exists yet; and **the whatsapp runtime**, which binds each
+sink call to the org and project recorded on the lease or link attempt (`sinkContext` in
+`internal/whatsapp/sink.go`, with no `UserID`). The runtime's lease table is the one cross-tenant read it makes,
+and it has no RLS by design (`schema/leases_not_tenant_test.go`).
+
+A device-scoped request takes its scope from the surface like any other. `device.Service.Resolve` then turns the
+public id (`dev_…`) into a device inside the caller's project only, and the `device.Sessions` port is called with
+the device's UUID, never the public id.
 
 Per-surface steps live in [`howto`](../howto/README.md). This document is the contract every one of those
 recipes satisfies, plus one rule none of them states: **resolve scope with that surface's own primitive —
@@ -132,7 +139,7 @@ resource-pinned key fails it outright. Steps:
 - **CLI** is dual-mode, and so is its scope. In-process commands (`org`, `project`, `invite`) build
   `tenant.Context` from the principal `cli.Resolve` returns — the session file, or a token verified through
   `Whoami` — and enter it with `tenant.Into`. The remote `blog` commands are a data-plane client instead:
-  `--org` / `--project` (or `ALT_ORG` / `ALT_PROJECT`, or the profile) become path slugs, and the API key
+  `--org` / `--project` (or `OPENWA_ORG` / `OPENWA_PROJECT`, or the profile) become path slugs, and the API key
   still has to agree with them.
 - **Ingest** is credential-free machine push under `/hooks/{provider}/`. Provider identity _is_ the
   authorization (R4), and the surface establishes **no** tenant scope of its own — the template ships no
@@ -192,9 +199,9 @@ which turned each of these into its own debugging session.
 | `TestRequireProject_AdmitsAnySiblingProjectInTheCallersOrg` | the org-level model being narrowed by accident             |
 | `TestTenantGateIsNotCopiedIntoHandlers`                     | a handler rebuilding the gate and skipping the org check   |
 | `TestMCP_JWTResolvesItsTenantFromMembership`                | an issuer naming a tenant its subject has no membership in |
-| `internal/org/definer_integration_test.go`                  | writes that only pass because the test role bypasses RLS   |
+| `internal/org/definer_test.go`                              | writes that only pass because the test role bypasses RLS   |
 | `schema/tenant_policy_guard_test.go`                        | a migration inlining the GUC instead of calling the helper |
 
-The route walk runs on SQLite, whose org store scopes by explicit argument rather than by context, so it
-cannot see org-domain scope bugs. Those need the Postgres integration tests running as a **non-BYPASSRLS**
+The route walk runs on Postgres with `AllowBypassRLS: true`, a bypassing role, so RLS refuses nothing there and
+it cannot see org-domain scope bugs. Those need the Postgres tests running as a **non-BYPASSRLS**
 role — a test connecting as a superuser proves nothing about RLS.

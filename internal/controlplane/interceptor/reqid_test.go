@@ -9,8 +9,8 @@ import (
 
 	"connectrpc.com/connect"
 
-	"altalune.id/template/internal/controlplane/interceptor"
-	"altalune.id/template/reqid"
+	"altalune.id/openwa/internal/controlplane/interceptor"
+	"altalune.id/openwa/reqid"
 )
 
 type emptyReq struct{}

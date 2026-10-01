@@ -1,6 +1,6 @@
 package todo
 
-import "altalune.id/template/internal/platform/queue"
+import "altalune.id/openwa/internal/platform/queue"
 
 // LogCompletionJob exposes logCompletionJob for tests outside the package.
 func LogCompletionJob() queue.Job { return logCompletionJob() }

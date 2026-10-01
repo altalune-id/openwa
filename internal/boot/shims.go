@@ -5,14 +5,16 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/auth"
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/dataplane"
-	"altalune.id/template/internal/invite"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/user"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/auth"
+	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/dataplane"
+	"altalune.id/openwa/internal/device"
+	"altalune.id/openwa/internal/invite"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/user"
 )
 
 type userStoreForInvite struct{ store user.Store }
@@ -318,4 +320,16 @@ func postRefOf(p *blog.Post) dataplane.PostRef {
 		Published:  p.Status == blog.StatusPublished,
 		Version:    p.Version,
 	}
+}
+
+type apikeyDevices struct{ svc *device.Service }
+
+var _ apikey.DeviceResolver = apikeyDevices{}
+
+func (a apikeyDevices) DeviceIDs(ctx context.Context, publicIDs []string) (map[string]uuid.UUID, error) {
+	return a.svc.IDs(ctx, publicIDs)
+}
+
+func (a apikeyDevices) DevicePublicIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]string, error) {
+	return a.svc.PublicIDs(ctx, ids)
 }

@@ -9,13 +9,12 @@ import (
 	"log/slog"
 	"time"
 
-	"altalune.id/template/scheduler"
+	"altalune.id/openwa/scheduler"
 )
 
 const unlockBudget = 5 * time.Second
 
 var (
-	_ scheduler.Locker = NoopLocker{}
 	_ scheduler.Locker = (*PgLocker)(nil)
 )
 
@@ -24,14 +23,6 @@ func LockKey(name string) int64 {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(name))
 	return int64(h.Sum64()) //nolint:gosec // G115: wrapping to int64 is intentional; pg_advisory_lock takes a signed bigint.
-}
-
-// NoopLocker always acquires; SQLite has a single writing process.
-type NoopLocker struct{}
-
-// TryLock implements scheduler.Locker.
-func (NoopLocker) TryLock(context.Context, string) (release func(), acquired bool, err error) {
-	return func() {}, true, nil
 }
 
 // PgLocker implements scheduler.Locker with session-scoped Postgres advisory locks.
@@ -43,13 +34,8 @@ type PgLocker struct {
 // NewPgLocker builds the Postgres leader lock over pool's writer handle.
 func NewPgLocker(pool Pool, log *slog.Logger) *PgLocker { return &PgLocker{pool: pool, log: log} }
 
-// NewLocker returns the driver-appropriate scheduler.Locker.
-func NewLocker(cfg DBConfig, pool Pool, log *slog.Logger) scheduler.Locker {
-	if cfg.Driver == DriverPostgres {
-		return NewPgLocker(pool, log)
-	}
-	return NoopLocker{}
-}
+// NewLocker returns the Postgres scheduler leader lock over pool's writer handle.
+func NewLocker(pool Pool, log *slog.Logger) *PgLocker { return NewPgLocker(pool, log) }
 
 // TryLock implements scheduler.Locker. NOTE: an advisory lock is session-scoped, so it is held on one pinned connection, never the pool.
 func (l *PgLocker) TryLock(ctx context.Context, name string) (release func(), acquired bool, err error) {

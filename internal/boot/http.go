@@ -7,40 +7,45 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 
-	"altalune.id/template/internal/apikey"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/auth"
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/blog/category"
-	blogtag "altalune.id/template/internal/blog/tag"
-	"altalune.id/template/internal/controlplane"
-	"altalune.id/template/internal/dataplane"
-	i18npkg "altalune.id/template/internal/i18n"
-	"altalune.id/template/internal/ingest"
-	"altalune.id/template/internal/invite"
-	"altalune.id/template/internal/onboard"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform"
-	"altalune.id/template/internal/platform/capabilities"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/todo"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/web"
-	webhandlers "altalune.id/template/internal/web/handlers"
-	webmw "altalune.id/template/internal/web/middleware"
-	"altalune.id/template/internal/webhook"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/auth"
+	"altalune.id/openwa/internal/chat"
+	"altalune.id/openwa/internal/contact"
+	"altalune.id/openwa/internal/controlplane"
+	"altalune.id/openwa/internal/dataplane"
+	"altalune.id/openwa/internal/device"
+	i18npkg "altalune.id/openwa/internal/i18n"
+	"altalune.id/openwa/internal/ingest"
+	"altalune.id/openwa/internal/invite"
+	"altalune.id/openwa/internal/legal"
+	"altalune.id/openwa/internal/message"
+	"altalune.id/openwa/internal/onboard"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform"
+	"altalune.id/openwa/internal/platform/capabilities"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/web"
+	webhandlers "altalune.id/openwa/internal/web/handlers"
+	webmw "altalune.id/openwa/internal/web/middleware"
+	"altalune.id/openwa/internal/webhook"
+	"altalune.id/openwa/version"
 )
 
 func buildAPIHandler(cfg *config.Config, k *platform.Kernel, s *Services) (*controlplane.Server, http.Handler) {
-	srv := controlplane.New(cfg, k, s.Auth, s.Users, s.Orgs, s.Projects, s.Todos, s.Invites, s.TodoStore, s.Posts, s.Categories, s.Tags)
+	srv := controlplane.New(cfg, k, s.Auth, s.Users, s.Orgs, s.Projects, s.Todos, s.Invites, s.TodoStore, s.Posts, s.Categories, s.Tags, s.Devices)
 	srv.Authn = s.Authn
 	srv.KeyPrefix = s.KeyAuthn.Scheme().Prefix()
 	srv.APIKeys = s.APIKeys
+	srv.Messages, srv.Chats, srv.Contacts = s.Messages, s.Chats, s.Contacts
 	if !cfg.API.Enabled {
 		return srv, nil
 	}
@@ -57,9 +62,15 @@ func buildDataHandler(cfg *config.Config, caps capabilities.Capabilities, slogge
 		Orgs:     orgServiceForDataplane{svc: s.Orgs},
 		Projects: projectServiceForDataplane{svc: s.Projects},
 		Posts:    blogServiceForDataplane{svc: s.Posts},
-		Authz:    s.KeyAuthn,
-		Caps:     caps,
-		Log:      slogger,
+		Devices:  deviceServiceForDataplane{svc: s.Devices},
+		Messages: messagesForDataplane{svc: s.Messages, chats: s.Chats, devices: s.Devices},
+		Chats:    chatsForDataplane{svc: s.Chats, devices: s.Devices},
+		Contacts: contactsForDataplane{svc: s.Contacts, devices: s.Devices},
+
+		MaxMediaBytes: cfg.WhatsApp.MediaMaxBytes,
+		Authz:         s.KeyAuthn,
+		Caps:          caps,
+		Log:           slogger,
 	})
 }
 
@@ -82,14 +93,14 @@ func buildWebHandler(
 	users *user.Service,
 	orgs *org.Service,
 	projects *project.Service,
-	todos *todo.Service,
 	invites *invite.Service,
 	onboards *onboard.Service,
-	posts *blog.Service,
-	cats *category.Service,
-	tags *blogtag.Service,
 	apiKeys *apikey.Service,
 	webhooks *webhook.Service,
+	devices *device.Service,
+	chats *chat.Service,
+	messages *message.Service,
+	contacts *contact.Service,
 	required *atomic.Bool,
 	onComplete func(ctx context.Context),
 	setupToken string,
@@ -100,6 +111,8 @@ func buildWebHandler(
 	defaultLoc i18npkg.Locale,
 ) (handler http.Handler, routes []string) { //nolint:nonamedreturns // two return values differ in role
 	deps := newWebDeps(cfg, caps, kernel.Sessions, slogger)
+	termsSince := termsUpdatedAt(cfg, slogger)
+	deps.TermsUpdatedAt = termsSince
 	deps.Orgs = orgs
 	deps.Projects = projects
 	deps.I18n = bundle
@@ -110,8 +123,11 @@ func buildWebHandler(
 	homeHandler := webhandlers.NewHomeHandler(deps, orgs, projects)
 	orgHandler := webhandlers.NewOrgHandler(deps, orgs)
 	projectHandler := webhandlers.NewProjectHandler(deps, projects)
-	todoHandler := webhandlers.NewTodoHandler(deps, projects, todos)
-	blogHandler := webhandlers.NewBlogHandler(deps, projects, posts, cats, tags)
+	overviewHandler := webhandlers.NewProjectOverviewHandler(deps, projects, devices, messages)
+	deviceHandler := webhandlers.NewDeviceHandler(deps, projects, devices)
+	inboxHandler := webhandlers.NewInboxHandler(deps, projects, chats, messages, devices, cfg.WhatsApp.MediaMaxBytes)
+	contactsHandler := webhandlers.NewContactsHandler(deps, projects, contacts, devices)
+	settingsHandler := webhandlers.NewSettingsHandler(deps, projects, messages)
 	apiKeyHandler := webhandlers.NewAPIKeyHandler(deps, projects, apiKeys)
 	webhookHandler := webhandlers.NewWebhookHandler(deps, projects, webhooks)
 	inviteHandler := webhandlers.NewInviteHandler(deps, orgs, invites)
@@ -126,7 +142,7 @@ func buildWebHandler(
 		BasePath: cfg.HTTP.BasePath,
 		HealthOK: healthOK,
 		AppHandlers: []web.Register{
-			authHandler, onboardingHandler, onboardHandler, homeHandler, orgHandler, projectHandler, todoHandler, blogHandler, apiKeyHandler, webhookHandler, inviteHandler, localeHandler, welcomeHandler, signupHandler, legalHandler,
+			authHandler, onboardingHandler, onboardHandler, homeHandler, orgHandler, projectHandler, overviewHandler, deviceHandler, inboxHandler, contactsHandler, settingsHandler, apiKeyHandler, webhookHandler, inviteHandler, localeHandler, welcomeHandler, signupHandler, legalHandler,
 		},
 		APIHandler:         apiHandler,
 		DataHandler:        dataHandler,
@@ -136,7 +152,7 @@ func buildWebHandler(
 		MCPMetadataPath:    mcp.MetadataPath,
 		MCPChallengeRoutes: mcp.ChallengeRoutes,
 		RobotsCfg:          &struct{ RobotsTxt string }{RobotsTxt: cfg.HTTP.RobotsTxt},
-		Chains:             surfaceChains(cfg, kernel, slogger, reporter, errTmpl, bundle, defaultLoc, required),
+		Chains:             surfaceChains(cfg, kernel, slogger, reporter, errTmpl, bundle, defaultLoc, required, termsSince),
 	})
 }
 
@@ -149,6 +165,7 @@ func surfaceChains(
 	bundle *i18npkg.Bundle,
 	defaultLoc i18npkg.Locale,
 	required *atomic.Bool,
+	termsSince time.Time,
 ) web.SurfaceChains {
 	edge := []web.Middleware{
 		webmw.RequestID,
@@ -173,7 +190,8 @@ func surfaceChains(
 				UserLookup: sessionLocaleLookup,
 			}),
 			webhandlers.OnboardingGate(cfg.HTTP.BasePath, required),
-			webhandlers.WelcomeGate(cfg.HTTP.BasePath, cfg.Compliance.RequireAcceptance),
+			webhandlers.WelcomeGate(cfg.HTTP.BasePath, cfg.Compliance.RequireAcceptance, termsSince),
+			webmw.Flash([]byte(cfg.HTTP.StateSecret), cfg.HTTP.BasePath, cfg.HTTP.CookieSecure),
 		}),
 		Control: edge,
 		Data: slices.Concat(edge, []web.Middleware{
@@ -219,7 +237,16 @@ func newWebDeps(cfg *config.Config, caps capabilities.Capabilities, sessions ses
 		Caps:     caps,
 		Sessions: sessions,
 		Logger:   stdlog.New(logSlogWriter{log: slogger}, "", 0),
+
+		AssetVersion: assetVersion(),
 	}
+}
+
+func assetVersion() string {
+	if version.Version == "" {
+		return strconv.FormatInt(time.Now().Unix(), 10)
+	}
+	return version.Default()
 }
 
 type logSlogWriter struct{ log *slog.Logger }
@@ -237,4 +264,16 @@ func cspOptions(cfg config.CSPConfig) webmw.CSPOptions {
 		ReportOnly: cfg.ReportOnly,
 		ReportURI:  cfg.ReportURI,
 	}
+}
+
+func termsUpdatedAt(cfg *config.Config, log *slog.Logger) time.Time {
+	if strings.TrimSpace(cfg.Compliance.TermsURL) != "" {
+		return time.Time{}
+	}
+	doc, err := legal.Terms()
+	if err != nil {
+		log.Error("boot: terms document failed to parse; re-acceptance disabled", "err", err)
+		return time.Time{}
+	}
+	return doc.UpdatedAt
 }

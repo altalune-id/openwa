@@ -6,7 +6,7 @@ Keys: [`config`](../config/README.md#scheduler) and [`queue`](../queue/README.md
 ## Scheduler
 
 Jobs run in-process, registered as one `Worker` on the same `Supervisor` as the HTTP listener.
-`altempl scheduler list` prints what is registered; cadence and timezone keys:
+`openwa scheduler list` prints what is registered; cadence and timezone keys:
 [`config`](../config/README.md#scheduler).
 
 **Multiple replicas.** Singleton is per job, not per deployment:
@@ -17,8 +17,7 @@ Jobs run in-process, registered as one `Worker` on the same `Supervisor` as the 
 | `session-sweep`           | system | every 1h (±5m jitter) | yes       |
 
 Scale replicas freely. Do not designate a "scheduler replica" for correctness; leader election is
-per tick, via `pg_try_advisory_lock` on the writer handle — no migration, no lock table. Under
-`driver: sqlite` the locker is a no-op, since there is one writing process.
+per tick, via `pg_try_advisory_lock` on the writer handle — no migration, no lock table.
 
 **Pool sizing caveat.** An advisory lock is session-scoped, so each in-flight singleton job **pins
 one writer connection** for its whole run. If `db.maxOpenConns` is capped at all, it must exceed the
@@ -38,12 +37,12 @@ worker, not a job.
 NATS JetStream behind `queue.Submit` and `queue.Emit`. Off by default; the contract, including the
 full `serve` flag matrix: [`queue`](../queue/README.md).
 
-**NATS on Railway.** Deploy Railway's NATS template, then set on every altempl service:
+**NATS on Railway.** Deploy Railway's NATS template, then set on every openwa service:
 
 ```bash
-ALT_QUEUE_ENABLED=true
-ALT_QUEUE_URL=nats://nats.railway.internal:4222
-ALT_QUEUE_TOKEN=<the template's token>
+OPENWA_QUEUE_ENABLED=true
+OPENWA_QUEUE_URL=nats://nats.railway.internal:4222
+OPENWA_QUEUE_TOKEN=<the template's token>
 ```
 
 - SECURITY: connect over the **private network with the token**, never the public TCP proxy. The
@@ -86,5 +85,5 @@ and `--consumer-only` excludes `--scheduler-only`.
 - **Set `queue.enabled=true`.** The onboarding gate is per-process memory. Only the replica that
   completes `/onboard` clears its own; the others learn through the `system.onboarding_completed`
   broadcast. Without NATS they keep redirecting to `/onboard` until they restart.
-- **Pin `ALT_ONBOARD_SETUP_TOKEN`.** Unset, each replica mints and logs its own token, so the
+- **Pin `OPENWA_ONBOARD_SETUP_TOKEN`.** Unset, each replica mints and logs its own token, so the
   `/onboard` URL from one replica's log fails on another.

@@ -3,30 +3,16 @@ syntax = "proto3";
 package blog.v1;
 
 import "google/protobuf/timestamp.proto";
-import "mcp/v1/annotations.proto";
 
-option go_package = "altalune.id/template/gen/go/blog/v1;blogv1";
+option go_package = "altalune.id/openwa/gen/go/blog/v1;blogv1";
 
 service BlogService {
   rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
   rpc GetPost(GetPostRequest) returns (GetPostResponse);
-  rpc ListPosts(ListPostsRequest) returns (ListPostsResponse) {
-    option (mcp.v1.tool) = {
-      name: "blog_list"
-      description: "List a project's blog posts. Omit projectId to use the credential's active project; call project_list to discover the others. Pass status \"published\" for published posts only."
-      ui: "app"
-    };
-  }
+  rpc ListPosts(ListPostsRequest) returns (ListPostsResponse);
   rpc UpdatePost(UpdatePostRequest) returns (UpdatePostResponse);
   rpc DeletePost(DeletePostRequest) returns (DeletePostResponse);
-  rpc PublishPost(PublishPostRequest) returns (PublishPostResponse) {
-    option (mcp.v1.tool) = {
-      name: "blog_publish"
-      description: "Publish a draft blog post. Requires the post's UUID."
-      mutation: true
-      required: ["postId"]
-    };
-  }
+  rpc PublishPost(PublishPostRequest) returns (PublishPostResponse);
   rpc UnpublishPost(UnpublishPostRequest) returns (UnpublishPostResponse);
 }
 

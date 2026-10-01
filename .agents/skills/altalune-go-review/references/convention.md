@@ -15,7 +15,7 @@ route probes mistaken for feature tests** — the `altalune-go-convention` skill
 "Tests that cannot fail". Apply every one; both halves of the fake rule matter (a fake must not
 filter by project, and a versioned `Store`'s fake _must_ honour `ifVersion`).
 
-**A fixture that cannot prove what it claims.** The default integration fixture connects as the
+**A fixture that cannot prove what it claims.** The default Postgres fixture connects as the
 container superuser, which bypasses RLS outright, so `..._OtherOrgIsInvisible` on it proves
 nothing. A real one migrates as a BYPASSRLS owner with `RLSEnforce=true`, binds the store to a
 separate `NOBYPASSRLS` login role, and asserts the policies exist.
@@ -40,9 +40,7 @@ trusted. Verify the claim before copying a rationale from a neighbouring file.
 precision; `time.Now()` on macOS is already microsecond-granular, so a nanosecond value survives
 a round trip locally but not on Linux. `got.CreatedAt.Equal(want.CreatedAt)` therefore passes on
 every developer machine and fails in CI. Compare against
-`want.CreatedAt.Truncate(time.Microsecond)`, as `internal/org/definer_integration_test.go` does.
-SQLite keeps the full nanosecond value through `SQLiteTime`, so the same aggregate round-trips at
-different precision per driver.
+`want.CreatedAt.Truncate(time.Microsecond)`, as `internal/org/definer_test.go` does.
 
 ## Module checklist
 
@@ -53,7 +51,6 @@ neither lists:
 - `Store` lives in `store.go` beside the aggregate. Verbs only, `context.Context` first. No
   `postgres_repo.go`, no splitting by layer.
 - Every service method opens a span.
-- Every SQLite timestamp goes through `SQLiteTime`, bind sites included.
 - The version guard rejects anything outside `[1, math.MaxInt32]`.
 - Migration has `ENABLE` + `FORCE` + a policy, inside `{{if .RLSEnforce}}`, with the
   `{{.TablePrefix}}` literal; `make tenant-tables` regenerated.
@@ -75,7 +72,6 @@ Not covered read-only — ask before running, since they write or boot:
 | ------------------------------------ | -------------------------------------------------- |
 | `make tenant-tables`, then diff      | a new tenant table missing from the generated list |
 | `make generate`, then diff           | stale templ or buf output                          |
-| `verify.sh --check --integration`    | anything touching `postgres.go` or a migration     |
 | `bash scripts/verify-serve-smoke.sh` | boot, `/healthz`, clean SIGTERM shutdown           |
 | `bash scripts/verify-mcp-smoke.sh`   | the MCP surface, an `(mcp.v1.tool)` annotation     |
 

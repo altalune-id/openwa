@@ -5,8 +5,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/queue"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/queue"
 )
 
 func onboardingCompleted() queue.Broadcast {

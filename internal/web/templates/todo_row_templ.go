@@ -9,8 +9,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/icons"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
 )
 
 type TodoRow struct {
@@ -112,7 +112,7 @@ func TodoRowFragment(d web.LayoutData, t TodoRow) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var7 = []any{"flex size-5 items-center justify-center rounded border text-xs transition",
-			templ.KV("border-green-500 bg-green-500 text-white", t.Done),
+			templ.KV("border-success bg-success text-success-foreground", t.Done),
 			templ.KV("border-border bg-card hover:border-muted-foreground", !t.Done),
 		}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var7...)
@@ -159,7 +159,7 @@ func TodoRowFragment(d web.LayoutData, t TodoRow) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var10 = []any{"flex-1 text-sm", templ.KV("text-muted-foreground/70 line-through", t.Done), templ.KV("text-foreground", !t.Done)}
+		var templ_7745c5c3_Var10 = []any{"flex-1 text-sm", templ.KV("text-muted-foreground line-through", t.Done), templ.KV("text-foreground", !t.Done)}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var10...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -184,7 +184,7 @@ func TodoRowFragment(d web.LayoutData, t TodoRow) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(t.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/todo_row.templ`, Line: 44, Col: 141}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/todo_row.templ`, Line: 44, Col: 138}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -255,7 +255,7 @@ func TodoRowFragment(d web.LayoutData, t TodoRow) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\" class=\"rounded p-1 text-muted-foreground/70 opacity-0 transition group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400 focus:opacity-100\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\" class=\"rounded-md p-1 text-muted-foreground opacity-0 transition group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive focus:opacity-100\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

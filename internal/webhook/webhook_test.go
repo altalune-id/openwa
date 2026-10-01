@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/events"
-	"altalune.id/template/internal/webhook"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/events"
+	"altalune.id/openwa/internal/webhook"
 )
 
 const validURL = "https://example.com/hook"
@@ -274,4 +274,43 @@ func TestEndpoint_SetSecrets(t *testing.T) {
 
 	e.SetSecrets(webhook.SealedSecrets{Primary: []byte("p")})
 	assert.Nil(t, e.Secrets.Secondary)
+}
+
+func TestNew_AllowInsecureURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		url      string
+		insecure bool
+		wantErr  bool
+	}{
+		{name: "http rejected by default", url: "http://127.0.0.1:9099/hook", wantErr: true},
+		{name: "http loopback accepted when allowed", url: "http://127.0.0.1:9099/hook", insecure: true},
+		{name: "https accepted when allowed", url: validURL, insecure: true},
+		{name: "ftp rejected when allowed", url: "ftp://127.0.0.1/hook", insecure: true, wantErr: true},
+		{name: "http userinfo rejected when allowed", url: "http://user:pass@127.0.0.1/hook", insecure: true, wantErr: true},
+		{name: "http no host rejected when allowed", url: "http:///hook", insecure: true, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var opts []webhook.ValidateOption
+			if tt.insecure {
+				opts = append(opts, webhook.AllowInsecureURL())
+			}
+			_, err := webhook.New(uuid.New(), uuid.New(), tt.url, "", validTypes(), opts...)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.True(t, webhook.IsInvalidURLError(err))
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestEndpoint_Update_AllowInsecureURL(t *testing.T) {
+	e, err := webhook.New(uuid.New(), uuid.New(), validURL, "", validTypes())
+	require.NoError(t, err)
+	require.Error(t, e.Update("http://127.0.0.1:9099/hook", "", validTypes(), true))
+	require.NoError(t, e.Update("http://127.0.0.1:9099/hook", "", validTypes(), true, webhook.AllowInsecureURL()))
+	assert.Equal(t, "http://127.0.0.1:9099/hook", e.URL)
 }

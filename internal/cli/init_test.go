@@ -6,15 +6,16 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/boot"
-	"altalune.id/template/internal/platform/config"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/boot"
+	"altalune.id/openwa/internal/platform/config"
 )
 
 func TestInit_SucceedsAndSecondCallReportsAlreadyOnboarded(t *testing.T) {
 	setSelfhostedEnv(t)
-	t.Setenv("ALT_GENESIS_EMAIL", "")
-	t.Setenv("ALT_GENESIS_PASSWORD", "")
+	usePostgres(t)
+	t.Setenv("OPENWA_GENESIS_EMAIL", "")
+	t.Setenv("OPENWA_GENESIS_PASSWORD", "")
 
 	bootFn := func(ctx context.Context, cfg *config.Config, _ ...boot.Option) (*boot.Server, error) {
 		return boot.BootServer(ctx, cfg)
@@ -69,8 +70,9 @@ func TestInit_SucceedsAndSecondCallReportsAlreadyOnboarded(t *testing.T) {
 
 func TestInit_CompletesOnboardingThroughTheServer(t *testing.T) {
 	setSelfhostedEnv(t)
-	t.Setenv("ALT_GENESIS_EMAIL", "")
-	t.Setenv("ALT_GENESIS_PASSWORD", "")
+	usePostgres(t)
+	t.Setenv("OPENWA_GENESIS_EMAIL", "")
+	t.Setenv("OPENWA_GENESIS_PASSWORD", "")
 
 	var calls int
 	bootFn := func(ctx context.Context, cfg *config.Config, _ ...boot.Option) (*boot.Server, error) {
@@ -96,8 +98,9 @@ func TestInit_CompletesOnboardingThroughTheServer(t *testing.T) {
 
 func TestInit_BlankOrgSlugGeneratesAndPrintsTheRealSlug(t *testing.T) {
 	setSelfhostedEnv(t)
-	t.Setenv("ALT_GENESIS_EMAIL", "")
-	t.Setenv("ALT_GENESIS_PASSWORD", "")
+	usePostgres(t)
+	t.Setenv("OPENWA_GENESIS_EMAIL", "")
+	t.Setenv("OPENWA_GENESIS_PASSWORD", "")
 
 	var booted *config.Config
 	bootFn := func(ctx context.Context, cfg *config.Config, _ ...boot.Option) (*boot.Server, error) {

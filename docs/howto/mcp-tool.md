@@ -40,7 +40,7 @@ Worked example: `blog_list` and `blog_publish` in `api/blog/v1/blog.proto`.
 - A tool missing from that catalog resolves to the empty scope and is **denied**, not admitted.
 - Boot fails closed in both directions: `assertMCPWiring` on a declared domain with no registrar, `assertMCPTools` on a catalog entry nobody registered.
 - **A JWT is scope-checked here**, unlike on the control plane. An MCP token is a delegated grant, so its scopes are the limit of the delegation.
-- The generator refuses a streaming RPC, a name outside `^[a-z_][a-z0-9_]{0,63}$`, a duplicate name, a missing description with no leading comment, a `required:` naming a field the input lacks, and a `ui:` with no `ui_prefix` (set to `ui://altempl` in `buf.gen.yaml`).
+- The generator refuses a streaming RPC, a name outside `^[a-z_][a-z0-9_]{0,63}$`, a duplicate name, a missing description with no leading comment, a `required:` naming a field the input lacks, and a `ui:` with no `ui_prefix` (set to `ui://openwa` in `buf.gen.yaml`).
 - `ui:` needs `mcp.appsUI=true`; a `_meta.ui` naming an unpublished resource **panics** at boot. The bundle must be self-contained — re-vendor with `make mcp-ui-vendor`.
 - A tool failure answers HTTP 200 with `result.isError = true`, never as a JSON-RPC error.
 

@@ -6,7 +6,7 @@
       }
     },
     "mimeType": "text/html;profile=mcp-app",
-    "name": "altempl app",
-    "uri": "ui://altempl/app"
+    "name": "openwa app",
+    "uri": "ui://openwa/app"
   }
 ]

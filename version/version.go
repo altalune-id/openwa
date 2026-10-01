@@ -3,6 +3,7 @@ package version
 
 import (
 	_ "embed"
+	"strconv"
 	"strings"
 )
 
@@ -35,5 +36,24 @@ func Get() Info {
 }
 
 func String() string {
-	return "altempl " + Default() + " (commit " + Commit + ", built " + BuildTime + ")"
+	return "openwa " + Default() + " (commit " + Commit + ", built " + BuildTime + ")"
+}
+
+// Triple returns the MAJOR, MINOR, PATCH numbers of Default(), or zeros when it does not parse.
+func Triple() [3]uint32 {
+	s := strings.TrimPrefix(Default(), "v")
+	s, _, _ = strings.Cut(s, "-")
+	parts := strings.Split(s, ".")
+	var out [3]uint32
+	if len(parts) != 3 {
+		return out
+	}
+	for i, p := range parts {
+		n, err := strconv.ParseUint(p, 10, 32)
+		if err != nil {
+			return [3]uint32{}
+		}
+		out[i] = uint32(n)
+	}
+	return out
 }

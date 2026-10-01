@@ -8,10 +8,10 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/grpc/codes"
 
-	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/controlplane/interceptor"
-	"altalune.id/template/reqid"
+	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/controlplane/interceptor"
+	"altalune.id/openwa/reqid"
 )
 
 func TestWrap_AppErrorConvertsToConnectError(t *testing.T) {

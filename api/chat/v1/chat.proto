@@ -1,0 +1,134 @@
+syntax = "proto3";
+
+package chat.v1;
+
+import "google/protobuf/timestamp.proto";
+import "mcp/v1/annotations.proto";
+
+option go_package = "altalune.id/openwa/gen/go/chat/v1;chatv1";
+
+service ChatService {
+  rpc List(ListRequest) returns (ListResponse) {
+    option (mcp.v1.tool) = {
+      name: "chat_list"
+      description: "List the project's WhatsApp chats, most recent activity first. Filter by deviceId, kind (dm or group) or a name prefix q; pass nextCursor back as cursor for the next page."
+      ui: "app"
+    };
+  }
+  rpc Get(GetRequest) returns (GetResponse);
+  rpc MarkRead(MarkReadRequest) returns (MarkReadResponse);
+  rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse) {
+    option (mcp.v1.tool) = {
+      name: "group_list"
+      description: "List the WhatsApp groups a device has joined, with participant counts, plus groups it has left. Omit deviceId when the project has exactly one device."
+    };
+  }
+  rpc GroupInfo(GroupInfoRequest) returns (GroupInfoResponse);
+  rpc JoinGroup(JoinGroupRequest) returns (JoinGroupResponse) {
+    option (mcp.v1.tool) = {
+      name: "group_join"
+      description: "Join a WhatsApp group by its invite link (https://chat.whatsapp.com/...). Omit deviceId when the project has exactly one device."
+      mutation: true
+      required: ["inviteLink"]
+    };
+  }
+  rpc LeaveGroup(LeaveGroupRequest) returns (LeaveGroupResponse);
+}
+
+message Chat {
+  // Public id (cht_...)
+  string id = 1;
+  // Device public id (dev_...)
+  string device_id = 2;
+  string jid = 3;
+  // "dm" or "group"
+  string kind = 4;
+  string name = 5;
+  google.protobuf.Timestamp last_message_at = 6;
+  string last_message_preview = 7;
+  int32 unread_count = 8;
+  bool archived = 9;
+}
+
+message Group {
+  string jid = 1;
+  string name = 2;
+  string topic = 3;
+  int32 participants = 4;
+  bool announce = 5;
+  bool locked = 6;
+  string invite_link = 7;
+  // Chat public id (cht_...); empty for a group with no stored chat
+  string chat_id = 8;
+  // False for a stored group the device has left
+  bool joined = 9;
+}
+
+message ListRequest {
+  string project_id = 1;
+  string device_id = 2;
+  // "dm" or "group"
+  string kind = 3;
+  // Case-insensitive name prefix
+  string q = 4;
+  string cursor = 5;
+  int32 limit = 6;
+}
+
+message ListResponse {
+  repeated Chat chats = 1;
+  string next_cursor = 2;
+}
+
+message GetRequest {
+  string project_id = 1;
+  string chat_id = 2;
+}
+
+message GetResponse {
+  Chat chat = 1;
+}
+
+message MarkReadRequest {
+  string project_id = 1;
+  string chat_id = 2;
+}
+
+message MarkReadResponse {}
+
+message ListGroupsRequest {
+  string project_id = 1;
+  string device_id = 2;
+}
+
+message ListGroupsResponse {
+  repeated Group groups = 1;
+}
+
+message GroupInfoRequest {
+  string project_id = 1;
+  string chat_id = 2;
+}
+
+message GroupInfoResponse {
+  Group group = 1;
+}
+
+message JoinGroupRequest {
+  string project_id = 1;
+  string device_id = 2;
+  string invite_link = 3;
+}
+
+message JoinGroupResponse {
+  Chat chat = 1;
+}
+
+message LeaveGroupRequest {
+  string project_id = 1;
+  string chat_id = 2;
+}
+
+message LeaveGroupResponse {
+  Chat chat = 1;
+}

@@ -2,7 +2,7 @@
   {
     "_meta": {
       "ui": {
-        "resourceUri": "ui://altempl/app"
+        "resourceUri": "ui://openwa/app"
       }
     },
     "annotations": {

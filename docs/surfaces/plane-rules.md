@@ -27,6 +27,11 @@ each machine plane, the same verbs as Connect RPCs and as REST so a fork can rea
 side by side. A demonstration, not a precedent: a fork's own module goes on one plane, and a
 second name in that allowlist means writing the reason here first.
 
+**Why `device`, `message`, `chat` and `contact` are allowlisted.** openwa's integrators call the
+REST data plane with device-bound keys and `Idempotency-Key`; its MCP tools and CLI bind to
+control-plane RPCs. The same `Service` instance backs both handlers, so no verb has two
+implementations. The allowlist entry is the documented exception, not a precedent for a third plane.
+
 ### R3 — one primitive per surface
 
 Every surface resolves its tenant through the primitive that surface owns, and never
@@ -38,15 +43,26 @@ primitive each surface uses, what narrows it, and the tests that hold it togethe
 
 ### R4 — authorization depth per surface
 
-| Surface          | Credential                                                     | Authenticated by               | Authorization depth                        |
-| ---------------- | -------------------------------------------------------------- | ------------------------------ | ------------------------------------------ |
-| S1 console       | `sid` cookie, HMAC                                             | `webmw.Session`                | org membership + role                      |
-| S2 control plane | Bearer JWT **or** an api key (`api.keyPrefix`, default `key_`) | `authn.Interceptor(Chain)`     | **method→scope table, fail closed**        |
-| S3 data plane    | Bearer or `X-API-Key`, key only — a JWT is **401**             | per-route `Authorize`          | scope **+** `ResourceIDs`                  |
-| S4 ingest        | provider signature                                             | per-provider `ingest.Verifier` | none — provider identity _is_ the authz    |
-| S5 dispatch      | n/a, we sign                                                   | n/a                            | n/a                                        |
-| S6 cli           | in-process: none; remote: the credential of the plane it calls | —                              | inherits the plane it calls                |
-| S7 mcp           | Bearer JWT (MCP audience) **or** an api key                    | `authn.Chain` + per-tool scope | **every tool scope-checked, JWT included** |
+| Surface          | Credential                                                     | Authenticated by               | Authorization depth                                                                         |
+| ---------------- | -------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------- |
+| S1 console       | `sid` cookie, HMAC                                             | `webmw.Session`                | org membership + role                                                                       |
+| S2 control plane | Bearer JWT **or** an api key (`api.keyPrefix`, default `key_`) | `authn.Interceptor(Chain)`     | **method→scope table, fail closed**; a device RPC reaches only a bound key's device         |
+| S3 data plane    | Bearer or `X-API-Key`, key only — a JWT is **401**             | per-route `Authorize`          | scope **+** `ResourceIDs`                                                                   |
+| S4 ingest        | provider signature                                             | per-provider `ingest.Verifier` | none — provider identity _is_ the authz                                                     |
+| S5 dispatch      | n/a, we sign                                                   | n/a                            | n/a                                                                                         |
+| S6 cli           | in-process: none; remote: the credential of the plane it calls | —                              | inherits the plane it calls                                                                 |
+| S7 mcp           | Bearer JWT (MCP audience) **or** an api key                    | `authn.Chain` + per-tool scope | **every tool scope-checked, JWT included**; a device tool reaches only a bound key's device |
+
+A device-bound key reaches only its device, on every surface. PR #36 puts `ResourceIDs` on
+`session.Principal` and adds `ReachesResource`/`ReachesWholeProject`, so S2, S3 and S7 all
+enforce the binding with no extra DB read: a verb that names the bound device is served
+(`ReachesResource`), and a project-wide verb — list, create, or pair with no device — is
+refused (`ReachesWholeProject`) with `PermissionDenied`. Project-wide keys and JWTs are
+unaffected. The messaging RPCs (`message.v1`, `chat.v1`, `contact.v1`) and their MCP tools apply the same
+reach rule: entering through the project scope, they refuse a device-bound key (`session.Principal.ReachesWholeProject`).
+
+The device verbs span S1 (console pages), S2 (`DeviceService`), S3 (`/devices` REST), S6 (`openwa device`)
+and S7 (`device_*` tools); S6 and S7 call the S2 handler, so they inherit its checks.
 
 Fail-closed is the whole point of the S2 row: a key principal reaching a Connect method absent
 from the scope table is **denied**, and `TestEveryRPCHasAScope` asserts every mounted method has

@@ -6,13 +6,15 @@ import (
 	"slices"
 	"strings"
 
-	"altalune.id/template/gen/go/blog/v1/blogv1mcp"
-	"altalune.id/template/gen/go/org/v1/orgv1mcp"
-	"altalune.id/template/gen/go/project/v1/projectv1mcp"
-	"altalune.id/template/gen/go/todo/v1/todov1mcp"
-	"altalune.id/template/internal/controlplane"
-	mcpinternal "altalune.id/template/internal/mcp"
-	rootmcp "altalune.id/template/mcp"
+	"altalune.id/openwa/gen/go/chat/v1/chatv1mcp"
+	"altalune.id/openwa/gen/go/contact/v1/contactv1mcp"
+	"altalune.id/openwa/gen/go/device/v1/devicev1mcp"
+	"altalune.id/openwa/gen/go/message/v1/messagev1mcp"
+	"altalune.id/openwa/gen/go/org/v1/orgv1mcp"
+	"altalune.id/openwa/gen/go/project/v1/projectv1mcp"
+	"altalune.id/openwa/internal/controlplane"
+	mcpinternal "altalune.id/openwa/internal/mcp"
+	rootmcp "altalune.id/openwa/mcp"
 )
 
 // MCPWiringError reports MCP tool domains the manifest and the declared domain list disagree on.
@@ -56,22 +58,30 @@ func IsMCPToolUnregisteredError(err error) bool {
 type mcpToolRegistrar func(*rootmcp.Registry, *controlplane.Server)
 
 // NOTE: add a row here when a .proto starts declaring an (mcp.v1.tool); assertMCPWiring fails boot on a slot nobody filled.
-func mcpToolDomains() []string { return []string{"blog.v1", "org.v1", "project.v1", "todo.v1"} }
+func mcpToolDomains() []string {
+	return []string{"chat.v1", "contact.v1", "device.v1", "message.v1", "org.v1", "project.v1"}
+}
 
 // SECURITY: the generated registrations carry no scope of their own — mcpinternal.ScopeFor is the one catalog a tool's scope comes from, so the runtime check cannot drift from it.
 func mcpToolManifest() map[string]mcpToolRegistrar {
 	return map[string]mcpToolRegistrar{
-		"blog.v1": func(reg *rootmcp.Registry, apiSrv *controlplane.Server) {
-			blogv1mcp.RegisterBlogServiceTools(reg, apiSrv.BlogSvc, mcpinternal.ScopeFor)
+		"chat.v1": func(reg *rootmcp.Registry, apiSrv *controlplane.Server) {
+			chatv1mcp.RegisterChatServiceTools(reg, apiSrv.ChatSvc, mcpinternal.ScopeFor)
+		},
+		"contact.v1": func(reg *rootmcp.Registry, apiSrv *controlplane.Server) {
+			contactv1mcp.RegisterContactServiceTools(reg, apiSrv.ContactSvc, mcpinternal.ScopeFor)
+		},
+		"message.v1": func(reg *rootmcp.Registry, apiSrv *controlplane.Server) {
+			messagev1mcp.RegisterMessageServiceTools(reg, apiSrv.MessageSvc, mcpinternal.ScopeFor)
+		},
+		"device.v1": func(reg *rootmcp.Registry, apiSrv *controlplane.Server) {
+			devicev1mcp.RegisterDeviceServiceTools(reg, apiSrv.DeviceSvc, mcpinternal.ScopeFor)
 		},
 		"org.v1": func(reg *rootmcp.Registry, apiSrv *controlplane.Server) {
 			orgv1mcp.RegisterMemberServiceTools(reg, apiSrv.MemberSvc, mcpinternal.ScopeFor)
 		},
 		"project.v1": func(reg *rootmcp.Registry, apiSrv *controlplane.Server) {
 			projectv1mcp.RegisterProjectServiceTools(reg, apiSrv.ProjectSvc, mcpinternal.ScopeFor)
-		},
-		"todo.v1": func(reg *rootmcp.Registry, apiSrv *controlplane.Server) {
-			todov1mcp.RegisterTodoServiceTools(reg, apiSrv.TodoSvc, mcpinternal.ScopeFor)
 		},
 	}
 }

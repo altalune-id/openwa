@@ -57,14 +57,14 @@ replica, `Duplicates 2m` on all three. The sizes are package constants, not conf
    (`*UndeclaredBroadcastError`). Every instance declares, even one that does not consume.
 2. **Body** is `json.Marshal(data)`. Metadata travels in headers only:
 
-   | Header                                                    | Value                          |
-   | --------------------------------------------------------- | ------------------------------ |
-   | `Nats-Msg-Id`                                             | a new UUIDv7, the message id   |
-   | `Altempl-Job` + `Altempl-Job-Version`                     | a job's name and version       |
-   | `Altempl-Broadcast` + `Altempl-Broadcast-Version`         | a broadcast's name and version |
-   | `Altempl-Created-At`                                      | RFC 3339 with nanoseconds      |
-   | `Altempl-Org-Id`, `Altempl-Project-Id`, `Altempl-User-Id` | each only when set on ctx      |
-   | `traceparent`, `tracestate`                               | W3C trace context              |
+   | Header                                                 | Value                          |
+   | ------------------------------------------------------ | ------------------------------ |
+   | `Nats-Msg-Id`                                          | a new UUIDv7, the message id   |
+   | `Openwa-Job` + `Openwa-Job-Version`                    | a job's name and version       |
+   | `Openwa-Broadcast` + `Openwa-Broadcast-Version`        | a broadcast's name and version |
+   | `Openwa-Created-At`                                    | RFC 3339 with nanoseconds      |
+   | `Openwa-Org-Id`, `Openwa-Project-Id`, `Openwa-User-Id` | each only when set on ctx      |
+   | `traceparent`, `tracestate`                            | W3C trace context              |
 
 3. **Budget.** Publish runs on `context.WithoutCancel(ctx)` with 5s in total, 1s per attempt and
    200ms between attempts. It retries a timeout, no responders and a lost connection. It does not
@@ -96,8 +96,8 @@ A malformed id, version or tenant header is `permanent` before the handler runs.
 
 **Dead letter.** Publish to `dlq.<subject>` within `DLQPublishTimeout` (4s): the same body and
 headers except `traceparent`, which points at the DLQ publish span when tracing is on, the
-same `Nats-Msg-Id`, plus `Altempl-Dlq-Reason`, `Altempl-Dlq-Error` (at most 1 KiB, valid
-UTF-8), `Altempl-Dlq-Attempts` and `Altempl-Dlq-Stream-Seq`.
+same `Nats-Msg-Id`, plus `Openwa-Dlq-Reason`, `Openwa-Dlq-Error` (at most 1 KiB, valid
+UTF-8), `Openwa-Dlq-Attempts` and `Openwa-Dlq-Stream-Seq`.
 
 | DLQ publish | Then                                                                                                                       |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -111,7 +111,7 @@ UTF-8), `Altempl-Dlq-Attempts` and `Altempl-Dlq-Stream-Seq`.
   verdict (at-least-once allows it), and is re-dead-lettered with its real cause.
 - The same path catches a process that dies on the last attempt. That is why the server-side
   `MaxDeliver` is unlimited: with a server cap the message would stay in `WORK` with no DLQ entry.
-- **SECURITY: the tenant headers are trusted.** A valid `Altempl-Org-Id` (plus project and user)
+- **SECURITY: the tenant headers are trusted.** A valid `Openwa-Org-Id` (plus project and user)
   is bound with `tenant.Into` before `Handle`; no org header means system work with no scope.
   Anyone who can publish to `WORK` can act as any tenant, so the NATS token is as sensitive as the
   DB DSN.

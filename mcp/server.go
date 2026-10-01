@@ -66,12 +66,16 @@ func (s *Server) SDK() *sdkmcp.Server {
 	return s.sdk
 }
 
+// MaxRequestBodyBytes is the largest request body the MCP mount accepts.
+const MaxRequestBodyBytes = 6 << 20
+
 // Handler returns the stateless streamable-HTTP handler for this server, sealing the registry.
 func (s *Server) Handler() http.Handler {
 	sdk := s.SDK()
 	return sdkmcp.NewStreamableHTTPHandler(
 		func(*http.Request) *sdkmcp.Server { return sdk },
-		&sdkmcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, Logger: s.logger},
+		// NOTE: lifts the SDK default 4 MiB body cap so inline media survives base64 overhead.
+		&sdkmcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, Logger: s.logger, MaxRequestBodyBytes: MaxRequestBodyBytes},
 	)
 }
 

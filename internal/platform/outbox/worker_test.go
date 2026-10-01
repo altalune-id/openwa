@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/platform/outbox"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/testutil/fakes"
+	"altalune.id/openwa/internal/platform/outbox"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/testutil/fakes"
 )
 
 // NOTE: 0.9 * sum of Backoff's base durations over attempts 2..8 (30s+5m+30m+2h+5h+10h+10h).

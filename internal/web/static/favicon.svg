@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" role="img" aria-label="OpenWA">
+  <rect width="20" height="20" rx="5" fill="#0f8a80"/>
+  <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h5A2.5 2.5 0 0 1 15 6.5v4a2.5 2.5 0 0 1-2.5 2.5H9l-3 2.5V13A2.5 2.5 0 0 1 5 10.5z" fill="#ffffff"/>
+  <circle cx="13.5" cy="13.5" r="1.9" fill="#0f8a80" stroke="#ffffff" stroke-width="1.2"/>
+</svg>

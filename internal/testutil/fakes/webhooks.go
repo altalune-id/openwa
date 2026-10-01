@@ -5,12 +5,18 @@ import (
 	"slices"
 	"sync"
 
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/platform/db"
-	"altalune.id/template/internal/platform/events"
+	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/message"
+	"altalune.id/openwa/internal/platform/db"
+	"altalune.id/openwa/internal/platform/events"
+	"altalune.id/openwa/internal/whatsapp"
 )
 
 var _ blog.Webhooks = (*Webhooks)(nil)
+
+var _ whatsapp.Webhooks = (*Webhooks)(nil)
+
+var _ message.Webhooks = (*Webhooks)(nil)
 
 // WebhookCall is one recorded Webhooks.Enqueue.
 type WebhookCall struct {

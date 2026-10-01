@@ -3,19 +3,21 @@ package boot_test
 import (
 	"context"
 	"encoding/json"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/boot"
-	"altalune.id/template/internal/onboard"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/events"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/webhook"
+	"altalune.id/openwa/internal/boot"
+	"altalune.id/openwa/internal/onboard"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/events"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/testutil/pgtest"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/webhook"
 )
 
 func TestBootServer_PublishEnqueuesAWebhookDelivery(t *testing.T) {
@@ -67,4 +69,20 @@ func assertPublishEnqueues(t *testing.T, cfg *config.Config) {
 	require.NoError(t, json.Unmarshal(deliveries[0].Payload, &env))
 	assert.Equal(t, "wh-project", env.Tenant.ProjectSlug)
 	assert.Equal(t, p.ID, env.Tenant.ProjectID)
+}
+
+func TestPostgres_BootServer_PublishEnqueuesAWebhookDelivery(t *testing.T) {
+	h := pgtest.New(t)
+	_ = h.OpenDB(t)
+	u, err := url.Parse(h.DSN)
+	require.NoError(t, err)
+	q := u.Query()
+	q.Set("search_path", h.Schema)
+	u.RawQuery = q.Encode()
+
+	cfg := newSmokeCfg(t)
+	cfg.DB.DSN = u.String()
+	cfg.DB.Schema = h.Schema
+	cfg.DB.AllowBypassRLS = true
+	assertPublishEnqueues(t, cfg)
 }

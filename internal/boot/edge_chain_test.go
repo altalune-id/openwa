@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/boot"
-	"altalune.id/template/reqid"
+	"altalune.id/openwa/internal/boot"
+	"altalune.id/openwa/reqid"
 )
 
 type logLine struct {

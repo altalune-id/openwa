@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/org"
+	"altalune.id/openwa/internal/org"
 )
 
 // Members is an in-memory membership gate for tests: seated users are members, and seated managers also manage.

@@ -5,9 +5,9 @@
 package orgv1mcp
 
 import (
-	v1 "altalune.id/template/gen/go/org/v1"
-	orgv1connect "altalune.id/template/gen/go/org/v1/orgv1connect"
-	mcp "altalune.id/template/mcp"
+	v1 "altalune.id/openwa/gen/go/org/v1"
+	orgv1connect "altalune.id/openwa/gen/go/org/v1/orgv1connect"
+	mcp "altalune.id/openwa/mcp"
 	connect "connectrpc.com/connect"
 	context "context"
 	json "encoding/json"

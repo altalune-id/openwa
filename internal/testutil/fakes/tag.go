@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/blog/tag"
+	"altalune.id/openwa/internal/blog/tag"
 )
 
 // Tag is an in-memory tag.Store.

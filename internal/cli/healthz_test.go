@@ -96,7 +96,7 @@ func TestHealthzProbeTarget(t *testing.T) {
 			wantPath:   "/healthz",
 		},
 		{
-			name:       "ALT_URL probes that host",
+			name:       "OPENWA_URL probes that host",
 			envURL:     func(other string) string { return other },
 			wantRemote: true,
 			wantPath:   "/healthz",
@@ -126,25 +126,26 @@ func TestHealthzProbeTarget(t *testing.T) {
 			other, otherHits := healthzRecorder(t)
 
 			sessPath := setSelfhostedEnv(t)
+			t.Setenv("OPENWA_DATAPLANE_ENABLED", "false")
 			_, port, err := net.SplitHostPort(strings.TrimPrefix(local.URL, "http://"))
 			if err != nil {
 				t.Fatalf("split local addr: %v", err)
 			}
-			t.Setenv("ALT_HTTP_ADDR", "127.0.0.1:"+port)
-			t.Setenv("ALT_OUTPUT", "text")
+			t.Setenv("OPENWA_HTTP_ADDR", "127.0.0.1:"+port)
+			t.Setenv("OPENWA_OUTPUT", "text")
 
 			base := ""
 			if tc.baseURL != nil {
 				base = tc.baseURL(other.URL)
 			}
-			t.Setenv("ALT_HTTP_BASE_URL", base)
-			t.Setenv("ALT_HTTP_BASEURL", base)
+			t.Setenv("OPENWA_HTTP_BASE_URL", base)
+			t.Setenv("OPENWA_HTTP_BASEURL", base)
 
 			env := ""
 			if tc.envURL != nil {
 				env = tc.envURL(other.URL)
 			}
-			t.Setenv("ALT_URL", env)
+			t.Setenv("OPENWA_URL", env)
 
 			if tc.profile {
 				writeProfileFor(t, sessPath, other.URL)
@@ -190,7 +191,7 @@ func TestHealthzRefusesAFalseHealthyRoot(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	setSelfhostedEnv(t)
-	t.Setenv("ALT_OUTPUT", "text")
+	t.Setenv("OPENWA_OUTPUT", "text")
 
 	out, err := runHealthz(t, "--url", srv.URL)
 	if !errors.Is(err, errHealthzUnhealthy) {
@@ -245,7 +246,7 @@ func TestHealthzCmd(t *testing.T) {
 			t.Cleanup(srv.Close)
 
 			setSelfhostedEnv(t)
-			t.Setenv("ALT_OUTPUT", tc.output)
+			t.Setenv("OPENWA_OUTPUT", tc.output)
 
 			out, err := runHealthz(t, "--url", srv.URL)
 			if (err != nil) != tc.wantErr {

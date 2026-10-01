@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	mcpinternal "altalune.id/template/internal/mcp"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/session"
+	mcpinternal "altalune.id/openwa/internal/mcp"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 type rejectingAuthenticator struct{ err error }

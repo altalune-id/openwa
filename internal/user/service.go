@@ -13,12 +13,12 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/password"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/password"
 )
 
 //nolint:gochecknoglobals // OTel tracer is a package-level fixture, not runtime state.
-var tracer trace.Tracer = otel.Tracer("altalune.id/template/internal/user")
+var tracer trace.Tracer = otel.Tracer("altalune.id/openwa/internal/user")
 
 // GenesisConfig names the built-in admin identity reconciled by ReconcileGenesisAdmin.
 type GenesisConfig struct {
@@ -288,7 +288,7 @@ func (s *Service) refreshFromClaims(ctx context.Context, u *User, claims Claims)
 	return u, nil
 }
 
-// AcceptTerms records the moment the user accepted the ToS; idempotent.
+// AcceptTerms stamps the current time as the user's acceptance of the terms, replacing any earlier stamp.
 func (s *Service) AcceptTerms(ctx context.Context, id uuid.UUID) error {
 	ctx, span := tracer.Start(ctx, "user.AcceptTerms")
 	defer span.End()
@@ -298,9 +298,6 @@ func (s *Service) AcceptTerms(ctx context.Context, id uuid.UUID) error {
 			return err
 		}
 		return s.unexpected(ctx, "user.AcceptTerms: byID", err, slog.String("user_id", id.String()))
-	}
-	if u.TermsAcceptedAt != nil {
-		return nil
 	}
 	u.AcceptTerms(s.now())
 	if err := s.store.Save(ctx, u); err != nil {

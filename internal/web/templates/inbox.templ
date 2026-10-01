@@ -1,0 +1,265 @@
+package templates
+
+import (
+	"net/url"
+	"strconv"
+	"time"
+
+	"altalune.id/openwa/internal/web"
+)
+
+type InboxDevice struct {
+	ID       string
+	Name     string
+	Selected bool
+}
+
+type ChatRowView struct {
+	ID      string
+	Name    string
+	JID     string
+	Kind    string
+	Preview string
+	At      *time.Time
+	Unread  int
+	Active  bool
+}
+
+// NOTE: Limit grows with Load more, so the morphing poll keeps every row on screen.
+type ChatListView struct {
+	ProjectSlug string
+	DeviceID    string
+	Query       string
+	ActiveID    string
+	Rows        []ChatRowView
+	Limit       int
+	HasMore     bool
+	Capped      bool
+}
+
+// ChatPageSize is how many more chats one "Load more" shows.
+const ChatPageSize = 50
+
+type InboxView struct {
+	ProjectSlug string
+	Devices     []InboxDevice
+	List        ChatListView
+	Thread      *ThreadView
+}
+
+type NewChatView struct {
+	ProjectSlug string
+	Devices     []InboxDevice
+	Phone       string
+	Text        string
+	Error       string
+}
+
+func chatListQuery(v ChatListView, extra url.Values) string {
+	q := url.Values{}
+	if v.DeviceID != "" {
+		q.Set("device", v.DeviceID)
+	}
+	if v.Query != "" {
+		q.Set("q", v.Query)
+	}
+	if v.ActiveID != "" {
+		q.Set("active", v.ActiveID)
+	}
+	if v.Limit > 0 {
+		q.Set("limit", strconv.Itoa(v.Limit))
+	}
+	for k, vs := range extra {
+		q[k] = vs
+	}
+	return "?" + q.Encode()
+}
+
+templ InboxLayout(d web.LayoutData, v InboxView) {
+	@Layout(web.WithContent(d, InboxPage(d, v)))
+}
+
+templ InboxPage(d web.LayoutData, v InboxView) {
+	<section class="space-y-6">
+		@PageHeader(d, PageHeaderProps{
+			Title:    d.Tr("inbox.title"),
+			Subtitle: d.Tr("inbox.subtitle"),
+			Actions:  inboxActions(d, v),
+		})
+		@SplitPane(SplitPaneProps{ID: "inbox", List: ChatListSidebar(d, v.Devices, v.List), Detail: InboxDetail(d, v)})
+	</section>
+}
+
+templ inboxActions(d web.LayoutData, v InboxView) {
+	<div class="flex items-center gap-2">
+		@Button(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("common.refresh"), Icon: "rotate-cw", Attrs: templ.Attributes{
+			"hx-get":     d.ProjectPath(v.ProjectSlug, "/inbox/chats"),
+			"hx-target":  "#chat-list-panel",
+			"hx-swap":    "outerHTML",
+			"hx-include": "#inbox-device, #inbox-search",
+			"hx-nonce":   d.Nonce,
+		}})
+		@Button(ButtonProps{Kind: ButtonPrimary, Label: d.Tr("inbox.new_chat"), Icon: "plus", Href: d.ProjectPath(v.ProjectSlug, "/inbox/new")})
+	</div>
+}
+
+templ InboxDetail(d web.LayoutData, v InboxView) {
+	if v.Thread != nil {
+		@ThreadPane(d, *v.Thread)
+	} else {
+		@EmptyState(d, EmptyStateProps{Icon: "mail", Title: d.Tr("inbox.pick_title"), Body: d.Tr("inbox.pick_body")})
+	}
+}
+
+// NOTE: the controls sit outside #chat-list-panel, so a panel swap keeps their focus.
+templ ChatListSidebar(d web.LayoutData, devices []InboxDevice, v ChatListView) {
+	<div class="space-y-3">
+		@ChatListControls(d, devices, v)
+		@ChatListPanel(d, v)
+	</div>
+}
+
+templ ChatListControls(d web.LayoutData, devices []InboxDevice, v ChatListView) {
+	<div id="chat-list-controls" class="space-y-3">
+		<label for="inbox-device" class="sr-only">{ d.Tr("inbox.device_label") }</label>
+		<select
+			id="inbox-device"
+			name="device"
+			class={ InputClass() }
+			hx-get={ d.ProjectPath(v.ProjectSlug, "/inbox/chats") }
+			hx-target="#chat-list-panel"
+			hx-swap="outerHTML"
+			hx-include="#inbox-search"
+			hx-nonce={ d.Nonce }
+		>
+			<option value="">{ d.Tr("inbox.all_devices") }</option>
+			for _, dev := range devices {
+				<option value={ dev.ID } selected?={ dev.Selected }>{ dev.Name }</option>
+			}
+		</select>
+		<label for="inbox-search" class="sr-only">{ d.Tr("inbox.search_label") }</label>
+		<input
+			id="inbox-search"
+			type="search"
+			name="q"
+			value={ v.Query }
+			placeholder={ d.Tr("inbox.search_placeholder") }
+			class={ InputClass() }
+			hx-get={ d.ProjectPath(v.ProjectSlug, "/inbox/chats") }
+			hx-trigger="input changed delay:300ms, search"
+			hx-target="#chat-list-panel"
+			hx-swap="outerHTML"
+			hx-sync="this:replace"
+			hx-include="#inbox-device"
+			hx-nonce={ d.Nonce }
+		/>
+	</div>
+}
+
+templ ChatListPanel(d web.LayoutData, v ChatListView) {
+	<div id="chat-list-panel" class="space-y-3">
+		@ListShell(d, "chat-list", templ.Attributes{
+			"hx-get":        d.ProjectPath(v.ProjectSlug, "/inbox/chats"+chatListQuery(v, url.Values{"rows": {"1"}})),
+			"hx-trigger":    "every 5s",
+			"hx-swap":       "innerMorph",
+			"hx-sync":       "this:replace",
+			"hx-status:4xx": "target:#hx-error swap:innerHTML",
+			"hx-status:5xx": "swap:none",
+		}) {
+			@ChatListRows(d, v)
+		}
+		if v.Capped {
+			<p class="px-4 text-xs text-muted-foreground">{ d.Tr("inbox.list_capped", "Max", v.Limit) }</p>
+		}
+		if v.HasMore {
+			@Button(ButtonProps{Kind: ButtonGhost, Label: d.Tr("inbox.load_more"), Attrs: templ.Attributes{
+				"hx-get":    d.ProjectPath(v.ProjectSlug, "/inbox/chats"+chatListQuery(v, url.Values{"limit": {strconv.Itoa(v.Limit + ChatPageSize)}})),
+				"hx-target": "#chat-list-panel",
+				"hx-swap":   "outerHTML",
+				"hx-nonce":  d.Nonce,
+			}})
+		}
+	</div>
+}
+
+// NOTE: opening a chat also re-renders the list panel, so the highlight moves with it.
+templ ThreadOpened(d web.LayoutData, tv ThreadView, list ChatListView) {
+	@ThreadPane(d, tv)
+	<template hx type="partial" hx-target="#chat-list-panel" hx-swap="outerMorph" hx-nonce={ d.Nonce }>
+		@ChatListPanel(d, list)
+	</template>
+}
+
+templ ChatListRows(d web.LayoutData, v ChatListView) {
+	if len(v.Rows) == 0 {
+		<li id="chat-empty" class="px-4 py-6 text-center text-sm text-muted-foreground">{ d.Tr("inbox.empty_list") }</li>
+	}
+	for _, c := range v.Rows {
+		@ListRow(d, templ.Attributes{"id": "chat-" + c.ID, "data-active": strconv.FormatBool(c.Active)}) {
+			<a
+				href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/inbox/chats/"+c.ID)) }
+				hx-get={ d.ProjectPath(v.ProjectSlug, "/inbox/chats/"+c.ID) }
+				hx-target="#inbox-detail"
+				hx-swap="innerHTML"
+				hx-push-url="true"
+				hx-include="#inbox-device, #inbox-search"
+				hx-nonce={ d.Nonce }
+				class="flex min-w-0 flex-1 items-center gap-3"
+			>
+				@Avatar(c.Name, "h-9 w-9 text-sm")
+				<span class="min-w-0 flex-1">
+					<span class="flex items-center justify-between gap-2">
+						<span class="truncate text-sm font-medium text-foreground">{ c.Name }</span>
+						if c.At != nil {
+							<span class="shrink-0 text-xs text-muted-foreground">
+								@Time(d, *c.At)
+							</span>
+						}
+					</span>
+					<span class="flex items-center justify-between gap-2">
+						<span class="truncate text-xs text-muted-foreground">{ c.Preview }</span>
+						if c.Unread > 0 {
+							@Badge(TonePrimary, strconv.Itoa(c.Unread))
+						}
+					</span>
+				</span>
+			</a>
+		}
+	}
+}
+
+templ NewChatLayout(d web.LayoutData, v NewChatView) {
+	@Layout(web.WithContent(d, NewChatPage(d, v)))
+}
+
+templ NewChatPage(d web.LayoutData, v NewChatView) {
+	<section class="max-w-xl space-y-6">
+		@PageHeader(d, PageHeaderProps{Title: d.Tr("inbox.new_title"), Subtitle: d.Tr("inbox.new_subtitle")})
+		if len(v.Devices) == 0 {
+			@EmptyState(d, EmptyStateProps{Icon: "plus", Title: d.Tr("inbox.error.no_device"), CTA: &ButtonProps{Kind: ButtonPrimary, Label: d.Tr("nav.devices"), Href: d.ProjectPath(v.ProjectSlug, "/devices")}})
+		} else {
+			<form method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/inbox/new")) } class="surface space-y-4 p-5">
+				if v.Error != "" {
+					<p role="alert" class="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{ d.Tr(v.Error) }</p>
+				}
+				{{ deviceField := FieldProps{ID: "new-device", Label: d.Tr("inbox.device_label"), Required: true} }}
+				{{ phoneField := FieldProps{ID: "new-phone", Label: d.Tr("inbox.phone_label"), Help: d.Tr("inbox.phone_help"), Required: true} }}
+				{{ textField := FieldProps{ID: "new-text", Label: d.Tr("inbox.text_label"), Required: true} }}
+				@Field(d, deviceField) {
+					<select name="device" class={ InputClass() } { InputAttrs(deviceField)... }>
+						for _, dev := range v.Devices {
+							<option value={ dev.ID } selected?={ dev.Selected }>{ dev.Name }</option>
+						}
+					</select>
+				}
+				@Field(d, phoneField) {
+					<input name="phone" type="tel" inputmode="tel" required value={ v.Phone } class={ InputClass() } { InputAttrs(phoneField)... }/>
+				}
+				@Field(d, textField) {
+					<textarea name="text" rows="4" required class={ InputClass() } { InputAttrs(textField)... }>{ v.Text }</textarea>
+				}
+				@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("inbox.start"), Icon: "send"})
+			</form>
+		}
+	</section>
+}

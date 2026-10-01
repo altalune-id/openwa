@@ -12,10 +12,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	pdb "altalune.id/template/internal/platform/db"
-	pgent "altalune.id/template/internal/platform/db/entity/postgres"
-	"altalune.id/template/internal/platform/events"
-	"altalune.id/template/internal/platform/tenant"
+	pdb "altalune.id/openwa/internal/platform/db"
+	pgent "altalune.id/openwa/internal/platform/db/entity/postgres"
+	"altalune.id/openwa/internal/platform/events"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 type postgresStore struct {

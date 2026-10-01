@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package contact.v1;
+
+import "google/protobuf/timestamp.proto";
+import "mcp/v1/annotations.proto";
+
+option go_package = "altalune.id/openwa/gen/go/contact/v1;contactv1";
+
+service ContactService {
+  rpc List(ListRequest) returns (ListResponse) {
+    option (mcp.v1.tool) = {
+      name: "contact_list"
+      description: "List the contacts the project's devices know, most recently updated first. q is a prefix on the address-book name."
+    };
+  }
+  rpc Get(GetRequest) returns (GetResponse);
+}
+
+// A contact is its jid on a device; it has no id of its own on any surface.
+message Contact {
+  // The device's public id (dev_...)
+  string device_id = 1;
+  string jid = 2;
+  // Digits without "+"; empty when WhatsApp hides the number
+  string phone = 3;
+  string name = 4;
+  string push_name = 5;
+  string business_name = 6;
+  // Name, then push name, then business name, then phone
+  string display_name = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message ListRequest {
+  string project_id = 1;
+  string device_id = 2;
+  string q = 3;
+  string cursor = 4;
+  int32 limit = 5;
+}
+
+message ListResponse {
+  repeated Contact contacts = 1;
+  string next_cursor = 2;
+}
+
+message GetRequest {
+  string project_id = 1;
+  // The device's public id (dev_...); optional when the project has one device
+  string device_id = 2;
+  string jid = 3;
+}
+
+message GetResponse {
+  Contact contact = 1;
+}

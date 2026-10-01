@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
-	blogv1 "altalune.id/template/gen/go/blog/v1"
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/blog/category"
-	"altalune.id/template/internal/blog/tag"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/project"
+	blogv1 "altalune.id/openwa/gen/go/blog/v1"
+	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/blog/category"
+	"altalune.id/openwa/internal/blog/tag"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/project"
 )
 
 type blogFixture struct {

@@ -14,13 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 
-	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
-	"altalune.id/template/internal/apikey"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/testutil/fakes"
+	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/testutil/fakes"
 )
 
 func newAPIKeyService(t *testing.T, store apikey.Store) (*apikey.Service, *int) {
@@ -29,8 +29,8 @@ func newAPIKeyService(t *testing.T, store apikey.Store) (*apikey.Service, *int) 
 	calls := 0
 	unexpected := func(_ context.Context, _ string, err error, _ ...any) *apperror.AppError {
 		calls++
-		return apperror.New("altempl.unexpected", err.Error(), codes.Internal,
-			&apperrorv1.ErrorDetail{Code: "altempl.unexpected"}).WithCause(err)
+		return apperror.New("openwa.unexpected", err.Error(), codes.Internal,
+			&apperrorv1.ErrorDetail{Code: "openwa.unexpected"}).WithCause(err)
 	}
 	return apikey.NewService(store, apikey.Scheme{}, fakes.PermissiveMembers(), fakes.NewOrgProjects(), log, unexpected), &calls
 }
@@ -386,4 +386,121 @@ func TestUsageWorker_FlushesPendingOnShutdown(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, got.LastUsedAt, "a timestamp recorded before shutdown was dropped")
 	})
+}
+
+func TestAuthorizeScopeReachesTheProject(t *testing.T) {
+	store := fakes.NewAPIKey()
+	orgID, projectID, deviceID := uuid.New(), uuid.New(), uuid.New()
+	_, wide := mintSeeded(t, store, orgID, projectID, []string{authn.ScopeDevicesRead}, nil)
+	_, narrow := mintSeeded(t, store, orgID, projectID, []string{authn.ScopeDevicesRead}, []uuid.UUID{deviceID})
+	auth := apikey.NewAuthenticator(store, nil, apikey.Scheme{}, fakes.NewMembers())
+
+	p, err := auth.AuthorizeScope(t.Context(), wide, authn.ScopeDevicesRead, orgID, projectID)
+	require.NoError(t, err)
+	assert.True(t, p.ReachesWholeProject(orgID, projectID), "a project-wide key reaches every device")
+
+	p, err = auth.AuthorizeScope(t.Context(), narrow, authn.ScopeDevicesRead, orgID, projectID)
+	require.NoError(t, err)
+	assert.False(t, p.ReachesWholeProject(orgID, projectID))
+	assert.True(t, p.ReachesResource(orgID, projectID, deviceID))
+	assert.Equal(t, []uuid.UUID{deviceID}, p.ResourceIDs)
+
+	_, err = auth.AuthorizeScope(t.Context(), narrow, authn.ScopeDevicesWrite, orgID, projectID)
+	assert.True(t, authn.IsInsufficientScopeError(err))
+	_, err = auth.AuthorizeScope(t.Context(), narrow, authn.ScopeDevicesRead, orgID, uuid.New())
+	assert.Error(t, err)
+}
+
+func devScopes() []string { return []string{authn.ScopeDevicesRead} }
+
+func TestResourceIDsResolveDevicePublicIDsAndRenderThemBack(t *testing.T) {
+	log := slog.New(slog.DiscardHandler)
+	svc := apikey.NewService(fakes.NewAPIKey(), apikey.Scheme{}, fakes.PermissiveMembers(), fakes.NewOrgProjects(), log, apperror.NewReporter(log, false).Unexpected)
+	devices := fakes.NewDeviceResolver()
+	deviceID, categoryID := uuid.New(), uuid.New()
+	devices.Add("dev_V1StGXR8Z5jdHi6B", deviceID)
+	ctx := tenant.Into(t.Context(), tenant.Context{OrgID: uuid.New(), ProjectID: uuid.New(), UserID: uuid.New()})
+
+	_, err := svc.ResourceIDs(ctx, devScopes(), []string{"dev_V1StGXR8Z5jdHi6B"})
+	require.True(t, apikey.IsInvalidResourceError(err), "no resolver wired: a device id cannot be resolved, got %v", err)
+
+	svc.Devices = devices
+	ids, err := svc.ResourceIDs(ctx, devScopes(), []string{" dev_V1StGXR8Z5jdHi6B ", categoryID.String(), "", "dev_V1StGXR8Z5jdHi6B"})
+	require.NoError(t, err)
+	assert.Equal(t, []uuid.UUID{deviceID, categoryID}, ids, "trimmed, deduplicated, order kept; a plain UUID stays a resource id")
+
+	for _, bad := range []string{"dev_NoSuchDevice0001", "dev_short", "not-an-id", deviceID.String() + "x"} {
+		_, err = svc.ResourceIDs(ctx, devScopes(), []string{bad})
+		require.True(t, apikey.IsInvalidResourceError(err), "%q, got %v", bad, err)
+	}
+
+	blogKey := &apikey.APIKey{Scopes: []string{authn.ScopePostsRead}, ResourceIDs: []uuid.UUID{categoryID}}
+	labels, err := svc.ResourceLabels(ctx, blogKey)
+	require.NoError(t, err)
+	assert.Equal(t, []string{categoryID.String()}, labels)
+
+	gone := uuid.New()
+	deviceKey := &apikey.APIKey{Scopes: []string{authn.ScopeDevicesRead}, ResourceIDs: []uuid.UUID{deviceID, gone}}
+	labels, err = svc.ResourceLabels(ctx, deviceKey)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"dev_V1StGXR8Z5jdHi6B", apikey.DeletedDeviceLabel}, labels, "a device UUID never leaves the server, not even for a deleted device")
+
+	mixed := &apikey.APIKey{Scopes: []string{authn.ScopeDevicesRead, authn.ScopePostsRead}, ResourceIDs: []uuid.UUID{categoryID}}
+	labels, err = svc.ResourceLabels(ctx, mixed)
+	require.NoError(t, err)
+	assert.Equal(t, []string{categoryID.String()}, labels, "a key with non-device scopes never labels a non-device id dev_deleted")
+}
+
+func TestResourceIDsRefuseADeviceBindingOnNonDeviceScopes(t *testing.T) {
+	log := slog.New(slog.DiscardHandler)
+	svc := apikey.NewService(fakes.NewAPIKey(), apikey.Scheme{}, fakes.PermissiveMembers(), fakes.NewOrgProjects(), log, apperror.NewReporter(log, false).Unexpected)
+	devices := fakes.NewDeviceResolver()
+	devices.Add("dev_V1StGXR8Z5jdHi6B", uuid.New())
+	svc.Devices = devices
+	ctx := tenant.Into(t.Context(), tenant.Context{OrgID: uuid.New(), ProjectID: uuid.New(), UserID: uuid.New()})
+
+	for _, scopes := range [][]string{
+		{authn.ScopeDevicesRead, authn.ScopePostsRead},
+		{authn.ScopePostsRead},
+		{authn.ScopeDevicesWrite, authn.ScopeAPIKeysWrite},
+	} {
+		_, err := svc.ResourceIDs(ctx, scopes, []string{"dev_V1StGXR8Z5jdHi6B"})
+		require.True(t, apikey.IsDeviceBindingScopeError(err), "%v, got %v", scopes, err)
+	}
+	_, err := svc.ResourceIDs(ctx, []string{authn.ScopePostsRead}, []string{uuid.NewString()})
+	require.NoError(t, err, "a plain resource id on a non-device scope is unaffected")
+}
+
+type countingMembers struct {
+	apikey.Members
+	calls int
+}
+
+func (c *countingMembers) RequireManager(ctx context.Context, orgID, userID uuid.UUID) error {
+	c.calls++
+	return &apikey.NotFoundError{}
+}
+
+func TestResourceIDsAskTheManagerGateBeforeAnyDeviceLookup(t *testing.T) {
+	log := slog.New(slog.DiscardHandler)
+	members := &countingMembers{Members: fakes.PermissiveMembers()}
+	svc := apikey.NewService(fakes.NewAPIKey(), apikey.Scheme{}, members, fakes.NewOrgProjects(), log, apperror.NewReporter(log, false).Unexpected)
+	spy := &spyResolver{DeviceResolver: fakes.NewDeviceResolver()}
+	svc.Devices = spy
+	ctx := tenant.Into(t.Context(), tenant.Context{OrgID: uuid.New(), ProjectID: uuid.New(), UserID: uuid.New()})
+
+	_, err := svc.ResourceIDs(ctx, devScopes(), []string{"dev_V1StGXR8Z5jdHi6B"})
+	require.Error(t, err)
+	assert.Equal(t, 1, members.calls)
+	assert.Zero(t, spy.lookups, "a non-manager never triggers a device-store lookup")
+}
+
+type spyResolver struct {
+	apikey.DeviceResolver
+	lookups int
+}
+
+func (s *spyResolver) DeviceIDs(ctx context.Context, ids []string) (map[string]uuid.UUID, error) {
+	s.lookups++
+	return s.DeviceResolver.DeviceIDs(ctx, ids)
 }

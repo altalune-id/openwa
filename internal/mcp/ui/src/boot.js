@@ -1,4 +1,4 @@
-const app = document.createElement("altempl-app");
+const app = document.createElement("openwa-app");
 document.getElementById("root").appendChild(app);
 
 let current = { actions: Object.create(null) };

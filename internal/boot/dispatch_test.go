@@ -5,8 +5,8 @@ import (
 	"slices"
 	"testing"
 
-	"altalune.id/template/internal/boot"
-	"altalune.id/template/internal/platform/outbox"
+	"altalune.id/openwa/internal/boot"
+	"altalune.id/openwa/internal/platform/outbox"
 )
 
 type noopDeliverer struct{}

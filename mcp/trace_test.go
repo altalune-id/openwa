@@ -11,7 +11,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"altalune.id/template/mcp"
+	"altalune.id/openwa/mcp"
 )
 
 type syncBuffer struct {
@@ -167,7 +167,7 @@ func TestAPanickingToolHandlerIsContainedAndAudited(t *testing.T) {
 			if mErr != nil {
 				t.Fatalf("marshal result: %v", mErr)
 			}
-			for _, leak := range []string{tc.wantLog, "goroutine ", "altalune.id/template/mcp"} {
+			for _, leak := range []string{tc.wantLog, "goroutine ", "altalune.id/openwa/mcp"} {
 				if strings.Contains(string(wire), leak) {
 					t.Errorf("the caller-visible result leaks %q; an agent-reachable surface must not receive the panic value or a stack:\n%s", leak, wire)
 				}

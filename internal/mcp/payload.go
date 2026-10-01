@@ -5,8 +5,8 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	rootmcp "altalune.id/template/mcp"
-	"altalune.id/template/reqid"
+	rootmcp "altalune.id/openwa/mcp"
+	"altalune.id/openwa/reqid"
 )
 
 // AttachContext returns a copy of p carrying the request and trace ids ctx holds, leaving any id already set alone.

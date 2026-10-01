@@ -10,10 +10,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/testutil/fakes"
-	"altalune.id/template/internal/todo"
-	"altalune.id/template/internal/web/handlers"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/testutil/fakes"
+	"altalune.id/openwa/internal/todo"
+	"altalune.id/openwa/internal/web/handlers"
 )
 
 const todoBase = "/orgs/acme/projects/alpha"

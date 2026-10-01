@@ -36,7 +36,5 @@ a hand-aligned table will not match.
 
 ## Constraint violations
 
-Adapters translate driver errors and never leak a `*pgconn.PgError` or a SQLite error. The exact
-codes per driver — including the non-obvious one, where `ON DELETE RESTRICT` reports a different
-SQLite errcode than an insert-side FK violation — are in
+Adapters translate driver errors and never leak a `*pgconn.PgError`. The SQLSTATE codes are in
 [`persistence.md`](persistence.md#constraint-translation).

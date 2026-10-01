@@ -5,9 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"altalune.id/template/internal/cli/render"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/project"
+	"altalune.id/openwa/internal/cli/render"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/project"
 )
 
 // TODO(future-proto): switch to bootClient.Conn once api/project/v1 lands.

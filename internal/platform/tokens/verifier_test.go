@@ -15,7 +15,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/platform/tokens"
+	"altalune.id/openwa/internal/platform/tokens"
 )
 
 func TestNewVerifier_Disabled(t *testing.T) {

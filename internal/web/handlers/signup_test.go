@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/web/handlers"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/web/handlers"
 )
 
 func orgCreate(slug, name string, owner uuid.UUID) org.CreateRequest {

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"strings"
 )
 
 const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
@@ -45,4 +46,17 @@ func NewInviteToken() (raw, hash string, err error) {
 	}
 	sum := sha256.Sum256([]byte(raw))
 	return raw, hex.EncodeToString(sum[:]), nil
+}
+
+// Valid reports whether s is exactly n characters of the nanoid alphabet; n must be > 0.
+func Valid(s string, n int) bool {
+	if n <= 0 || len(s) != n {
+		return false
+	}
+	for i := range len(s) {
+		if strings.IndexByte(alphabet, s[i]) < 0 {
+			return false
+		}
+	}
+	return true
 }

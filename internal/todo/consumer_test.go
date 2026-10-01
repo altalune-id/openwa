@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"altalune.id/template/internal/platform/queue"
-	"altalune.id/template/internal/testutil/fakes"
-	"altalune.id/template/internal/todo"
+	"altalune.id/openwa/internal/platform/queue"
+	"altalune.id/openwa/internal/testutil/fakes"
+	"altalune.id/openwa/internal/todo"
 )
 
 func TestConsumer_ConsumerHandlers(t *testing.T) {

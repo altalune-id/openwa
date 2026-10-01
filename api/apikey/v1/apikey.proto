@@ -4,7 +4,7 @@ package apikey.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "altalune.id/template/gen/go/apikey/v1;apikeyv1";
+option go_package = "altalune.id/openwa/gen/go/apikey/v1;apikeyv1";
 
 service APIKeyService {
   rpc List(ListRequest) returns (ListResponse);
@@ -36,6 +36,7 @@ message CreateRequest {
   string project_id = 1;
   string name = 2;
   repeated string scopes = 3;
+  // Resources the key is confined to: device public ids (dev_...) or other resource UUIDs; empty means the whole project
   repeated string resource_ids = 4;
   // Required: when the key stops working, in the future and at most one year away
   google.protobuf.Timestamp expires_at = 5;

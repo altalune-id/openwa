@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/web/middleware"
-	"altalune.id/template/logger"
-	"altalune.id/template/reqid"
+	"altalune.id/openwa/internal/web/middleware"
+	"altalune.id/openwa/logger"
+	"altalune.id/openwa/reqid"
 )
 
 func TestRequestID_MintsOneWhenMissing(t *testing.T) {

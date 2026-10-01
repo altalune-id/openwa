@@ -11,11 +11,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	mcpinternal "altalune.id/template/internal/mcp"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/user"
+	mcpinternal "altalune.id/openwa/internal/mcp"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/user"
 )
 
 func (i *tokenIssuer) mintWith(t *testing.T, audience string, scopes []string, extra map[string]any) string {
@@ -62,14 +62,6 @@ func seedForeignTenant(t *testing.T, f *mcpFixture) foreignTenant {
 	p, err := f.srv.Projects.Create(orgCtx, o.ID, "foreign-project", "Foreign Project")
 	require.NoError(t, err)
 
-	projCtx := tenant.WithProject(orgCtx, p.ID)
-	cat, err := f.srv.Categories.Create(projCtx, "Secrets", "secrets")
-	require.NoError(t, err)
-	post, err := f.srv.Posts.Create(projCtx, cat.ID, "Foreign", "foreign-secret", "body")
-	require.NoError(t, err)
-	_, err = f.srv.Posts.Publish(projCtx, post.ID, 0)
-	require.NoError(t, err)
-
 	return foreignTenant{orgID: o.ID.String(), projectID: p.ID.String()}
 }
 
@@ -81,42 +73,40 @@ func TestMCP_JWTResolvesItsTenantFromMembership(t *testing.T) {
 	ownOrg, err := f.srv.Orgs.BySlug(t.Context(), "mcp-org")
 	require.NoError(t, err)
 
-	read := []string{authn.ScopePostsRead}
+	read := []string{authn.ScopeProjectsRead}
 
 	t.Run("a token with no org_id resolves the subject's only membership", func(t *testing.T) {
 		token := f.issuer.mintWith(t, mcpAudience, read, nil)
-		rec := f.call(t, token, callToolBody(mcpinternal.ToolBlogList, map[string]any{"projectId": f.projectID}))
+		rec := f.call(t, token, callToolBody(mcpinternal.ToolProjectList, map[string]any{}))
 
 		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
 		require.NotContains(t, rec.Body.String(), "Tenant context names no org",
 			"a verified JWT reached a tenant-scoped tool with no org: membership never resolved; body=%s", rec.Body.String())
-		require.Contains(t, rec.Body.String(), `\"slug\":\"hello\"`,
-			"the JWT call must read the org's own posts; body=%s", rec.Body.String())
+		require.Contains(t, rec.Body.String(), `\"slug\":\"mcp-project\"`,
+			"the JWT call must read the org's own projects; body=%s", rec.Body.String())
 	})
 
 	t.Run("a token whose org_id names the subject's own org is honored", func(t *testing.T) {
 		token := f.issuer.mintWith(t, mcpAudience, read, map[string]any{"org_id": ownOrg.ID.String()})
-		rec := f.call(t, token, callToolBody(mcpinternal.ToolBlogList, map[string]any{"projectId": f.projectID}))
+		rec := f.call(t, token, callToolBody(mcpinternal.ToolProjectList, map[string]any{}))
 
 		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
-		require.Contains(t, rec.Body.String(), `\"slug\":\"hello\"`,
+		require.Contains(t, rec.Body.String(), `\"slug\":\"mcp-project\"`,
 			"an org_id the subject is a member of must be honored; body=%s", rec.Body.String())
 	})
 
 	t.Run("a token whose org_id names an org the subject is not a member of is refused", func(t *testing.T) {
 		token := f.issuer.mintWith(t, mcpAudience, read, map[string]any{"org_id": foreign.orgID})
 
-		for _, projectID := range []string{foreign.projectID, f.projectID} {
-			rec := f.call(t, token, callToolBody(mcpinternal.ToolBlogList, map[string]any{"projectId": projectID}))
+		rec := f.call(t, token, callToolBody(mcpinternal.ToolProjectList, map[string]any{}))
 
-			require.Equal(t, http.StatusUnauthorized, rec.Code,
-				"a token asserting org_id=%s was admitted; an issuer must not be able to name a tenant its subject has no membership in; body=%s",
-				foreign.orgID, rec.Body.String())
-			require.NotContains(t, rec.Body.String(), "foreign-secret",
-				"the refused token read the claimed org's data; body=%s", rec.Body.String())
-			require.Contains(t, rec.Header().Get("WWW-Authenticate"), mcpMetadataPath,
-				"the 401 must carry the RFC 9728 challenge like every other MCP refusal")
-		}
+		require.Equal(t, http.StatusUnauthorized, rec.Code,
+			"a token asserting org_id=%s was admitted; an issuer must not be able to name a tenant its subject has no membership in; body=%s",
+			foreign.orgID, rec.Body.String())
+		require.NotContains(t, rec.Body.String(), foreign.projectID,
+			"the refused token read the claimed org's data; body=%s", rec.Body.String())
+		require.Contains(t, rec.Header().Get("WWW-Authenticate"), mcpMetadataPath,
+			"the 401 must carry the RFC 9728 challenge like every other MCP refusal")
 	})
 
 	t.Run("an org_id that is not a uuid is refused", func(t *testing.T) {

@@ -6,32 +6,33 @@ exit codes: [`cli`](../cli/README.md). Task recipes: [`howto/`](../howto/README.
 ## Docker
 
 ```bash
-# single container, SQLite in the image
 make docker
 docker run --rm -p 5150:5150 \
-  -e ALT_DB_DRIVER=sqlite -e ALT_DB_DSN=/data/altempl.db \
-  -e ALT_GENESIS_EMAIL=admin@local -e ALT_GENESIS_PASSWORD=change-me \
-  -v altempl-data:/data altempl:dev
+  -e OPENWA_DB_DSN='postgres://openwa:openwa@host.docker.internal:5432/openwa?sslmode=disable' \
+  -e OPENWA_DB_ALLOW_BYPASS_RLS=true \
+  -e OPENWA_SECURITY_ENCRYPTION_KEY="$(openssl rand -hex 32)" \
+  -e OPENWA_GENESIS_EMAIL=admin@local -e OPENWA_GENESIS_PASSWORD=change-me \
+  openwa:dev
 ```
 
-| Tag                                               | Source                               | Built by                    |
-| ------------------------------------------------- | ------------------------------------ | --------------------------- |
-| `ghcr.io/<owner>/altempl:edge`                    | latest push to `main`                | `.github/workflows/dev.yml` |
-| `ghcr.io/<owner>/altempl:<short-sha>`             | that push, pinned                    | same                        |
-| `ghcr.io/<owner>/altempl:<version>`               | tagged release (`v0.1.0` → `:0.1.0`) | GoReleaser, `release.yml`   |
-| `ghcr.io/<owner>/altempl:latest`                  | most recent tagged release           | same                        |
-| `ghcr.io/<owner>/altempl:<version>-{amd64,arm64}` | per-arch inputs to the manifest      | same                        |
+| Tag                                                  | Source                               | Built by                    |
+| ---------------------------------------------------- | ------------------------------------ | --------------------------- |
+| `ghcr.io/altalune-id/openwa:edge`                    | latest push to `main`                | `.github/workflows/dev.yml` |
+| `ghcr.io/altalune-id/openwa:<short-sha>`             | that push, pinned                    | same                        |
+| `ghcr.io/altalune-id/openwa:<version>`               | tagged release (`v0.1.0` → `:0.1.0`) | GoReleaser, `release.yml`   |
+| `ghcr.io/altalune-id/openwa:latest`                  | most recent tagged release           | same                        |
+| `ghcr.io/altalune-id/openwa:<version>-{amd64,arm64}` | per-arch inputs to the manifest      | same                        |
 
-The image is distroless `nonroot`, `ENTRYPOINT ["/altempl"]`, `CMD ["serve"]`, exposing 5150 — so any
-subcommand runs as `docker run --rm altempl:dev migrate status`. Releases are cosign-signed and carry
-an `attest-build-provenance` attestation. `<owner>` comes from `GHCR_OWNER` on release and
+The image is distroless `nonroot`, `ENTRYPOINT ["/openwa"]`, `CMD ["serve"]`, exposing 5150 — so any
+subcommand runs as `docker run --rm openwa:dev migrate status`. Releases are cosign-signed and carry
+an `attest-build-provenance` attestation. The owner segment comes from `GHCR_OWNER` on release and
 `github.repository_owner` on `main`. Base images are digest-pinned in `Dockerfile` — refresh with
 `docker manifest inspect <ref>` and update the two `ARG` lines.
 
 ## Local dev stack (compose)
 
 `compose.yaml` starts Postgres 17 + [Mailpit](https://mailpit.axllent.org/) + NATS (JetStream,
-token `altempl-dev`) + altempl, under `docker compose` or `podman-compose`. altempl is at
+token `openwa-dev`) + openwa, under `docker compose` or `podman-compose`. openwa is at
 `http://127.0.0.1:5150/login`; every outbound email lands in Mailpit at `http://127.0.0.1:8025`.
 
 ```bash
@@ -42,19 +43,19 @@ make compose-nuke        # stop + wipe docker/data/pg
 ```
 
 Postgres data lives at `./docker/data/pg` and NATS data at `./docker/data/nats` (bind-mounted,
-`.gitignore`d). The stack runs `selfhosted` with `ALT_DB_ALLOW_BYPASS_RLS=true` (RLS off),
+`.gitignore`d). The stack runs `selfhosted` with `OPENWA_DB_ALLOW_BYPASS_RLS=true` (RLS off),
 Mailpit's open SMTP and the queue on; production mail goes under `mail.smtp.*` (or `mail.resend.*`
 with `mail.driver=resend`), and the role graph below.
 
 ## Postgres
 
-**Dev**: point `ALT_DB_DSN` at any role (superuser is fine), set `ALT_DB_ALLOW_BYPASS_RLS=true`; RLS is off.
+**Dev**: point `OPENWA_DB_DSN` at any role (superuser is fine), set `OPENWA_DB_ALLOW_BYPASS_RLS=true`; RLS is off.
 
-**Production**: `scripts/db/provision.sh` creates a six-role graph — `altempl_owner`
-(`NOLOGIN CREATEROLE INHERIT BYPASSRLS`, owns every object), `altempl_migrator` and
-`altempl_service` (LOGIN, neither holds `BYPASSRLS`), and `altempl_editor` / `_reader` / `_ops`
+**Production**: `scripts/db/provision.sh` creates a six-role graph — `openwa_owner`
+(`NOLOGIN CREATEROLE INHERIT BYPASSRLS`, owns every object), `openwa_migrator` and
+`openwa_service` (LOGIN, neither holds `BYPASSRLS`), and `openwa_editor` / `_reader` / `_ops`
 (NOLOGIN human groups). No role is both LOGIN and `BYPASSRLS`. The role table, the
-`SECURITY DEFINER` wrappers for cross-tenant reads and why `GRANT altempl_owner TO x` does not confer
+`SECURITY DEFINER` wrappers for cross-tenant reads and why `GRANT openwa_owner TO x` does not confer
 `BYPASSRLS`: [`multitenancy`](../multitenancy/README.md#postgres-roles). Day-2 operator procedures, provider
 notes and the post-migration `verify.template.sql`: [`scripts/db/README.md`](../../scripts/db/README.md).
 
@@ -62,12 +63,12 @@ Provision idempotently (interactive; prompts for admin URL, DB name, passwords),
 at the two LOGIN roles:
 
 ```bash
-APP=altempl DB_NAME=altempl scripts/db/provision.sh
+APP=openwa DB_NAME=openwa scripts/db/provision.sh
 
-ALT_DB_DSN=postgres://altempl_service:<svc-pw>@host:5432/altempl?sslmode=require
-ALT_DB_MIGRATOR_DSN=postgres://altempl_migrator:<mig-pw>@host:5432/altempl?sslmode=require
-ALT_DB_MIGRATOR_ROLE=altempl_owner
-ALT_DB_ALLOW_BYPASS_RLS=false
+OPENWA_DB_DSN=postgres://openwa_service:<svc-pw>@host:5432/openwa?sslmode=require
+OPENWA_DB_MIGRATOR_DSN=postgres://openwa_migrator:<mig-pw>@host:5432/openwa?sslmode=require
+OPENWA_DB_MIGRATOR_ROLE=openwa_owner
+OPENWA_DB_ALLOW_BYPASS_RLS=false
 ```
 
 - `db.migrator.role` is the sole source of the migration role, issued once per connection rather
@@ -82,8 +83,7 @@ ALT_DB_ALLOW_BYPASS_RLS=false
 
 ## Reader replica
 
-`db.Pool{W, R}` wraps writer + reader. SQLite always aliases `R` to `W`. For Postgres,
-`ALT_DB_READER_DSN` routes non-tenant reads (`user`, `onboard`) to a replica; empty aliases to `W`.
+`db.Pool{W, R}` wraps writer + reader. `OPENWA_DB_READER_DSN` routes non-tenant reads (`user`, `onboard`) to a replica; empty aliases to `W`.
 Tenant-scoped reads run on `W` — `tenant.PgConn.BeginTenanted` needs `set_config` inside the
 transaction, which a replica cannot serve. Unit-of-work primitives:
 [`multitenancy`](../multitenancy/README.md#unit-of-work); module authors:
@@ -93,7 +93,7 @@ transaction, which a replica cannot serve. Unit-of-work primitives:
 
 `/healthz`, `/readyz` and `/robots.txt` are mounted at the outer mux root on the `Probes` chain —
 NOT under `http.basePath`. Deliberately: orchestrator probes (compose, kubelet, LB target groups)
-reach altempl on its listen port directly, so their config survives a remount; and public proxies
+reach openwa on its listen port directly, so their config survives a remount; and public proxies
 typically route only `example.com/<basePath>/*`, keeping `/healthz` off the public surface.
 
 - `/healthz` — the process is serving. Never touches the DB.
@@ -107,16 +107,16 @@ of `scheduler.enabled` or `serve --no-scheduler`. Each replica probes its own po
 never shared. A probe failure is logged and the worker keeps ticking — it never reaches the
 notification sinks and never fails the process.
 
-**`altempl healthz`** is the compose and k8s healthcheck: a self-contained probe that needs no
+**`openwa healthz`** is the compose and k8s healthcheck: a self-contained probe that needs no
 `curl`, which the distroless image does not have.
 
 - Default target is `http://127.0.0.1:<port from http.addr>/healthz`.
-- `--url` (or `ALT_URL`) moves it; a saved CLI profile deliberately does not.
+- `--url` (or `OPENWA_URL`) moves it; a saved CLI profile deliberately does not.
 - `--timeout` defaults to `3s`. Exit is non-zero when the probe fails; `--output json` prints
   `{url, status, ok, took, error}`.
 - Public status page? Route it explicitly in the proxy, e.g. nginx
-  `location = /altempl/healthz { proxy_pass http://altempl:5150/healthz; }`.
-- Pre-deploy smoke test: `bash scripts/verify-serve-smoke.sh` boots `serve` on ephemeral SQLite,
+  `location = /openwa/healthz { proxy_pass http://openwa:5150/healthz; }`.
+- Pre-deploy smoke test: `bash scripts/verify-serve-smoke.sh` boots `serve` against Postgres (`TEST_PG_DSN`, or a throwaway container),
   curls `/healthz`, sends SIGTERM and asserts clean shutdown.
 
 ## Scheduler and queue
@@ -133,7 +133,7 @@ rules — default `baseURL + basePath + /mcp`, widened only by `mcp.audienceOver
 
 Deployment-side: the proxy must pass `/.well-known/oauth-protected-resource<basePath>/mcp` and the
 challenge path through — both are unauthenticated and both are how a host discovers the endpoint. A proxy
-terminating on a different public URL needs `ALT_MCP_AUDIENCE` plus `ALT_MCP_AUDIENCE_OVERRIDE=true`.
+terminating on a different public URL needs `OPENWA_MCP_AUDIENCE` plus `OPENWA_MCP_AUDIENCE_OVERRIDE=true`.
 
 ## Observability
 
@@ -170,7 +170,7 @@ them.
    `public` for CLI-only. Copy client ID + secret.
 2. Register redirect URIs — `https://<host>/oauth/callback` (web, under `http.basePath`) and
    `http://127.0.0.1:0/callback` (CLI loopback, RFC 8252).
-3. Create a resource server for `urn:altempl:api`.
-4. Set `oidc.issuer`, `oidc.clientID`, `oidc.clientSecret`, `oidc.resource: urn:altempl:api`,
-   `tokens.audience: urn:altempl:api`, `tokens.issuer` and `tokens.jwksURL`.
+3. Create a resource server for `urn:openwa:api`.
+4. Set `oidc.issuer`, `oidc.clientID`, `oidc.clientSecret`, `oidc.resource: urn:openwa:api`,
+   `tokens.audience: urn:openwa:api`, `tokens.issuer` and `tokens.jwksURL`.
 5. Restart — log in at `/login`.

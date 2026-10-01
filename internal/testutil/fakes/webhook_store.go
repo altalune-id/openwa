@@ -10,10 +10,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/outbox"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/webhook"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/outbox"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/webhook"
 )
 
 // WebhookStore is an in-memory webhook.Store that scopes by the org on ctx only, like the real adapters.

@@ -13,15 +13,15 @@ import (
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
 
-	blogv1 "altalune.id/template/gen/go/blog/v1"
-	blogv1connect "altalune.id/template/gen/go/blog/v1/blogv1connect"
-	"altalune.id/template/internal/apikey"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tokens"
-	"altalune.id/template/internal/testutil/fakes"
+	blogv1 "altalune.id/openwa/gen/go/blog/v1"
+	blogv1connect "altalune.id/openwa/gen/go/blog/v1/blogv1connect"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tokens"
+	"altalune.id/openwa/internal/testutil/fakes"
 )
 
 // TestServer_HandlerOptions_EnforcesKeyScopes proves handlerOptions wires the real authn.Interceptor, not just interceptor.Auth's JWT check.

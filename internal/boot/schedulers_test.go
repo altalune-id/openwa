@@ -8,19 +8,19 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/db"
-	"altalune.id/template/logger"
-	"altalune.id/template/scheduler"
-	"altalune.id/template/worker"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/db"
+	"altalune.id/openwa/internal/testutil/pgtest"
+	"altalune.id/openwa/logger"
+	"altalune.id/openwa/scheduler"
+	"altalune.id/openwa/worker"
 )
 
 var _ worker.Worker = (*scheduler.Runner)(nil)
@@ -31,9 +31,10 @@ func TestAssertSchedulerWiring(t *testing.T) {
 		providers []scheduler.Provider
 		wantErr   string
 	}{
-		{"all wired", []scheduler.Provider{stubProvider{}, stubProvider{}}, ""},
-		{"todo slot missing", []scheduler.Provider{nil, stubProvider{}}, "todo"},
-		{"session slot missing", []scheduler.Provider{stubProvider{}, nil}, "session"},
+		{"all wired", []scheduler.Provider{stubProvider{}, stubProvider{}, stubProvider{}}, ""},
+		{"todo slot missing", []scheduler.Provider{nil, stubProvider{}, stubProvider{}}, "todo"},
+		{"session slot missing", []scheduler.Provider{stubProvider{}, nil, stubProvider{}}, "session"},
+		{"message slot missing", []scheduler.Provider{stubProvider{}, stubProvider{}, nil}, "message"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -52,7 +53,7 @@ func TestAssertSchedulerWiring_LengthMismatchIsAnError(t *testing.T) {
 }
 
 func TestSchedulerDomains_MatchesProviderCount(t *testing.T) {
-	require.Len(t, schedulerDomains, 2, "add the new domain to schedulerDomains and schedulerProviders together")
+	require.Len(t, schedulerDomains, 3, "add the new domain to schedulerDomains and schedulerProviders together")
 }
 
 func TestWarnUnusedTimezoneOverrides(t *testing.T) {
@@ -116,7 +117,7 @@ func TestBootServer_RegistersEveryProvidersJobs(t *testing.T) {
 	for _, j := range srv.Scheduler.Jobs() {
 		names = append(names, j.Name)
 	}
-	require.ElementsMatch(t, []string{"todo-autocomplete-stale", "session-sweep"}, names,
+	require.ElementsMatch(t, []string{"todo-autocomplete-stale", "session-sweep", "message-retention"}, names,
 		"the db health probe is a standalone worker, not a scheduler job")
 }
 
@@ -253,21 +254,24 @@ func TestReadyz_IsDBAwareInEveryProcessShape(t *testing.T) {
 	}
 }
 
+const testEncryptionKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
 func schedulerBootCfg(t *testing.T) *config.Config {
 	t.Helper()
-	dir := t.TempDir()
+	h := pgtest.NewDatabase(t)
 	return &config.Config{
 		Mode: config.ModeSelfhosted,
 		HTTP: config.HTTPConfig{Addr: "127.0.0.1:0", BaseURL: "http://127.0.0.1"},
 		DB: db.DBConfig{
-			Driver:      db.DriverSQLite,
-			DSN:         filepath.Join(dir, "scheduler.db"),
-			TablePrefix: "altempl_",
-			Schema:      "public",
-			AutoMigrate: true,
-			Health:      db.HealthConfig{Interval: 30 * time.Second, Timeout: 2 * time.Second},
+			DSN:            h.DSN,
+			TablePrefix:    "openwa_",
+			Schema:         "public",
+			AutoMigrate:    true,
+			AllowBypassRLS: true,
+			Health:         db.HealthConfig{Interval: 30 * time.Second, Timeout: 2 * time.Second},
 		},
-		Genesis: config.GenesisConfig{Email: "root@example.com", Password: "hunter2"},
+		Security: config.SecurityConfig{EncryptionKey: testEncryptionKey},
+		Genesis:  config.GenesisConfig{Email: "root@example.com", Password: "hunter2"},
 		Tenant: config.TenantConfig{
 			SingletonOrg:            config.SingletonOrgConfig{Name: "Default"},
 			PersonalOrgSlugFallback: "personal",

@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/user"
+	"altalune.id/openwa/internal/user"
 )
 
 // User is an in-memory user.Store for tests.

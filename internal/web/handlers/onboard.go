@@ -12,16 +12,16 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/onboard"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/templates"
-	slugs "altalune.id/template/slug"
+	"altalune.id/openwa/internal/onboard"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/templates"
+	slugs "altalune.id/openwa/slug"
 )
 
 const (
@@ -30,7 +30,7 @@ const (
 )
 
 // SetupCookieName carries the /onboard setup token across the OIDC round-trip.
-const SetupCookieName = "altempl_setup"
+const SetupCookieName = "openwa_setup"
 
 const setupCookieTTL = 30 * time.Minute
 
@@ -107,8 +107,7 @@ func constantTimeEqual(got, want string) bool {
 
 // SECURITY: the refusal never reveals whether a token was supplied but wrong.
 func (h *OnboardHandler) denySetup(w http.ResponseWriter, r *http.Request) {
-	h.ErrorPage(w, r, http.StatusForbidden, "Setup is locked",
-		"First-time setup requires the one-time setup token printed in the server logs.")
+	h.ErrorPageKey(w, r, http.StatusForbidden, "error.forbidden", nil)
 }
 
 func (h *OnboardHandler) rememberSetupToken(w http.ResponseWriter) {
@@ -373,7 +372,7 @@ func (h *OnboardHandler) stillRequired(w http.ResponseWriter, r *http.Request) b
 	required, err := h.Onboards.Required(r.Context())
 	if err != nil {
 		h.LogErr("web onboard: re-check required", err)
-		h.ErrorPage(w, r, http.StatusServiceUnavailable, "Setup unavailable", "Could not confirm the onboarding state. Please try again.")
+		h.ErrorPageKey(w, r, http.StatusServiceUnavailable, "error.load_failed", err)
 		return false
 	}
 	if required {

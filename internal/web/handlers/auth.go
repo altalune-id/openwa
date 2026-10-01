@@ -10,17 +10,17 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/authl"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/auth"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/templates"
+	"altalune.id/openwa/authl"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/auth"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/templates"
 )
 
 // AuthHandler bundles the login/logout/callback routes into a single receiver.
@@ -141,7 +141,7 @@ func (h *AuthHandler) GetAdminLogin(w http.ResponseWriter, r *http.Request) {
 // PostLogin verifies local credentials and mints a session on success.
 func (h *AuthHandler) PostLogin(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		h.ErrorPage(w, r, http.StatusBadRequest, "Bad request", "Could not parse form body.")
+		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.bad_request", err)
 		return
 	}
 	email := strings.TrimSpace(r.PostForm.Get("email"))
@@ -166,7 +166,7 @@ func (h *AuthHandler) PostLogin(w http.ResponseWriter, r *http.Request) {
 	principal = h.reconcileGenesis(r.Context(), principal)
 	principal = h.resolveActiveTenant(r.Context(), principal)
 	if err := h.WriteSession(w, r, principal); err != nil {
-		h.ErrorPage(w, r, http.StatusInternalServerError, "Sign-in failed", "Could not persist session.")
+		h.ErrorPageKey(w, r, http.StatusInternalServerError, "error.internal", err)
 		return
 	}
 	if dest := h.pendingInviteDest(r); dest != "" {
@@ -206,7 +206,7 @@ func (h *AuthHandler) OIDCComplete(ctx context.Context, w http.ResponseWriter, r
 			return nil
 		}
 		h.LogErr("web auth: oidc onboard", err)
-		h.ErrorPage(w, r, http.StatusForbidden, "Not permitted", err.Error(), err)
+		h.ErrorPageKey(w, r, http.StatusForbidden, "error.forbidden", err)
 		return nil
 	}
 	principal.IDToken = ident.IDToken
@@ -214,8 +214,8 @@ func (h *AuthHandler) OIDCComplete(ctx context.Context, w http.ResponseWriter, r
 	principal = h.resolveActiveTenant(ctx, principal)
 	if err := h.WriteSession(w, r, principal); err != nil {
 		h.LogErr("web auth: oidc write session", err)
-		h.ErrorPage(w, r, http.StatusInternalServerError, "Sign-in failed", "Could not persist session.", err)
-		return nil //nolint:nilerr // response already written via ErrorPage; returning err would double-write via authl.writeErr
+		h.ErrorPageKey(w, r, http.StatusInternalServerError, "error.internal", err)
+		return nil //nolint:nilerr // response already written via ErrorPageKey; returning err would double-write via authl.writeErr
 	}
 	if h.Required != nil && h.Required.Load() {
 		http.Redirect(w, r, web.Path(h.Cfg.HTTP.BasePath, "/onboard/complete"), http.StatusSeeOther)

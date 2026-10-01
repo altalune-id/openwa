@@ -1,73 +1,47 @@
-package schema
+package schema_test
 
 import (
-	"context"
-	"database/sql"
-	"path/filepath"
 	"testing"
 
-	_ "modernc.org/sqlite"
+	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/platform/config"
+	"altalune.id/openwa/internal/testutil/pgtest"
+	"altalune.id/openwa/schema"
 )
 
-// SECURITY: the SQLite rebuild of api_keys drops the old table, which fires todos' ON DELETE SET NULL; foreign keys are on here, as in production, so a lost link would show.
-func TestMigrateUp_SQLite_OrgAPIKeysKeepsTodoKeyAuthorship(t *testing.T) {
-	dsn := "file:" + filepath.Join(t.TempDir(), "m.db") + "?_pragma=foreign_keys(1)"
-	db, err := sql.Open("sqlite", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	ctx := context.Background()
-	cfg := config.Defaults()
-	if err := MigrateUp(ctx, db, cfg); err != nil {
-		t.Fatalf("MigrateUp: %v", err)
-	}
-	if err := MigrateDownTo(ctx, db, cfg, 10); err != nil {
-		t.Fatalf("MigrateDownTo 10: %v", err)
-	}
+func TestMigrate_Postgres_OrgAPIKeysRollsBackAndForward(t *testing.T) {
+	h := pgtest.New(t)
+	suffix := uniqueSuffix(t)
+	prefix := "t" + suffix + "_"
+	migDB := migrationRoleDB(t, h, "openwa_orgkeys_"+suffix, "BYPASSRLS")
+	cfg := migrationConfig(prefix)
+	require.NoError(t, schema.MigrateUp(t.Context(), migDB, cfg))
 
-	exec := func(q string, args ...any) {
+	exec := func(q string) {
 		t.Helper()
-		if _, err := db.ExecContext(ctx, q, args...); err != nil {
-			t.Fatalf("%s: %v", q, err)
-		}
+		_, err := migDB.ExecContext(t.Context(), q)
+		require.NoError(t, err, q)
 	}
-	const ts = "2026-01-01T00:00:00Z"
-	exec(`INSERT INTO altempl_users (id, email, name, avatar_url, is_admin, created_at, updated_at) VALUES ('u1', 'u1@x.co', '', '', 0, ?, ?)`, ts, ts)
-	exec(`INSERT INTO altempl_orgs (id, slug, name, created_by, created_at, updated_at) VALUES ('o1', 'o1', 'O', 'u1', ?, ?)`, ts, ts)
-	exec(`INSERT INTO altempl_projects (id, org_id, slug, name, created_by, created_at, updated_at) VALUES ('p1', 'o1', 'p1', 'P', 'u1', ?, ?)`, ts, ts)
-	exec(`INSERT INTO altempl_api_keys (id, org_id, project_id, name, secret_hash, created_at) VALUES ('k1', 'o1', 'p1', 'ci', x'01', ?)`, ts)
-	exec(`INSERT INTO altempl_todos (id, org_id, project_id, created_by_key_id, title, created_at, updated_at) VALUES ('t1', 'o1', 'p1', 'k1', 'by key', ?, ?)`, ts, ts)
+	t0 := "'2026-01-01T00:00:00Z'"
+	exec(`INSERT INTO public.` + prefix + `users (id, email, name, avatar_url, is_admin, created_at, updated_at) VALUES ('00000000-0000-0000-0000-000000000001', 'u@x.co', '', '', false, ` + t0 + `, ` + t0 + `)`)
+	exec(`INSERT INTO public.` + prefix + `orgs (id, slug, name, created_by, created_at, updated_at) VALUES ('00000000-0000-0000-0000-0000000000a1', 'o', 'O', '00000000-0000-0000-0000-000000000001', ` + t0 + `, ` + t0 + `)`)
+	exec(`INSERT INTO public.` + prefix + `projects (id, org_id, slug, name, created_by, created_at, updated_at) VALUES ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000a1', 'p', 'P', '00000000-0000-0000-0000-000000000001', ` + t0 + `, ` + t0 + `)`)
+	exec(`INSERT INTO public.` + prefix + `api_keys (id, org_id, project_id, name, secret_hash, created_at) VALUES ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000b1', 'project', '\x01', ` + t0 + `)`)
+	exec(`INSERT INTO public.` + prefix + `api_keys (id, org_id, project_id, kind, name, secret_hash, created_at) VALUES ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-0000000000a1', NULL, 'org', 'org', '\x02', ` + t0 + `)`)
+	exec(`INSERT INTO public.` + prefix + `api_key_projects (org_id, key_id, project_id, created_at) VALUES ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-0000000000b1', ` + t0 + `)`)
 
-	author := func() string {
-		t.Helper()
-		var got sql.NullString
-		if err := db.QueryRowContext(ctx, `SELECT created_by_key_id FROM altempl_todos WHERE id = 't1'`).Scan(&got); err != nil {
-			t.Fatal(err)
-		}
-		return got.String
-	}
+	var grant string
+	require.NoError(t, migDB.QueryRowContext(t.Context(),
+		`SELECT project_ids FROM public.`+prefix+`resolve_api_key_by_secret_hash('\x02')`).Scan(&grant))
+	require.Equal(t, "{00000000-0000-0000-0000-0000000000b1}", grant, "the resolver must return the org key's grant")
 
-	if err := MigrateUp(ctx, db, cfg); err != nil {
-		t.Fatalf("MigrateUp over an existing key: %v", err)
-	}
-	if got := author(); got != "k1" {
-		t.Fatalf("todo key authorship after up = %q, want k1", got)
-	}
-	var kind string
-	if err := db.QueryRowContext(ctx, `SELECT kind FROM altempl_api_keys WHERE id = 'k1'`).Scan(&kind); err != nil {
-		t.Fatal(err)
-	}
-	if kind != "project" {
-		t.Fatalf("an existing key migrated as kind %q, want project", kind)
-	}
+	require.NoError(t, schema.MigrateDownTo(t.Context(), migDB, cfg, 13))
+	var n int
+	require.NoError(t, migDB.QueryRowContext(t.Context(), `SELECT count(*) FROM public.`+prefix+`api_keys`).Scan(&n))
+	require.Equal(t, 1, n, "rollback keeps project keys and drops org keys")
+	require.NoError(t, migDB.QueryRowContext(t.Context(),
+		`SELECT count(*) FROM public.`+prefix+`resolve_api_key_by_secret_hash('\x01')`).Scan(&n))
+	require.Equal(t, 1, n, "the restored resolver must still find a project key")
 
-	if err := MigrateDownTo(ctx, db, cfg, 10); err != nil {
-		t.Fatalf("MigrateDownTo 10 again: %v", err)
-	}
-	if got := author(); got != "k1" {
-		t.Fatalf("todo key authorship after down = %q, want k1", got)
-	}
+	require.NoError(t, schema.MigrateUp(t.Context(), migDB, cfg))
 }

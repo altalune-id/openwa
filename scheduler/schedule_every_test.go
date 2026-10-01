@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/scheduler"
+	"altalune.id/openwa/scheduler"
 )
 
 func TestEveryInterval_Validation(t *testing.T) {

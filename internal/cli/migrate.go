@@ -8,10 +8,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"altalune.id/template/internal/boot"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/db"
-	"altalune.id/template/schema"
+	"altalune.id/openwa/internal/boot"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/db"
+	"altalune.id/openwa/schema"
 )
 
 func openMigratorDB(ctx context.Context, cfg *config.Config) (*sql.DB, *config.Config, error) {
@@ -26,12 +26,7 @@ func openMigratorDB(ctx context.Context, cfg *config.Config) (*sql.DB, *config.C
 }
 
 func runCLIMigrateUp(ctx context.Context, cfg *config.Config, _ ServerBootFn, cmd *cobra.Command) error {
-	sqldb, migCfg, err := openMigratorDB(ctx, cfg)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = sqldb.Close() }()
-	if err := schema.MigrateUp(ctx, sqldb, migCfg); err != nil {
+	if err := boot.RunMigrations(ctx, cfg, slog.Default()); err != nil {
 		return err
 	}
 	cmd.Println("migrations: up-to-date")

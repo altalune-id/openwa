@@ -7,7 +7,6 @@
 package todov1
 
 import (
-	_ "altalune.id/template/gen/go/mcp/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -497,7 +496,7 @@ var File_todo_v1_todo_proto protoreflect.FileDescriptor
 
 const file_todo_v1_todo_proto_rawDesc = "" +
 	"\n" +
-	"\x12todo/v1/todo.proto\x12\atodo.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18mcp/v1/annotations.proto\"\xee\x01\n" +
+	"\x12todo/v1/todo.proto\x12\atodo.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xee\x01\n" +
 	"\x04Todo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -530,14 +529,13 @@ const file_todo_v1_todo_proto_rawDesc = "" +
 	"\x04todo\x18\x01 \x01(\v2\r.todo.v1.TodoR\x04todo\"(\n" +
 	"\rDeleteRequest\x12\x17\n" +
 	"\atodo_id\x18\x01 \x01(\tR\x06todoId\"\x10\n" +
-	"\x0eDeleteResponse2\xd5\x02\n" +
+	"\x0eDeleteResponse2\xf3\x01\n" +
 	"\vTodoService\x123\n" +
-	"\x04List\x12\x14.todo.v1.ListRequest\x1a\x15.todo.v1.ListResponse\x12\x9a\x01\n" +
-	"\x06Create\x12\x16.todo.v1.CreateRequest\x1a\x17.todo.v1.CreateResponse\"_\xca\xf3\x18[\n" +
-	"\vtodo_create\x128Create a todo in a project. Requires the project's UUID.\x1a\tprojectId\x1a\x05title \x01\x129\n" +
+	"\x04List\x12\x14.todo.v1.ListRequest\x1a\x15.todo.v1.ListResponse\x129\n" +
+	"\x06Create\x12\x16.todo.v1.CreateRequest\x1a\x17.todo.v1.CreateResponse\x129\n" +
 	"\x06Toggle\x12\x16.todo.v1.ToggleRequest\x1a\x17.todo.v1.ToggleResponse\x129\n" +
-	"\x06Delete\x12\x16.todo.v1.DeleteRequest\x1a\x17.todo.v1.DeleteResponseB\x81\x01\n" +
-	"\vcom.todo.v1B\tTodoProtoP\x01Z*altalune.id/template/gen/go/todo/v1;todov1\xa2\x02\x03TXX\xaa\x02\aTodo.V1\xca\x02\aTodo\\V1\xe2\x02\x13Todo\\V1\\GPBMetadata\xea\x02\bTodo::V1b\x06proto3"
+	"\x06Delete\x12\x16.todo.v1.DeleteRequest\x1a\x17.todo.v1.DeleteResponseB\x7f\n" +
+	"\vcom.todo.v1B\tTodoProtoP\x01Z(altalune.id/openwa/gen/go/todo/v1;todov1\xa2\x02\x03TXX\xaa\x02\aTodo.V1\xca\x02\aTodo\\V1\xe2\x02\x13Todo\\V1\\GPBMetadata\xea\x02\bTodo::V1b\x06proto3"
 
 var (
 	file_todo_v1_todo_proto_rawDescOnce sync.Once

@@ -7,8 +7,8 @@ import (
 
 	"google.golang.org/grpc/codes"
 
-	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
-	"altalune.id/template/internal/apperror"
+	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	"altalune.id/openwa/internal/apperror"
 )
 
 func TestAppError_BasicShape(t *testing.T) {

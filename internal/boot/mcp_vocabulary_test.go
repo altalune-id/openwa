@@ -9,9 +9,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/apperror"
-	rootmcp "altalune.id/template/mcp"
-	"altalune.id/template/reqid"
+	"altalune.id/openwa/internal/apperror"
+	rootmcp "altalune.id/openwa/mcp"
+	"altalune.id/openwa/reqid"
 )
 
 // TestMCP_OneErrorVocabularyAcrossTheSurface pins the 401 body and an in-result tool failure to one struct, one code registry and one request id, so a host needs a single parser.
@@ -37,7 +37,7 @@ func TestMCP_OneErrorVocabularyAcrossTheSurface(t *testing.T) {
 	t.Run("an in-result tool failure", func(t *testing.T) {
 		const id = "mcp-result-vocabulary-0123456789"
 		rec := f.callWithRequestID(t, f.noneKey, id,
-			callToolBody("blog_list", map[string]any{"projectId": f.projectID}))
+			callToolBody("project_list", map[string]any{}))
 
 		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
 		payload := toolPayload(t, rec)

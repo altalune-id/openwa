@@ -6,7 +6,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
-// OTel wraps next in the otelhttp handler with span name "altalune.web".
+// OTel wraps next in the otelhttp handler with span name "openwa.web".
 func OTel(next http.Handler) http.Handler {
-	return otelhttp.NewHandler(next, "altalune.web")
+	return otelhttp.NewHandler(next, "openwa.web")
 }

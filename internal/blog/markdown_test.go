@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/blog"
+	"altalune.id/openwa/internal/blog"
 )
 
 func TestRenderHTML_NeutralisesHostileInput(t *testing.T) {

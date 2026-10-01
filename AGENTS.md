@@ -2,7 +2,7 @@
 
 Guide for AI coding agents (Claude Code, Codex, Cursor, …). Read before touching code.
 
-## What altempl is
+## What openwa is (forked from altempl)
 
 Multitenant Go template — Templ + HTMX + Connect-RPC on one HTTP listener. Downstream
 services fork it and swap the domain modules. Signatures under `authl/`, `httpclient/`,
@@ -23,6 +23,7 @@ depguard rule: stdlib and the MCP Go SDK only.
 | [`scopes`](docs/scopes/README.md)                               | the scope catalog. Wire contract; additive only                                         |
 | [`mcp`](docs/mcp/README.md)                                     | the MCP surface — mount, auth, adding a tool, the Apps UI                               |
 | [`cli`](docs/cli/README.md)                                     | command tree, exit codes, output envelopes                                              |
+| [`integration`](docs/integration/README.md)                     | the integrator's guide; its json fences are checked against the event goldens           |
 | [`GLOSSARY.md`](GLOSSARY.md)                                    | canonical terms — check here before inventing a synonym                                 |
 | [`README.md`](README.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md) | layout, config, docker, releasing · TDD, commits, signing                               |
 
@@ -55,7 +56,7 @@ lifecycle) · `cobra-viper` · `go-release` · `go-spec-reviewer` ·
 - **No mocks.** Fakes are hand-written under `internal/testutil/fakes/`.
 - **Never wrap jet's `NULL` singleton** — `postgres.TimestampzExp(postgres.NULL)` mutates a
   package-level var and races. Use the `Null*` helpers in
-  `internal/platform/db/entity/{postgres,sqlite}`, matching the column's declared type;
+  `internal/platform/db/entity/postgres`, matching the column's declared type;
   Postgres has no assignment cast, so a mistyped null fails at analyze time.
 - **Nonce every script and every htmx attribute.** `<script>` takes `nonce={ d.Nonce }` — CSP
   sets a nonce-based `script-src`, so an unnonced script silently does not run. An element
@@ -80,8 +81,7 @@ lifecycle) · `cobra-viper` · `go-release` · `go-spec-reviewer` ·
 
 ```bash
 make check              # fmt + vet + templ-normalize + race tests — pre-commit gate
-make test               # unit (fast)
-make test-integration   # needs TEST_PG_DSN or a docker/podman socket
+make test               # every test, on Postgres: TEST_PG_DSN or a docker/podman socket
 make generate           # regenerate templ + buf outputs
 make config-examples    # regenerate .env.example + config.example.yaml
 make tenant-tables      # regenerate schema/tenant_tables_gen.go
@@ -100,7 +100,7 @@ concurrently, and the one data race found downstream was invisible without it.
 ## Before finishing a task
 
 - `make check` passes.
-- Ran the integration tests, if you touched a `postgres.go` or a migration.
+- Ran `make test` against Postgres (`TEST_PG_DSN`), if you touched a `postgres.go` or a migration.
 - Regenerated `.env.example` / `config.example.yaml` (config tags changed), `gen/` (edited a
   `.proto`), `tenant_tables_gen.go` (added a tenant-scoped table).
 - Ran `bash scripts/verify-mcp-smoke.sh`, if you touched the MCP surface, a `(mcp.v1.tool)`
@@ -110,8 +110,8 @@ concurrently, and the one data race found downstream was invisible without it.
 
 ## Verifying UI / server changes
 
-- **Server smoke** — `bash scripts/verify-serve-smoke.sh` boots `altempl serve` on ephemeral
-  SQLite and a random port, curls `/healthz`, sends SIGTERM, asserts clean shutdown in 10s.
-- **Live probe** — `altempl healthz` uses the configured `http.addr`, or pass
+- **Server smoke** — `bash scripts/verify-serve-smoke.sh` boots `openwa serve` on
+  Postgres and a random port, curls `/healthz`, sends SIGTERM, asserts clean shutdown in 10s.
+- **Live probe** — `openwa healthz` uses the configured `http.addr`, or pass
   `--url http://host:port/healthz`. Same binary is the compose/k8s healthcheck.
 - **UI** — `make dev`, then open the page. Type-checking passing is not the feature working.

@@ -10,13 +10,13 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/tenant"
-	slugs "altalune.id/template/slug"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/tenant"
+	slugs "altalune.id/openwa/slug"
 )
 
 //nolint:gochecknoglobals // OTel tracer is a package-level fixture, not runtime state.
-var tracer trace.Tracer = otel.Tracer("altalune.id/template/internal/project")
+var tracer trace.Tracer = otel.Tracer("altalune.id/openwa/internal/project")
 
 // Service is the projects driving port.
 type Service struct {

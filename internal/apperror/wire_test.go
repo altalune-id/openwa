@@ -7,9 +7,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 
-	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/reqid"
+	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/reqid"
 )
 
 func TestAttachContext_NilError(t *testing.T) {

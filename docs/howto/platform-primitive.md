@@ -43,10 +43,10 @@ type Worker interface {
 - **Stay inside the 10s graceful window** — `worker.HTTP`'s shutdown budget.
 - **Ticker plus `ctx.Done()`**, never `time.Sleep` in a loop.
 
-| Choose          | When                                                                                                                                                |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| scheduler `Job` | At most one replica does the work per tick, or an operator triggers it by name (`altempl scheduler run <job>`). Shape: `internal/todo/scheduler.go` |
-| `worker.Worker` | Every replica needs its own result, or per-tick failures must not reach the scheduler's error reporter                                              |
+| Choose          | When                                                                                                                                               |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| scheduler `Job` | At most one replica does the work per tick, or an operator triggers it by name (`openwa scheduler run <job>`). Shape: `internal/todo/scheduler.go` |
+| `worker.Worker` | Every replica needs its own result, or per-tick failures must not reach the scheduler's error reporter                                             |
 
 ## Gotchas
 

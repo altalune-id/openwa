@@ -10,8 +10,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"altalune.id/template/httpclient"
-	"altalune.id/template/internal/cli/render"
+	"altalune.id/openwa/httpclient"
+	"altalune.id/openwa/internal/cli/render"
 )
 
 func newHealthzCmd() *cobra.Command {
@@ -65,7 +65,7 @@ func newHealthzCmd() *cobra.Command {
 
 var errHealthzUnhealthy = errors.New("healthz: unhealthy")
 
-// NOTE: diverges from spec #2.5 — only an explicit --url/ALT_URL moves the probe, because a liveness probe must reach the listener beside it, never a saved profile or http.baseURL.
+// NOTE: diverges from spec #2.5 — only an explicit --url/OPENWA_URL moves the probe, because a liveness probe must reach the listener beside it, never a saved profile or http.baseURL.
 func healthzTarget(cmd *cobra.Command) string {
 	base := explicitURL(cmd)
 	if base == "" {

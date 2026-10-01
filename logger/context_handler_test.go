@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"testing"
 
-	"altalune.id/template/logger"
-	"altalune.id/template/reqid"
+	"altalune.id/openwa/logger"
+	"altalune.id/openwa/reqid"
 )
 
 func TestContextHandler_AttachesRequestID(t *testing.T) {

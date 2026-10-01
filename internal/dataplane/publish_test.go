@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/authn"
 )
 
 func publishRequest(t *testing.T, h http.Handler, path, key, ifMatch string) *httptest.ResponseRecorder {

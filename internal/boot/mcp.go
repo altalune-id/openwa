@@ -9,19 +9,19 @@ import (
 	"net/http"
 	"slices"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/controlplane"
-	mcpinternal "altalune.id/template/internal/mcp"
-	"altalune.id/template/internal/mcp/ui"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/tokens"
-	"altalune.id/template/internal/user"
-	rootmcp "altalune.id/template/mcp"
-	"altalune.id/template/version"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/controlplane"
+	mcpinternal "altalune.id/openwa/internal/mcp"
+	"altalune.id/openwa/internal/mcp/ui"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/tokens"
+	"altalune.id/openwa/internal/user"
+	rootmcp "altalune.id/openwa/mcp"
+	"altalune.id/openwa/version"
 )
 
-const mcpServerName = "altempl"
+const mcpServerName = "openwa"
 
 type mcpSurface struct {
 	Handler         http.Handler
@@ -82,7 +82,7 @@ func buildMCPSurface(ctx context.Context, cfg *config.Config, log *slog.Logger, 
 		// NOTE: the authorization server re-checks the proof on a schedule, so a missing token
 		// fails admission long after boot looks healthy; say so now rather than at a support desk.
 		log.Warn("boot: mcp challenge token unset — host control cannot be verified",
-			slog.String("set", "ALT_MCP_CHALLENGE_TOKEN"))
+			slog.String("set", "OPENWA_MCP_CHALLENGE_TOKEN"))
 	}
 
 	log.Info("boot: mcp surface mounted",
@@ -93,7 +93,7 @@ func buildMCPSurface(ctx context.Context, cfg *config.Config, log *slog.Logger, 
 
 	guard := mcpinternal.Authenticate(chain, s.KeyAuthn.Scheme().Authn(), surface.MetadataURL, log)
 	return mcpSurface{
-		Handler:         guard(srv.Handler()),
+		Handler:         http.MaxBytesHandler(guard(srv.Handler()), rootmcp.MaxRequestBodyBytes),
 		Metadata:        mcpinternal.MetadataHandler(surface.Resource, []string{cfg.Tokens.Issuer}, registeredScopes(registry)),
 		MetadataPath:    surface.MetadataPath,
 		ChallengeRoutes: challenge,
@@ -105,7 +105,7 @@ func buildMCPSurface(ctx context.Context, cfg *config.Config, log *slog.Logger, 
 func blogListResource() rootmcp.UIResource {
 	return rootmcp.UIResource{
 		URI:           ui.ResourceURI,
-		Name:          "Altempl app",
+		Name:          "Openwa app",
 		Body:          ui.Document(),
 		PrefersBorder: new(bool),
 	}

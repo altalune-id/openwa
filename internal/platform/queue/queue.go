@@ -21,12 +21,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/tenant"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 const (
-	connectionName        = "altempl"
+	connectionName        = "openwa"
 	defaultConnectTimeout = 10 * time.Second
 	connectBackoffBase    = 250 * time.Millisecond
 	connectBackoffMax     = 2 * time.Second

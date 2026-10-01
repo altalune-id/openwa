@@ -12,8 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	pcfg "altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/db"
+	pcfg "altalune.id/openwa/internal/platform/config"
 )
 
 // ErrRLSBypass is returned when the app connection's role has BYPASSRLS.
@@ -58,9 +57,6 @@ func CheckRLSGuard(ctx context.Context, conn *sql.DB, allowBypass bool) error {
 func RLSGuard(ctx context.Context, conn *sql.DB, cfg *pcfg.Config) error {
 	if cfg == nil {
 		return errors.New("rls guard: nil config")
-	}
-	if cfg.DB.Driver != db.DriverPostgres {
-		return nil
 	}
 	if cfg.DB.AllowBypassRLS {
 		slog.Default().Warn("rls guard: db.allowBypassRLS is true — tenant isolation checks skipped (dev only)")

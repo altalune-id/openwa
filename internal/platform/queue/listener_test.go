@@ -13,7 +13,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"altalune.id/template/internal/platform/tenant"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 func newBroadcastEnv(t *testing.T, o Options) consumerEnv {

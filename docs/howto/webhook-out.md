@@ -20,7 +20,7 @@ What ships: `internal/platform/outbox/` (table, store, worker, backoff) and `int
 7. **Receiver docs**: a row in the Events table of [`webhooks`](../webhooks/README.md#events) and a `data` example.
 8. **Tests**:
    - service tests on fakes: the event fires on the transition only, with the right payload;
-   - atomicity on SQLite with the **real** store and real unit of work: a failing `Webhooks` fake leaves the row unchanged. Revert the `s.uow` wrapping and watch it fail.
+   - atomicity on Postgres with the **real** store and real unit of work: a failing `Webhooks` fake leaves the row unchanged. Revert the `s.uow` wrapping and watch it fail.
 
 ## Tenancy
 
@@ -34,12 +34,11 @@ What ships: `internal/platform/outbox/` (table, store, worker, backoff) and `int
 ## Gotchas
 
 - **A webhook payload is a public contract; a queue job is not.** Work that must also notify tenants makes two calls with two types. Versioning rule: [`webhooks`](../webhooks/README.md#versioning).
-- **Dedupe.** `UNIQUE (org_id, event_id, target)` makes a repeat `Enqueue` a no-op. Receivers dedupe on `X-Altempl-Delivery-Id`, one per event per endpoint.
+- **Dedupe.** `UNIQUE (org_id, event_id, target)` makes a repeat `Enqueue` a no-op. Receivers dedupe on `X-Openwa-Delivery-Id`, one per event per endpoint.
 - **At least once.** `ClaimLease` (5 minutes) releases an entry whose dispatcher died, so a receiver can see a delivery twice.
 - **Retries.** `outbox.MaxAttempts` is 8 over about 28h (`outbox.Backoff`). A row that exhausts it becomes `StatusFailed`, stays as the delivery log, and the console can requeue it.
 - **Transport.** `httpclient.New(...)` refuses private addresses at connect time; `webhook.NewDeliverer` refuses redirects (`CheckRedirect`). `httpclient.WithAllowPrivateHosts(true)` has **no config key**: opening it is an operator decision, never a tenant one.
-- **SQLite opens transactions `DEFERRED`.** A read then a write in one unit of work can fail with `SQLITE_BUSY` under a concurrent writer; at dev scale the user retries.
-- Run `make test-integration` if you touched `internal/platform/outbox/postgres.go`, `internal/webhook/postgres.go` or their migrations.
+- Run `make test` against Postgres if you touched `internal/platform/outbox/postgres.go`, `internal/webhook/postgres.go` or their migrations.
 
 ## Contracts
 

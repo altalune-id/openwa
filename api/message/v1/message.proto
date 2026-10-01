@@ -1,0 +1,178 @@
+syntax = "proto3";
+
+package message.v1;
+
+import "google/protobuf/timestamp.proto";
+import "mcp/v1/annotations.proto";
+
+option go_package = "altalune.id/openwa/gen/go/message/v1;messagev1";
+
+service MessageService {
+  rpc Send(SendRequest) returns (SendResponse) {
+    option (mcp.v1.tool) = {
+      name: "message_send"
+      description: "Send a WhatsApp message: text, media (by url, or base64 data up to 4 MiB) or a location. to is a phone number with its country code (digits) or a JID. Omit deviceId when the project has exactly one device. The message is queued; its status moves to sent, delivered and read."
+      mutation: true
+      ui: "app"
+      required: ["to"]
+    };
+  }
+  rpc Get(GetRequest) returns (GetResponse);
+  rpc List(ListRequest) returns (ListResponse) {
+    option (mcp.v1.tool) = {
+      name: "message_list"
+      description: "List the messages of a chat (chatId, cht_...) or a device (deviceId, dev_...), newest first. Pass nextCursor back as cursor for older messages, or a message id (msg_...) as sinceId to get newer ones oldest first."
+    };
+  }
+  rpc React(ReactRequest) returns (ReactResponse);
+  rpc Revoke(RevokeRequest) returns (RevokeResponse);
+  rpc Edit(EditRequest) returns (EditResponse);
+  rpc MarkRead(MarkReadRequest) returns (MarkReadResponse);
+}
+
+message MediaInfo {
+  string mime = 1;
+  int64 size = 2;
+  string filename = 3;
+  bool voice = 4;
+  // Authenticated data-plane download; needs an API key with messages:read
+  string url = 5;
+}
+
+message Location {
+  double lat = 1;
+  double lng = 2;
+  string name = 3;
+  string address = 4;
+}
+
+message Message {
+  // Public id (msg_...)
+  string id = 1;
+  // Device public id (dev_...)
+  string device_id = 2;
+  // Chat public id (cht_...)
+  string chat_id = 3;
+  // "in" or "out"
+  string direction = 4;
+  string wa_id = 5;
+  string type = 6;
+  // queued, sending, sent, delivered, read, played, failed, or received
+  string status = 7;
+  string body = 8;
+  string sender_jid = 9;
+  // Digits without "+"; empty when WhatsApp hides the number
+  string sender_phone = 10;
+  string sender_name = 11;
+  bool from_me = 12;
+  MediaInfo media = 13;
+  Location location = 14;
+  string quoted_wa_id = 15;
+  string target_wa_id = 16;
+  repeated string mentions = 17;
+  string error = 18;
+  int32 attempts = 19;
+  google.protobuf.Timestamp timestamp = 20;
+  google.protobuf.Timestamp sent_at = 21;
+  google.protobuf.Timestamp delivered_at = 22;
+  google.protobuf.Timestamp read_at = 23;
+}
+
+message MediaInput {
+  // File content; up to whatsapp.mediaMaxBytes on the RPC and 4 MiB through MCP; use url for larger files
+  bytes data = 1;
+  // Public http(s) URL the server downloads
+  string url = 2;
+  string mime = 3;
+  string filename = 4;
+  string caption = 5;
+  // Send audio/ogg as a voice note
+  bool voice = 6;
+}
+
+message SendRequest {
+  // UUID of the project; omit to use the credential's active project
+  string project_id = 1;
+  // Device public id (dev_...); omit when the project has exactly one device
+  string device_id = 2;
+  // Recipient: phone number with country code (e.g. 628123456789) or a JID
+  string to = 3;
+  string text = 4;
+  MediaInput media = 5;
+  Location location = 6;
+  // A message public id (msg_...) or a WhatsApp message id to quote
+  string reply_to = 7;
+  // Phone numbers (digits) mentioned in the text as @<digits>
+  repeated string mentions = 8;
+  // Mark the chat read before sending
+  bool mark_read_first = 9;
+}
+
+message SendResponse {
+  Message message = 1;
+}
+
+message GetRequest {
+  string project_id = 1;
+  string message_id = 2;
+}
+
+message GetResponse {
+  Message message = 1;
+}
+
+message ListRequest {
+  string project_id = 1;
+  // Device public id (dev_...); list its messages across chats
+  string device_id = 2;
+  // Chat public id (cht_...); list its messages
+  string chat_id = 3;
+  // Message public id (msg_...); return newer messages, oldest first
+  string since_id = 4;
+  // next_cursor of a previous page
+  string cursor = 5;
+  // Page size, 1 to 200; default 50
+  int32 limit = 6;
+}
+
+message ListResponse {
+  repeated Message messages = 1;
+  string next_cursor = 2;
+}
+
+message ReactRequest {
+  string project_id = 1;
+  string message_id = 2;
+  // One emoji; empty removes the reaction
+  string emoji = 3;
+}
+
+message ReactResponse {
+  Message message = 1;
+}
+
+message RevokeRequest {
+  string project_id = 1;
+  string message_id = 2;
+}
+
+message RevokeResponse {
+  Message message = 1;
+}
+
+message EditRequest {
+  string project_id = 1;
+  string message_id = 2;
+  string text = 3;
+}
+
+message EditResponse {
+  Message message = 1;
+}
+
+message MarkReadRequest {
+  string project_id = 1;
+  string chat_id = 2;
+}
+
+message MarkReadResponse {}

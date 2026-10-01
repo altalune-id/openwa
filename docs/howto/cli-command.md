@@ -16,7 +16,7 @@ Worked examples: `internal/cli/blog.go` (remote, REST, API key) and `internal/cl
    Never a package-level `var`, so every test gets a fresh isolated tree.
 
 3. Add it to the `root.AddCommand(...)` list in `internal/cli/root.go` with a `GroupID` of `runtime`, `auth`, `tenancy`, `domain` or `meta`.
-4. Keep the business logic outside `cmd/`. `cmd/altempl` builds the tree, runs it, and maps the error to an exit code — it knows nothing about Cobra internals or Viper.
+4. Keep the business logic outside `cmd/`. `cmd/openwa` builds the tree, runs it, and maps the error to an exit code — it knows nothing about Cobra internals or Viper.
 5. Resolve the caller. Control-plane commands use `withPrincipal(cmd, bootClient, true)` then `connFromCmd`; data-plane commands use `blogTargetFrom(cmd)`, which resolves URL, credential and slugs in one place.
 6. Print through `internal/cli/render`: `render.Detect(cmd)`, then `render.Table`, `render.JSON` or `render.NDJSON`.
 7. Map failures to `apperror.New(code, message, grpcCode)` so `ExitCodeFor` in `internal/cli/exit.go` yields the documented exit code.
@@ -41,7 +41,7 @@ Worked examples: `internal/cli/blog.go` (remote, REST, API key) and `internal/cl
 - `--org` and `--project` are **not** global tenant overrides. Only `blog` reads them; every other tenant-scoped command takes its org from the session principal and ignores both.
 - A saved profile's credential is withheld when `--url` names another host (`HostMismatchError`). An explicit `--token` is unambiguous intent and is sent to whatever `--url` names.
 - `ndjson` is `blog`-only. Every other command treats it as `json` and emits the `{"data": …}` envelope.
-- `--no-interactive`, `--log-level` and `--log-format` are declared but nothing reads the flags; the `ALT_*` env vars do work for the last two.
+- `--no-interactive`, `--log-level` and `--log-format` are declared but nothing reads the flags; the `OPENWA_*` env vars do work for the last two.
 - `healthz` never adopts a saved profile or `http.baseURL` — it must reach the listener beside it.
 
 ## Contracts

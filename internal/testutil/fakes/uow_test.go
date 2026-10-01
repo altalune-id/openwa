@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"altalune.id/template/internal/platform/db"
-	"altalune.id/template/internal/testutil/fakes"
+	"altalune.id/openwa/internal/platform/db"
+	"altalune.id/openwa/internal/testutil/fakes"
 )
 
 func TestUnitOfWork_RunsFnWithATxSlotOnCtx(t *testing.T) {

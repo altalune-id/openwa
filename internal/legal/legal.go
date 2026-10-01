@@ -23,6 +23,7 @@ type Document struct {
 	Title     string
 	HTML      string
 	UpdatedAt time.Time
+	Headings  []string
 }
 
 // TermsSlug identifies the Terms of Service document.
@@ -51,7 +52,7 @@ func Privacy() (*Document, error) {
 	return m[PrivacySlug], nil
 }
 
-// ByslugFn is the shape TemplateData needs; keep a package-level lookup helper for handlers.
+// BySlug returns the document registered under slug.
 func BySlug(slug string) (*Document, error) {
 	m, err := docs()
 	if err != nil {
@@ -88,6 +89,7 @@ func loadAll() (map[string]*Document, error) {
 			Title:     meta.Title,
 			HTML:      buf.String(),
 			UpdatedAt: meta.Updated,
+			Headings:  headings(body),
 		}
 	}
 	return out, nil
@@ -126,10 +128,22 @@ func splitFrontmatter(raw []byte) (frontmatter, []byte, error) {
 		case "title":
 			fm.Title = strings.Trim(value, `"'`)
 		case "updated":
-			if t, err := time.Parse("2006-01-02", strings.Trim(value, `"'`)); err == nil {
-				fm.Updated = t
+			t, err := time.Parse("2006-01-02", strings.Trim(value, `"'`))
+			if err != nil {
+				return frontmatter{}, nil, fmt.Errorf("updated %q is not YYYY-MM-DD: %w", value, err)
 			}
+			fm.Updated = t
 		}
 	}
 	return fm, body, nil
+}
+
+func headings(body []byte) []string {
+	var out []string
+	for line := range strings.SplitSeq(string(body), "\n") {
+		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "## "); ok {
+			out = append(out, strings.TrimSpace(rest))
+		}
+	}
+	return out
 }

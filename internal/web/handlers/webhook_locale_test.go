@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"altalune.id/template/internal/i18n"
-	"altalune.id/template/internal/platform/events"
+	"altalune.id/openwa/internal/i18n"
+	"altalune.id/openwa/internal/platform/events"
 )
 
 // TestWebhookEventLabels_TranslatedInEveryLocale keeps the next catalog entry from rendering as a raw key in any locale.

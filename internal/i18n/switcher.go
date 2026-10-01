@@ -19,6 +19,7 @@ type SwitcherOpts struct {
 	CookieSecure bool
 	CookiePath   string
 	Persist      LocalePersister
+	OnSwitched   func(w http.ResponseWriter, r *http.Request)
 	Fallback     string
 }
 
@@ -61,6 +62,9 @@ func Switcher(opts SwitcherOpts) http.HandlerFunc {
 		})
 		if opts.Persist != nil {
 			_ = opts.Persist(r.Context(), string(loc))
+		}
+		if opts.OnSwitched != nil {
+			opts.OnSwitched(w, r)
 		}
 		target := SanitizeRedirect(r.PostFormValue("redirect"))
 		if target == "" {

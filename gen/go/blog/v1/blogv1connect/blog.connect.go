@@ -5,7 +5,7 @@
 package blogv1connect
 
 import (
-	v1 "altalune.id/template/gen/go/blog/v1"
+	v1 "altalune.id/openwa/gen/go/blog/v1"
 	connect "connectrpc.com/connect"
 	context "context"
 	errors "errors"

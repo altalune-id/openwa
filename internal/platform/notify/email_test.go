@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/mailer"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/mailer"
 )
 
 type fakeMailer struct {
@@ -69,7 +69,7 @@ func TestEmailSink_Report_SendsWithCorrectBody(t *testing.T) {
 	t.Cleanup(func() { _ = s.Close() })
 
 	s.Report(context.Background(), &apperror.Incident{
-		Code:      "altempl.unexpected",
+		Code:      "openwa.unexpected",
 		Message:   "boom",
 		Cause:     errors.New("underlying"),
 		RequestID: "req-e1",
@@ -91,10 +91,10 @@ func TestEmailSink_Report_SendsWithCorrectBody(t *testing.T) {
 	if got[0].from != "alerts@example.com" {
 		t.Errorf("from = %q", got[0].from)
 	}
-	if !strings.Contains(got[0].subject, "altempl.unexpected") {
+	if !strings.Contains(got[0].subject, "openwa.unexpected") {
 		t.Errorf("subject = %q", got[0].subject)
 	}
-	for _, want := range []string{"req-e1", "trace-e1", "altempl.unexpected", "boom", "underlying"} {
+	for _, want := range []string{"req-e1", "trace-e1", "openwa.unexpected", "boom", "underlying"} {
 		if !strings.Contains(got[0].body, want) {
 			t.Errorf("body missing %q; got %s", want, got[0].body)
 		}

@@ -7,11 +7,11 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 
-	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/project"
+	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/project"
 )
 
 // SECURITY: a key principal carries UserID == uuid.Nil, so it is admitted on ActiveOrgID instead.
@@ -53,18 +53,20 @@ func scopeToProject(ctx context.Context, projects *project.Service, projectIDRaw
 }
 
 // NOTE: an omitted project id falls back to the principal's active project and still passes scopeToProject.
-func scopeToActiveProject(ctx context.Context, projects *project.Service, projectIDRaw string) (context.Context, *project.Project, error) {
+func scopeToActiveProject(ctx context.Context, projects *project.Service, projectIDRaw string) (context.Context, error) {
 	if strings.TrimSpace(projectIDRaw) != "" {
-		return scopeToProject(ctx, projects, projectIDRaw)
+		tctx, _, err := scopeToProject(ctx, projects, projectIDRaw)
+		return tctx, err
 	}
 	p, err := principal(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if p.ActiveProjectID == uuid.Nil {
-		return nil, nil, &ProjectUnresolvedError{}
+		return nil, &ProjectUnresolvedError{}
 	}
-	return scopeToProject(ctx, projects, p.ActiveProjectID.String())
+	tctx, _, err := scopeToProject(ctx, projects, p.ActiveProjectID.String())
+	return tctx, err
 }
 
 // SECURITY: binds ctx to a loaded row's project only when the principal reaches that row; deny is the row's own out-of-reach answer, so each entity keeps its absent-or-forbidden contract.

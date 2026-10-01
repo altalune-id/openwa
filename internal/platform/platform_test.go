@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/platform"
+	"altalune.id/openwa/internal/platform"
 )
 
 type recordingCloser struct {

@@ -1,0 +1,47 @@
+package templates
+
+import (
+	"strconv"
+
+	"altalune.id/openwa/internal/web"
+)
+
+// SettingsView is the project settings page model.
+type SettingsView struct {
+	ProjectSlug string
+	Days        int
+	Pending     int64
+	Min         int
+	Max         int
+	Error       string
+	CanManage   bool
+}
+
+templ SettingsLayout(d web.LayoutData, v SettingsView) {
+	@Layout(web.WithContent(d, SettingsPage(d, v)))
+}
+
+templ SettingsPage(d web.LayoutData, v SettingsView) {
+	<section class="max-w-2xl space-y-6">
+		@PageHeader(d, PageHeaderProps{Title: d.Tr("settings.title"), Subtitle: d.Tr("settings.subtitle")})
+		@Card(CardProps{Title: d.Tr("settings.retention_title"), Description: d.Tr("settings.retention_description")}) {
+			{{ days := FieldProps{ID: "retention-days", Label: d.Tr("settings.days_label"), Help: d.Tr("settings.days_help", "Min", v.Min, "Max", v.Max), Required: true} }}
+			if v.Error != "" {
+				{{ days.Error = d.Tr(v.Error, "Min", v.Min, "Max", v.Max) }}
+			}
+			if v.CanManage {
+				<form method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/settings/retention")) } class="space-y-4">
+					@Field(d, days) {
+						<input name="days" type="number" min={ strconv.Itoa(v.Min) } max={ strconv.Itoa(v.Max) } required value={ strconv.Itoa(v.Days) } class={ InputClass() + " w-32" } { InputAttrs(days)... }/>
+					}
+					<p data-pending class="text-sm text-muted-foreground">{ d.TrN("settings.pending", int(v.Pending)) }</p>
+					@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("settings.save")})
+				</form>
+			} else {
+				<p class="text-sm text-foreground">{ d.Tr("settings.days_readonly", "Days", v.Days) }</p>
+				<p data-pending class="text-sm text-muted-foreground">{ d.TrN("settings.pending", int(v.Pending)) }</p>
+				<p class="text-sm text-muted-foreground">{ d.Tr("settings.managers_only") }</p>
+			}
+		}
+	</section>
+}

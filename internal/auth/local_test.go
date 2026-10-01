@@ -10,10 +10,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/auth"
-	"altalune.id/template/internal/password"
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/auth"
+	"altalune.id/openwa/internal/password"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 type fakeUserStore struct {

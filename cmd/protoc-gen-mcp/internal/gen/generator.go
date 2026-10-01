@@ -14,7 +14,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/pluginpb"
 
-	mcpv1 "altalune.id/template/gen/go/mcp/v1"
+	mcpv1 "altalune.id/openwa/gen/go/mcp/v1"
 )
 
 const (

@@ -6,7 +6,7 @@ import (
 
 	"connectrpc.com/connect"
 
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 // Interceptor extracts Authorization: Bearer <jwt>, verifies it, and injects the Principal into ctx.

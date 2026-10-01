@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/mcp/ui"
-	rootmcp "altalune.id/template/mcp"
+	"altalune.id/openwa/internal/mcp/ui"
+	rootmcp "altalune.id/openwa/mcp"
 )
 
 func readResourceBody(uri string) map[string]any {
@@ -20,7 +20,7 @@ func readResourceBody(uri string) map[string]any {
 	}
 }
 
-// TestMCP_AppsUIServesTheAdvertisedResource is the end-to-end guard for the backlog item: the ui:// link blog_list advertises must resolve to a document over the real mount.
+// TestMCP_AppsUIServesTheAdvertisedResource is the end-to-end guard for the backlog item: the ui:// link project_list advertises must resolve to a document over the real mount.
 func TestMCP_AppsUIServesTheAdvertisedResource(t *testing.T) {
 	f := newMCPFixture(t, mcpOpts{enabled: true, appsUI: true})
 
@@ -46,6 +46,9 @@ func TestMCP_AppsUIServesTheAdvertisedResource(t *testing.T) {
 	require.Equal(t, rootmcp.MIMEApp, got.MIMEType)
 	require.Equal(t, ui.Document(), got.Text)
 	require.True(t, strings.Contains(got.Text, `id="root"`), "the served document is not the assembled bundle")
+	for _, tag := range []string{"openwa-device-list", "openwa-device-pair"} {
+		require.Contains(t, got.Text, tag, "the served bundle lacks the %s view", tag)
+	}
 }
 
 func TestMCP_AppsUIOffPublishesNoResource(t *testing.T) {
@@ -54,4 +57,31 @@ func TestMCP_AppsUIOffPublishesNoResource(t *testing.T) {
 	rec := f.call(t, f.readKey, readResourceBody(ui.ResourceURI))
 	require.Equal(t, 200, rec.Code)
 	require.Contains(t, rec.Body.String(), "error", "reading an unpublished resource must fail, not serve a blank frame")
+}
+
+func TestMCP_AppsUIBindsProjectList(t *testing.T) {
+	f := newMCPFixture(t, mcpOpts{enabled: true, appsUI: true})
+
+	rec := f.call(t, f.readKey, listToolsBody())
+	require.Equal(t, 200, rec.Code, rec.Body.String())
+
+	var out struct {
+		Result struct {
+			Tools []struct {
+				Name string `json:"name"`
+				Meta struct {
+					UI struct {
+						ResourceURI string `json:"resourceUri"`
+					} `json:"ui"`
+				} `json:"_meta"`
+			} `json:"tools"`
+		} `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &out), rec.Body.String())
+
+	uris := map[string]string{}
+	for _, tool := range out.Result.Tools {
+		uris[tool.Name] = tool.Meta.UI.ResourceURI
+	}
+	require.Equal(t, ui.ResourceURI, uris["project_list"], "project_list must carry _meta.ui.resourceUri; body=%s", rec.Body.String())
 }

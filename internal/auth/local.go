@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/password"
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/password"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 // Genesis is the local-admin bootstrap identity carried as a plain value type.

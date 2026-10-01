@@ -22,7 +22,7 @@ export function verifyWebhook(secret, headers, rawBody, nowMs = Date.now()) {
 const app = express();
 
 app.post("/webhooks", express.raw({ type: "application/json" }), (req, res) => {
-  if (!verifyWebhook(process.env.ALTEMPL_WEBHOOK_SECRET, req.headers, req.body)) {
+  if (!verifyWebhook(process.env.OPENWA_WEBHOOK_SECRET, req.headers, req.body)) {
     return res.sendStatus(401);
   }
   const deliveryId = req.headers["{{lower .DeliveryID}}"];

@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/apperror"
+	"altalune.id/openwa/internal/apperror"
 )
 
 func TestNew(t *testing.T) {

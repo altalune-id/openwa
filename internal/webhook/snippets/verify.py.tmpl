@@ -28,7 +28,7 @@ def verify_webhook(secret, headers, body, now=None):
 
 @app.post("/webhooks")
 def receive_webhook():
-    if not verify_webhook(os.environ["ALTEMPL_WEBHOOK_SECRET"], request.headers, request.get_data()):
+    if not verify_webhook(os.environ["OPENWA_WEBHOOK_SECRET"], request.headers, request.get_data()):
         abort(401)
     delivery_id = request.headers.get("{{.DeliveryID}}")
     app.logger.info("webhook %s %s", request.headers.get("{{.EventType}}"), delivery_id)

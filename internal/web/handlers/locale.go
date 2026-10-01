@@ -2,13 +2,14 @@ package handlers
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/i18n"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/web"
+	"altalune.id/openwa/internal/i18n"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/web"
 )
 
 // LocaleHandler serves POST /locale, persisting the locale choice for signed-in users.
@@ -32,7 +33,10 @@ func (h *LocaleHandler) Register(mux web.Mux) {
 		CookieSecure: h.Cfg.HTTP.CookieSecure,
 		CookiePath:   h.cookiePath(),
 		Persist:      h.persister(),
-		Fallback:     h.Cfg.HTTP.BasePath + "/",
+		OnSwitched: func(w http.ResponseWriter, r *http.Request) {
+			h.SetFlash(w, r, web.FlashOK, "flash.locale_saved")
+		},
+		Fallback: h.Cfg.HTTP.BasePath + "/",
 	}))
 }
 

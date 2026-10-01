@@ -8,17 +8,17 @@ modes, first boot, and the keys whose behavior does not follow from the name. Ad
 
 ## Precedence
 
-`defaults <- config.yaml <- ALT_* env`. Env always wins. A key's env var is its dotted path,
+`defaults <- config.yaml <- OPENWA_* env`. Env always wins. A key's env var is its dotted path,
 prefixed `ALT`, `.` and `-` → `_`, upper-cased:
 
-| YAML                             | Env var                              |
-| -------------------------------- | ------------------------------------ |
-| `mode: cloud`                    | `ALT_MODE=cloud`                     |
-| `http.basePath: /altempl`        | `ALT_HTTP_BASE_PATH=/altempl`        |
-| `tenant.singletonOrg.slug: main` | `ALT_TENANT_SINGLETON_ORG_SLUG=main` |
+| YAML                             | Env var                                 |
+| -------------------------------- | --------------------------------------- |
+| `mode: cloud`                    | `OPENWA_MODE=cloud`                     |
+| `http.basePath: /openwa`         | `OPENWA_HTTP_BASE_PATH=/openwa`         |
+| `tenant.singletonOrg.slug: main` | `OPENWA_TENANT_SINGLETON_ORG_SLUG=main` |
 
 Each segment is the **`mapstructure`** tag (`segmentFor` in `internal/platform/config/env.go`);
-`yaml` mirrors it and is decorative. The config file is `-c/--config <path>`, else `altempl.<ext>`
+`yaml` mirrors it and is decorative. The config file is `-c/--config <path>`, else `openwa.<ext>`
 in the working directory, then `$HOME`; missing is fine unless `config.WithRequireFile()` is passed.
 
 ## Awareness tags
@@ -48,10 +48,9 @@ never changes a wire contract.
 
 | Property                 | `selfhosted`                                     | `cloud`                                 |
 | ------------------------ | ------------------------------------------------ | --------------------------------------- |
-| `db.driver`              | `sqlite` or `postgres`                           | `postgres` only                         |
 | `oidc.*`                 | optional                                         | `issuer` + `clientID` + `clientSecret`  |
 | `genesis.email`          | optional                                         | required                                |
-| `security.encryptionKey` | required under `postgres`                        | always required                         |
+| `security.encryptionKey` | always required                                  | always required                         |
 | `tenant.singletonOrg.*`  | optional                                         | `name` required; `slug` optional        |
 | Local password form      | shown once a local user exists, or genesis creds | hidden unless `genesis.breakGlass=true` |
 | Org creation from UI     | disabled                                         | enabled                                 |
@@ -77,7 +76,7 @@ one account once and never overwrite it. Boot writes nothing — it reconciles t
 
 - Re-evaluated every boot, so a typo in `genesis.email` is fixed by fixing the env var. An
   already-promoted admin keeps `is_admin` — demote it in the app.
-- `/onboard` or `altempl init` (never boot: `orgs.created_by` needs a user) creates the first org,
+- `/onboard` or `openwa init` (never boot: `orgs.created_by` needs a user) creates the first org,
   owner and bootstrap row. Seeds: `tenant.singletonOrg.name` (`Default Organization`);
   `tenant.singletonOrg.slug` and `tenant.personalProjectSlug` default to `""`: a slug is generated
   (`/onboard` shows it read-only with Edit; cloud signup's first project too); a set value wins.
@@ -85,25 +84,25 @@ one account once and never overwrite it. Boot writes nothing — it reconciles t
   second onboarding joins it. **Upgrade:** set both keys to `default` to keep the old slugs.
 - **`/onboard` is gated by a one-time setup token.** With `onboard.setupToken` unset, boot mints
   one and logs `boot: setup required — open this one-time onboarding URL url=…/onboard?token=…`.
-  Pin it with `ALT_ONBOARD_SETUP_TOKEN` for automated installs; a pinned token is never echoed.
+  Pin it with `OPENWA_ONBOARD_SETUP_TOKEN` for automated installs; a pinned token is never echoed.
 - **Cloud + a genesis password requires `genesis.breakGlass=true`.** Without it boot fails loud:
   the local login form is hidden in cloud, so the genesis user would be unreachable via the UI.
 
 ## Identity and tokens
 
-| Key                    | Default           | Awareness                         | Meaning                                                            |
-| ---------------------- | ----------------- | --------------------------------- | ------------------------------------------------------------------ |
-| `oidc.issuer`          | `""`              | `required, mode:cloud`            | Login IdP. Its presence is what enables the OIDC button.           |
-| `oidc.clientID`        | `""`              | `required, mode:cloud`            | Confidential client for the web flow.                              |
-| `oidc.clientSecret`    | `""`              | `required, mode:cloud, secret`    | Paired with `clientID`.                                            |
-| `oidc.resource`        | `""`              | `-`                               | RFC 8707 resource sent with the authorization request.             |
-| `http.baseURL`         | `""`              | `required`                        | Public URL. MCP derives its audience from it.                      |
-| `http.stateSecret`     | `""`              | `required, secret, bootstrap`     | Signs OAuth state and the `sid` cookie. Empty mints an ephemeral.  |
-| `tokens.issuer`        | `""`              | `required, mode:cloud`            | Issuer the bearer verifier trusts. **MCP needs it in every mode.** |
-| `tokens.jwksURL`       | `""`              | `required, mode:cloud`            | Key set for that verifier.                                         |
-| `tokens.audience`      | `urn:altempl:api` | `required, mode:cloud, bootstrap` | Audience the control-plane verifier pins. Not the MCP audience.    |
-| `tokens.clockSkew`     | `60s`             | `-`                               | Leeway on `exp` / `nbf`.                                           |
-| `tokens.supportedAlgs` | `RS256,ES256`     | `-`                               | Everything else is rejected before signature checking.             |
+| Key                    | Default          | Awareness                         | Meaning                                                            |
+| ---------------------- | ---------------- | --------------------------------- | ------------------------------------------------------------------ |
+| `oidc.issuer`          | `""`             | `required, mode:cloud`            | Login IdP. Its presence is what enables the OIDC button.           |
+| `oidc.clientID`        | `""`             | `required, mode:cloud`            | Confidential client for the web flow.                              |
+| `oidc.clientSecret`    | `""`             | `required, mode:cloud, secret`    | Paired with `clientID`.                                            |
+| `oidc.resource`        | `""`             | `-`                               | RFC 8707 resource sent with the authorization request.             |
+| `http.baseURL`         | `""`             | `required`                        | Public URL. MCP derives its audience from it.                      |
+| `http.stateSecret`     | `""`             | `required, secret, bootstrap`     | Signs OAuth state and the `sid` cookie. Empty mints an ephemeral.  |
+| `tokens.issuer`        | `""`             | `required, mode:cloud`            | Issuer the bearer verifier trusts. **MCP needs it in every mode.** |
+| `tokens.jwksURL`       | `""`             | `required, mode:cloud`            | Key set for that verifier.                                         |
+| `tokens.audience`      | `urn:openwa:api` | `required, mode:cloud, bootstrap` | Audience the control-plane verifier pins. Not the MCP audience.    |
+| `tokens.clockSkew`     | `60s`            | `-`                               | Leeway on `exp` / `nbf`.                                           |
+| `tokens.supportedAlgs` | `RS256,ES256`    | `-`                               | Everything else is rejected before signature checking.             |
 
 ## Machine surfaces
 
@@ -122,6 +121,25 @@ one account once and never overwrite it. Boot writes nothing — it reconciles t
   exists is itself a disclosure — and every write route requires a key regardless of the flag.
   Scope strings a key or token can carry: [`scopes`](../scopes/README.md).
 
+## Messaging
+
+| Key                         | Default    | Awareness   | Notes                                                                    |
+| --------------------------- | ---------- | ----------- | ------------------------------------------------------------------------ |
+| `retention.messageDays`     | `30`       | `-`         | Days a project keeps messages when it has no setting of its own (1-365). |
+| `media.store`               | `wa`       | `bootstrap` | `wa` fetches media from WhatsApp on demand; nothing is stored.           |
+| `whatsapp.sendSpacingMin`   | `1s`       | `-`         | Shortest pause between two sends of one device.                          |
+| `whatsapp.sendSpacingMax`   | `3s`       | `-`         | Longest pause; each pause is uniform in [min, max]. Not below min.       |
+| `whatsapp.mediaMaxBytes`    | `33554432` | `-`         | Largest attachment accepted for sending (32 MiB).                        |
+| `whatsapp.typingBeforeText` | `true`     | `-`         | Show "typing..." for up to 2 s before each text.                         |
+
+`http.baseURL` is required whenever `dataplane.enabled` is true: webhook media URLs point at the data plane.
+
+## Console
+
+| Key          | Default  | Awareness | Meaning                                                                 |
+| ------------ | -------- | --------- | ----------------------------------------------------------------------- |
+| `brand.name` | `OpenWA` | `-`       | Wordmark in the top bar, the `<title>` suffix and the user-menu footer. |
+
 ## MCP and queue
 
 - `mcp.enabled` mounts S7 at `basePath + /mcp`; boot fails without `tokens.issuer` and without
@@ -130,38 +148,49 @@ one account once and never overwrite it. Boot writes nothing — it reconciles t
 
 ## Database
 
-| Key                         | Default                 | Awareness            | Meaning                                                                                       |
-| --------------------------- | ----------------------- | -------------------- | --------------------------------------------------------------------------------------------- |
-| `db.driver`                 | `sqlite`                | `required,bootstrap` | `sqlite` or `postgres`.                                                                       |
-| `db.dsn`                    | `~/.altempl/altempl.db` | `required,secret`    | The runtime connection. In production this is the `_service` role.                            |
-| `db.autoMigrate`            | `true`                  | `-`                  | Apply pending migrations at boot.                                                             |
-| `db.schema`                 | `public`                | `bootstrap`          | Postgres schema every object is created in.                                                   |
-| `db.tablePrefix`            | `altempl_`              | `bootstrap`          | Prefix on every table name.                                                                   |
-| `db.role`                   | `""`                    | `bootstrap`          | `SET ROLE` issued on each **runtime** connection. Never reaches migrations.                   |
-| `db.migrator.dsn`           | `""`                    | `secret,bootstrap`   | Separate credential used only for migrations, then closed.                                    |
-| `db.migrator.role`          | `""`                    | `bootstrap`          | Sole source of the migration role — `SET ROLE` once per migration connection.                 |
-| `db.reader.dsn`             | `""`                    | `secret`             | Replica for non-tenant reads. Empty aliases the writer; ignored under `sqlite`.               |
-| `db.allowBypassRLS`         | `false`                 | `bootstrap`          | Skips `schema.RLSGuard`. Dev only — `true` in production means no tenant isolation.           |
-| `db.connectTimeout`         | `30s`                   | `-`                  | Total budget for the initial connect-and-ping, retries included. `0` disables retrying.       |
-| `db.connectBackoff`         | `250ms`                 | `-`                  | Starting backoff between connect attempts; doubles, capped at 5s, never overruns the timeout. |
-| `db.health.interval`        | `30s`                   | `-`                  | Tick cadence of the `db-health` worker; how stale a `/readyz` answer can be.                  |
-| `db.health.timeout`         | `2s`                    | `-`                  | Per-handle ping timeout within one probe round.                                               |
-| `tenant.rlsEnforce`         | `true`                  | `bootstrap`          | Renders the RLS clauses into the Postgres migration templates.                                |
-| `tenant.tenantScopedTables` | `[]`                    | `bootstrap`          | Extra tables `schema.RLSGuard` audits beyond the generated list.                              |
+| Key                         | Default   | Awareness          | Meaning                                                                                       |
+| --------------------------- | --------- | ------------------ | --------------------------------------------------------------------------------------------- |
+| `db.dsn`                    | none      | `required,secret`  | The Postgres runtime connection. In production this is the `_service` role.                   |
+| `db.autoMigrate`            | `true`    | `-`                | Apply pending migrations at boot.                                                             |
+| `db.schema`                 | `public`  | `bootstrap`        | Postgres schema every object is created in.                                                   |
+| `db.tablePrefix`            | `openwa_` | `bootstrap`        | Prefix on every table name.                                                                   |
+| `db.role`                   | `""`      | `bootstrap`        | `SET ROLE` issued on each **runtime** connection. Never reaches migrations.                   |
+| `db.migrator.dsn`           | `""`      | `secret,bootstrap` | Separate credential used only for migrations, then closed.                                    |
+| `db.migrator.role`          | `""`      | `bootstrap`        | Sole source of the migration role — `SET ROLE` once per migration connection.                 |
+| `db.reader.dsn`             | `""`      | `secret`           | Replica for non-tenant reads. Empty aliases the writer.                                       |
+| `db.allowBypassRLS`         | `false`   | `bootstrap`        | Skips `schema.RLSGuard`. Dev only — `true` in production means no tenant isolation.           |
+| `db.connectTimeout`         | `30s`     | `-`                | Total budget for the initial connect-and-ping, retries included. `0` disables retrying.       |
+| `db.connectBackoff`         | `250ms`   | `-`                | Starting backoff between connect attempts; doubles, capped at 5s, never overruns the timeout. |
+| `db.health.interval`        | `30s`     | `-`                | Tick cadence of the `db-health` worker; how stale a `/readyz` answer can be.                  |
+| `db.health.timeout`         | `2s`      | `-`                | Per-handle ping timeout within one probe round.                                               |
+| `tenant.rlsEnforce`         | `true`    | `bootstrap`        | Renders the RLS clauses into the Postgres migration templates.                                |
+| `tenant.tenantScopedTables` | `[]`      | `bootstrap`        | Extra tables `schema.RLSGuard` audits beyond the generated list.                              |
 
 Boot fails if the runtime role holds `BYPASSRLS` and `db.allowBypassRLS` is `false`
 (`schema.RLSGuard`, `ErrRLSBypass`). Role graph and grants:
 [`multitenancy`](../multitenancy/README.md#postgres-roles). DSN wiring and probes:
 [`deployment`](../deployment/README.md#postgres).
 
+## WhatsApp
+
+| Key                         | Default     | Awareness   | Meaning                                                                                                                                                                 |
+| --------------------------- | ----------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `whatsapp.engine`           | `whatsmeow` | `bootstrap` | The WhatsApp engine. `whatsmeow` is the only value.                                                                                                                     |
+| `whatsapp.clientName`       | `OpenWA`    | `-`         | The device name shown under Linked Devices on the phone.                                                                                                                |
+| `whatsapp.leaseTTL`         | `45s`       | `-`         | How long a device lease stays valid without a renewal. Must exceed 2 x `whatsapp.leaseInterval`.                                                                        |
+| `whatsapp.leaseInterval`    | `15s`       | `-`         | How often the runtime renews its leases and claims free ones.                                                                                                           |
+| `whatsapp.linkTimeout`      | `3m`        | `-`         | How long a pairing attempt runs, and how long its outcome stays visible afterwards.                                                                                     |
+| `whatsapp.parkFor`          | `0s`        | `-`         | How long a device stays parked after `stream_replaced`, a temporary ban or a connect failure; `0` means 5 x `whatsapp.leaseTTL`. `client_outdated` parks until restart. |
+| `whatsapp.inboundQueueSize` | `1024`      | `-`         | Per-device buffer between whatsmeow and the sink; when full the engine blocks, it never drops.                                                                          |
+
 ## Scheduler
 
-| Key                              | Default | Awareness   | Meaning                                                                                                                |
-| -------------------------------- | ------- | ----------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `scheduler.enabled`              | `true`  | `bootstrap` | Master switch for the periodic-job runner. `false` boots the app with no jobs; `altempl scheduler run` then exits `7`. |
-| `scheduler.timezone`             | `UTC`   | `bootstrap` | IANA zone for every wall-clock schedule. Rejected at boot if `time.LoadLocation` cannot resolve it.                    |
-| `scheduler.shutdownGrace`        | `30s`   | `-`         | How long the runner waits for in-flight jobs on shutdown before giving up.                                             |
-| `scheduler.jobs.<name>.timezone` | —       | `-`         | Per-job override, keyed by the job name from `altempl scheduler list`.                                                 |
+| Key                              | Default | Awareness   | Meaning                                                                                                               |
+| -------------------------------- | ------- | ----------- | --------------------------------------------------------------------------------------------------------------------- |
+| `scheduler.enabled`              | `true`  | `bootstrap` | Master switch for the periodic-job runner. `false` boots the app with no jobs; `openwa scheduler run` then exits `7`. |
+| `scheduler.timezone`             | `UTC`   | `bootstrap` | IANA zone for every wall-clock schedule. Rejected at boot if `time.LoadLocation` cannot resolve it.                   |
+| `scheduler.shutdownGrace`        | `30s`   | `-`         | How long the runner waits for in-flight jobs on shutdown before giving up.                                            |
+| `scheduler.jobs.<name>.timezone` | —       | `-`         | Per-job override, keyed by the job name from `openwa scheduler list`.                                                 |
 
 - Timezone resolves as `scheduler.jobs.<name>.timezone`, then `scheduler.timezone`, then UTC.
   Overrides affect **wall-clock** schedules only (cron, daily-at). Boot warns when an override
@@ -182,16 +211,14 @@ another id will not open. The table carries no `org_id` and no RLS policy: a ses
 before any tenant scope exists, so a policy on it would reject every login under
 `db.allowBypassRLS=false`.
 
-`db.driver=postgres` and `mode=cloud` both require the key. Under `sqlite` boot mints an **ephemeral** one
-and warns `security.encryptionKey is empty — using an ephemeral key; sessions and webhook signing secrets
-will not survive a restart; …`. After a restart or a key rotation nothing old opens: users are signed out
+`security.encryptionKey` is always required. After a key rotation nothing old opens: users are signed out
 (`session-sweep` reaps the rows) and deliveries fail with `webhook.SecretUnavailableError` until the tenant
-rotates the endpoint secret. The endpoint page shows a banner (`capabilities.EphemeralEncryptionKey`).
+rotates the endpoint secret.
 
 ## Validation
 
 `config.Validate()` runs on every boot with specific messages (e.g.
-`mode=cloud requires db.driver=postgres, got "sqlite"`). MCP's four failures are typed:
+`mode=cloud requires oidc.issuer`). MCP's four failures are typed:
 `MCPIssuerRequiredError`, `MCPBaseURLRequiredError`, `MCPAudienceInvalidError`,
 `MCPAudienceMismatchError`.
 

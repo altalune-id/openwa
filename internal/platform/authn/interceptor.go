@@ -6,7 +6,7 @@ import (
 
 	"connectrpc.com/connect"
 
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 // ScopeTable maps a Connect procedure to the scope a key principal must hold to call it.

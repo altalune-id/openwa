@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/slug"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/slug"
 )
 
 func TestNewOrg_AcceptsGeneratedSlugs(t *testing.T) {

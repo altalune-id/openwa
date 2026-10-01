@@ -10,13 +10,17 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/dataplane"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/dataplane"
+	"altalune.id/openwa/internal/device"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/publicid"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/testutil/fakes"
 )
 
 const testKey = "key_test"
@@ -231,6 +235,19 @@ func (f *fakeAuthz) AuthorizeProject(ctx context.Context, raw, scope string, org
 	return p, nil
 }
 
+func (f *fakeAuthz) AuthorizeScope(ctx context.Context, raw, scope string, orgID, projectID uuid.UUID) (session.Principal, error) {
+	if _, err := f.tenant(ctx, raw, scope, orgID, projectID); err != nil {
+		return session.Principal{}, err
+	}
+	return session.Principal{
+		Source:      session.SourceAPIKey,
+		ActiveOrgID: orgID,
+		ProjectIDs:  []uuid.UUID{projectID},
+		ResourceIDs: slices.Clone(f.resources),
+		Scopes:      slices.Clone(f.scopes),
+	}, nil
+}
+
 func (f *fakeAuthz) tenant(ctx context.Context, raw, scope string, orgID, projectID uuid.UUID) (session.Principal, error) {
 	p, err := f.Authenticate(ctx, raw)
 	if err != nil {
@@ -245,6 +262,134 @@ func (f *fakeAuthz) tenant(ctx context.Context, raw, scope string, orgID, projec
 	return p, nil
 }
 
+type fakeDevices struct {
+	mu       sync.Mutex
+	rows     map[uuid.UUID]dataplane.DeviceRef
+	link     dataplane.LinkRef
+	linkErr  error
+	creates  int
+	resolves int
+	unlinked []uuid.UUID
+	deleted  []uuid.UUID
+	phones   []string
+}
+
+func newFakeDevices(seed ...dataplane.DeviceRef) *fakeDevices {
+	f := &fakeDevices{rows: map[uuid.UUID]dataplane.DeviceRef{}, link: dataplane.LinkRef{
+		ID: "lnk_V1StGXR8Z5jdHi6B", Method: "qr", Outcome: "pending", QR: "2@x", PNG: []byte{0x89, 'P', 'N', 'G'},
+		StartedAt: time.Unix(1790000000, 0).UTC(), ExpiresAt: time.Unix(1790000060, 0).UTC(),
+	}}
+	for _, d := range seed {
+		f.rows[d.ID] = d
+	}
+	return f
+}
+
+func (f *fakeDevices) List(context.Context) ([]dataplane.DeviceRef, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]dataplane.DeviceRef, 0, len(f.rows))
+	for _, d := range f.rows {
+		out = append(out, d)
+	}
+	slices.SortFunc(out, func(a, b dataplane.DeviceRef) int { return strings.Compare(a.Name, b.Name) })
+	return out, nil
+}
+
+func (f *fakeDevices) Resolve(_ context.Context, publicID string) (dataplane.DeviceRef, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.resolves++
+	for _, d := range f.rows {
+		if d.PublicID == publicID {
+			return d, nil
+		}
+	}
+	return dataplane.DeviceRef{}, &device.NotFoundError{ID: publicID}
+}
+
+func (f *fakeDevices) Get(_ context.Context, id uuid.UUID) (dataplane.DeviceRef, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	d, ok := f.rows[id]
+	if !ok {
+		return dataplane.DeviceRef{}, &device.NotFoundError{ID: id.String()}
+	}
+	return d, nil
+}
+
+func (f *fakeDevices) Create(_ context.Context, name string) (dataplane.DeviceRef, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.creates++
+	for _, d := range f.rows {
+		if strings.EqualFold(d.Name, name) {
+			return dataplane.DeviceRef{}, &device.NameTakenError{Name: name}
+		}
+	}
+	pub, _ := publicid.New(device.PublicIDPrefix)
+	d := dataplane.DeviceRef{ID: uuid.New(), PublicID: pub, Name: name, Version: 1, State: "unlinked", Rules: dataplane.RulesRef{GroupMode: "mention", IgnoreFromMe: true}}
+	f.rows[d.ID] = d
+	return d, nil
+}
+
+func (f *fakeDevices) Update(_ context.Context, id uuid.UUID, name *string, rules *dataplane.RulesRef, ifVersion int) (dataplane.DeviceRef, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	d, ok := f.rows[id]
+	if !ok {
+		return dataplane.DeviceRef{}, &device.NotFoundError{ID: id.String()}
+	}
+	if ifVersion != 0 && ifVersion != d.Version {
+		return dataplane.DeviceRef{}, &device.StaleVersionError{Want: ifVersion, Got: d.Version}
+	}
+	if name != nil {
+		d.Name = *name
+	}
+	if rules != nil {
+		d.Rules = *rules
+	}
+	d.Version++
+	f.rows[id] = d
+	return d, nil
+}
+
+func (f *fakeDevices) Delete(_ context.Context, id uuid.UUID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.rows, id)
+	f.deleted = append(f.deleted, id)
+	return nil
+}
+
+func (f *fakeDevices) StartLink(context.Context, uuid.UUID) (dataplane.LinkRef, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.link, f.linkErr
+}
+
+func (f *fakeDevices) LinkWithPhone(_ context.Context, _ uuid.UUID, phone string) (dataplane.LinkRef, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.phones = append(f.phones, phone)
+	l := f.link
+	l.Method, l.PairingCode = "phone", "ABCD-EFGH"
+	return l, f.linkErr
+}
+
+func (f *fakeDevices) LinkState(context.Context, uuid.UUID) (dataplane.LinkRef, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.link, nil
+}
+
+func (f *fakeDevices) Unlink(_ context.Context, id uuid.UUID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.unlinked = append(f.unlinked, id)
+	return f.linkErr
+}
+
 func discardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
@@ -256,14 +401,24 @@ type env struct {
 	altProjectID uuid.UUID
 	categoryID   uuid.UUID
 	posts        *fakePosts
+	devices      *fakeDevices
 	authz        *fakeAuthz
 	caps         dataplane.Capabilities
+	messages     *fakeMessages
+	chats        *fakeChats
+	contacts     *fakeContacts
+	deviceA      uuid.UUID
+	deviceB      uuid.UUID
+	deviceAPub   string
+	deviceBPub   string
+	scoped       *projectDevices
+	sendLimit    int
 }
 
 func newEnv(published bool) *env {
 	orgID, projectID, categoryID := uuid.New(), uuid.New(), uuid.New()
 	altProjectID := uuid.New()
-	return &env{
+	e := &env{
 		orgID:        orgID,
 		projectID:    projectID,
 		altProjectID: altProjectID,
@@ -277,13 +432,25 @@ func newEnv(published bool) *env {
 			Published:  published,
 			Version:    3,
 		}),
+		devices: newFakeDevices(
+			dataplane.DeviceRef{ID: uuid.New(), PublicID: "dev_SalesDevice00001", Name: "Sales", Version: 3, State: "connected", Phone: "628111"},
+			dataplane.DeviceRef{ID: uuid.New(), PublicID: "dev_SupportDevice001", Name: "Support", Version: 1, State: "unlinked"},
+		),
 		authz: &fakeAuthz{
-			key:        testKey,
-			scopes:     []string{authn.ScopePostsRead, authn.ScopePostsWrite, authn.ScopePostsAdmin},
+			key: testKey,
+			scopes: []string{authn.ScopePostsRead, authn.ScopePostsWrite, authn.ScopePostsAdmin, authn.ScopeDevicesRead, authn.ScopeDevicesWrite,
+				authn.ScopeMessagesRead, authn.ScopeMessagesWrite, authn.ScopeChatsRead, authn.ScopeChatsWrite, authn.ScopeContactsRead},
 			orgID:      orgID,
 			projectIDs: []uuid.UUID{projectID, altProjectID},
 		},
+		messages: newFakeMessages(),
+		chats:    &fakeChats{rows: map[uuid.UUID]dataplane.ChatRef{}},
+		contacts: &fakeContacts{},
 	}
+	sales, support := e.deviceNamed("Sales"), e.deviceNamed("Support")
+	e.deviceA, e.deviceAPub, e.deviceB, e.deviceBPub = sales.ID, sales.PublicID, support.ID, support.PublicID
+	e.scoped = &projectDevices{fakeDevices: e.devices, sibling: dataplane.DeviceRef{ID: uuid.New(), PublicID: fakes.DevicePublicID(), Name: "Sibling", State: "connected"}}
+	return e
 }
 
 func (e *env) logger() *slog.Logger {
@@ -301,10 +468,13 @@ func (e *env) handler() http.Handler {
 			{orgID: e.orgID, slug: "main"}:  {ID: e.projectID},
 			{orgID: e.orgID, slug: "other"}: {ID: e.altProjectID},
 		},
-		Posts: e.posts,
-		Authz: e.authz,
-		Caps:  e.caps,
-		Log:   e.logger(),
+		Posts:   e.posts,
+		Devices: e.scoped,
+		Authz:   e.authz,
+		Caps:    e.caps,
+		Log:     e.logger(),
+
+		Messages: e.messages, Chats: e.chats, Contacts: e.contacts, MaxMediaBytes: 1 << 20, MaxConcurrentSends: e.sendLimit,
 	})
 }
 

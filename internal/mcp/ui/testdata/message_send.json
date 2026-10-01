@@ -1,0 +1,14 @@
+{
+  "message": {
+    "id": "msg_Ab1Cd2Ef3Gh4Ij5k",
+    "deviceId": "dev_SalesDevice00001",
+    "chatId": "cht_Bd7Kq2Wm9Xp4Lz3a",
+    "direction": "out",
+    "type": "image",
+    "status": "queued",
+    "body": "Invoice for September",
+    "fromMe": true,
+    "media": { "mime": "image/png", "size": "2048", "filename": "invoice.png" },
+    "timestamp": "2026-09-28T09:00:00Z"
+  }
+}

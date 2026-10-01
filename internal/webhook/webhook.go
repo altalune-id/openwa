@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/platform/events"
+	"altalune.id/openwa/internal/platform/events"
 )
 
 // MaxEndpointsPerProject bounds the fan-out of one event.
@@ -50,9 +50,25 @@ type Attempt struct {
 	CreatedAt                                             time.Time
 }
 
+// ValidateOption relaxes an endpoint validation rule.
+type ValidateOption func(*validateOpts)
+
+type validateOpts struct{ allowInsecureURL bool }
+
+// AllowInsecureURL permits http:// endpoint URLs; self-hosted dev only.
+func AllowInsecureURL() ValidateOption { return func(o *validateOpts) { o.allowInsecureURL = true } }
+
+func resolveValidateOpts(opts []ValidateOption) validateOpts {
+	var o validateOpts
+	for _, opt := range opts {
+		opt(&o)
+	}
+	return o
+}
+
 // New enforces creation invariants and returns an active endpoint without secrets.
-func New(orgID, projectID uuid.UUID, rawURL, description string, types []events.Type) (*Endpoint, error) {
-	u, d, ts, err := validate(rawURL, description, types)
+func New(orgID, projectID uuid.UUID, rawURL, description string, types []events.Type, opts ...ValidateOption) (*Endpoint, error) {
+	u, d, ts, err := validate(rawURL, description, types, resolveValidateOpts(opts).allowInsecureURL)
 	if err != nil {
 		return nil, err
 	}
@@ -71,8 +87,8 @@ func New(orgID, projectID uuid.UUID, rawURL, description string, types []events.
 }
 
 // Update re-validates and replaces the editable fields, leaving the secrets alone.
-func (e *Endpoint) Update(rawURL, description string, types []events.Type, active bool) error {
-	u, d, ts, err := validate(rawURL, description, types)
+func (e *Endpoint) Update(rawURL, description string, types []events.Type, active bool, opts ...ValidateOption) error {
+	u, d, ts, err := validate(rawURL, description, types, resolveValidateOpts(opts).allowInsecureURL)
 	if err != nil {
 		return err
 	}
@@ -95,8 +111,8 @@ func (e *Endpoint) Subscribes(t events.Type) bool {
 	return slices.Contains(e.EventTypes, t)
 }
 
-func validate(rawURL, description string, types []events.Type) (u, d string, ts []events.Type, err error) {
-	if u, err = validateURL(rawURL); err != nil {
+func validate(rawURL, description string, types []events.Type, allowInsecureURL bool) (u, d string, ts []events.Type, err error) {
+	if u, err = validateURL(rawURL, allowInsecureURL); err != nil {
 		return "", "", nil, err
 	}
 	if d, err = validateDescription(description); err != nil {
@@ -108,7 +124,7 @@ func validate(rawURL, description string, types []events.Type) (u, d string, ts 
 	return u, d, ts, nil
 }
 
-func validateURL(rawURL string) (string, error) {
+func validateURL(rawURL string, allowInsecureURL bool) (string, error) {
 	rawURL = strings.TrimSpace(rawURL)
 	if rawURL == "" {
 		return "", &InvalidURLError{Reason: "is required"}
@@ -123,7 +139,7 @@ func validateURL(rawURL string) (string, error) {
 	if err != nil {
 		return "", &InvalidURLError{Reason: "cannot be parsed"}
 	}
-	if u.Scheme != "https" {
+	if u.Scheme != "https" && (!allowInsecureURL || u.Scheme != "http") {
 		return "", &InvalidURLError{Reason: "must use https"}
 	}
 	if u.User != nil {

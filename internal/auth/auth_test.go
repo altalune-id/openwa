@@ -3,8 +3,8 @@ package auth_test
 import (
 	"testing"
 
-	"altalune.id/template/internal/auth"
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/auth"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 func TestPrincipalAlias(t *testing.T) {

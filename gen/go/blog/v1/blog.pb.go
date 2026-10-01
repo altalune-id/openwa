@@ -7,7 +7,6 @@
 package blogv1
 
 import (
-	_ "altalune.id/template/gen/go/mcp/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -1032,7 +1031,7 @@ var File_blog_v1_blog_proto protoreflect.FileDescriptor
 
 const file_blog_v1_blog_proto_rawDesc = "" +
 	"\n" +
-	"\x12blog/v1/blog.proto\x12\ablog.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18mcp/v1/annotations.proto\"B\n" +
+	"\x12blog/v1/blog.proto\x12\ablog.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"B\n" +
 	"\bCategory\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -1114,21 +1113,19 @@ const file_blog_v1_blog_proto_rawDesc = "" +
 	"if_version\x18\x02 \x01(\x05H\x00R\tifVersion\x88\x01\x01B\r\n" +
 	"\v_if_version\":\n" +
 	"\x15UnpublishPostResponse\x12!\n" +
-	"\x04post\x18\x01 \x01(\v2\r.blog.v1.PostR\x04post2\x9e\x06\n" +
+	"\x04post\x18\x01 \x01(\v2\r.blog.v1.PostR\x04post2\xfe\x03\n" +
 	"\vBlogService\x12E\n" +
 	"\n" +
 	"CreatePost\x12\x1a.blog.v1.CreatePostRequest\x1a\x1b.blog.v1.CreatePostResponse\x12<\n" +
-	"\aGetPost\x12\x17.blog.v1.GetPostRequest\x1a\x18.blog.v1.GetPostResponse\x12\x8c\x02\n" +
-	"\tListPosts\x12\x19.blog.v1.ListPostsRequest\x1a\x1a.blog.v1.ListPostsResponse\"\xc7\x01\xca\xf3\x18\xc2\x01\n" +
-	"\tblog_list\x12\xaf\x01List a project's blog posts. Omit projectId to use the credential's active project; call project_list to discover the others. Pass status \"published\" for published posts only.*\x03app\x12E\n" +
+	"\aGetPost\x12\x17.blog.v1.GetPostRequest\x1a\x18.blog.v1.GetPostResponse\x12B\n" +
+	"\tListPosts\x12\x19.blog.v1.ListPostsRequest\x1a\x1a.blog.v1.ListPostsResponse\x12E\n" +
 	"\n" +
 	"UpdatePost\x12\x1a.blog.v1.UpdatePostRequest\x1a\x1b.blog.v1.UpdatePostResponse\x12E\n" +
 	"\n" +
-	"DeletePost\x12\x1a.blog.v1.DeletePostRequest\x1a\x1b.blog.v1.DeletePostResponse\x12\x9c\x01\n" +
-	"\vPublishPost\x12\x1b.blog.v1.PublishPostRequest\x1a\x1c.blog.v1.PublishPostResponse\"R\xca\xf3\x18N\n" +
-	"\fblog_publish\x124Publish a draft blog post. Requires the post's UUID.\x1a\x06postId \x01\x12N\n" +
-	"\rUnpublishPost\x12\x1d.blog.v1.UnpublishPostRequest\x1a\x1e.blog.v1.UnpublishPostResponseB\x81\x01\n" +
-	"\vcom.blog.v1B\tBlogProtoP\x01Z*altalune.id/template/gen/go/blog/v1;blogv1\xa2\x02\x03BXX\xaa\x02\aBlog.V1\xca\x02\aBlog\\V1\xe2\x02\x13Blog\\V1\\GPBMetadata\xea\x02\bBlog::V1b\x06proto3"
+	"DeletePost\x12\x1a.blog.v1.DeletePostRequest\x1a\x1b.blog.v1.DeletePostResponse\x12H\n" +
+	"\vPublishPost\x12\x1b.blog.v1.PublishPostRequest\x1a\x1c.blog.v1.PublishPostResponse\x12N\n" +
+	"\rUnpublishPost\x12\x1d.blog.v1.UnpublishPostRequest\x1a\x1e.blog.v1.UnpublishPostResponseB\x7f\n" +
+	"\vcom.blog.v1B\tBlogProtoP\x01Z(altalune.id/openwa/gen/go/blog/v1;blogv1\xa2\x02\x03BXX\xaa\x02\aBlog.V1\xca\x02\aBlog\\V1\xe2\x02\x13Blog\\V1\\GPBMetadata\xea\x02\bBlog::V1b\x06proto3"
 
 var (
 	file_blog_v1_blog_proto_rawDescOnce sync.Once

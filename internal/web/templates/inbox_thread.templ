@@ -1,0 +1,321 @@
+package templates
+
+import (
+	"net/url"
+	"strconv"
+	"time"
+
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
+)
+
+type GroupSummary struct {
+	Topic        string
+	Participants int
+	Announce     bool
+	Locked       bool
+}
+
+type BubbleView struct {
+	ID        string
+	WAID      string
+	Outbound  bool
+	Type      string
+	Body      string
+	Status    string
+	At        time.Time
+	MediaURL  string
+	IsImage   bool
+	Filename  string
+	Location  string
+	Quoted    string
+	Reactions []string
+	Error     string
+	Own       bool
+}
+
+type ThreadView struct {
+	ProjectSlug string
+	ChatID      string
+	Name        string
+	JID         string
+	Kind        string
+	Group       *GroupSummary
+	Bubbles     []BubbleView
+	Refresh     []BubbleView
+	OlderCursor string
+	LastID      string
+	Watermark   string
+	MaxMediaMB  int
+	Reactions   []string
+}
+
+func threadPath(d web.LayoutData, v ThreadView, sub string) string {
+	return d.ProjectPath(v.ProjectSlug, "/inbox/chats/"+v.ChatID+sub)
+}
+
+func messagesQuery(key, value string) string {
+	return "/messages?" + url.Values{key: {value}}.Encode()
+}
+
+func pollQuery(v ThreadView) string {
+	return "/messages?" + url.Values{"since": {v.LastID}, "updated_after": {v.Watermark}}.Encode()
+}
+
+func messagePath(d web.LayoutData, v ThreadView, id, sub string) string {
+	return d.ProjectPath(v.ProjectSlug, "/inbox/messages/"+id+sub)
+}
+
+func bubbleRowClass(out bool) string {
+	if out {
+		return "flex justify-end"
+	}
+	return "flex justify-start"
+}
+
+func bubbleClass(out bool) string {
+	const base = "max-w-[80%] rounded-lg px-3 py-2 shadow-sm "
+	if out {
+		return base + "bg-primary/10 text-foreground"
+	}
+	return base + "bg-card text-card-foreground border border-border"
+}
+
+func statusKey(status string) string { return "inbox.status." + status }
+
+func statusTone(status string) Tone {
+	switch status {
+	case "read", "played":
+		return ToneSuccess
+	case "delivered", "sent":
+		return ToneInfo
+	case "failed":
+		return ToneDanger
+	case "queued", "sending":
+		return ToneWarning
+	}
+	return ToneNeutral
+}
+
+templ ThreadPane(d web.LayoutData, v ThreadView) {
+	<div id="thread" class="surface flex flex-col">
+		@threadHeader(d, v)
+		<div id="thread-scroll" class="flex max-h-[60vh] flex-col-reverse overflow-y-auto px-4 py-3">
+			<div>
+				@ThreadOlder(d, v)
+				<ul id="thread-messages" class="flex flex-col gap-2">
+					for _, b := range v.Bubbles {
+						@Bubble(d, v, b)
+					}
+				</ul>
+			</div>
+		</div>
+		@ThreadPoll(d, v)
+		@Composer(d, v)
+	</div>
+}
+
+templ threadHeader(d web.LayoutData, v ThreadView) {
+	<header class="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
+		@Avatar(v.Name, "h-10 w-10")
+		<div class="min-w-0 flex-1">
+			<h2 class="truncate text-base font-semibold text-foreground">{ v.Name }</h2>
+			<div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+				@CopyValue(d, v.JID)
+				@CopyValue(d, v.ChatID)
+				if v.Kind == "group" {
+					@Badge(ToneInfo, d.Tr("inbox.kind_group"))
+				} else {
+					@Badge(ToneNeutral, d.Tr("inbox.kind_dm"))
+				}
+			</div>
+		</div>
+		<form
+			method="post"
+			action={ templ.SafeURL(threadPath(d, v, "/read")) }
+			hx-post={ threadPath(d, v, "/read") }
+			hx-swap="none"
+			hx-disable="find button"
+			hx-status:4xx="target:#hx-error swap:innerHTML"
+			hx-status:5xx="target:#hx-error swap:innerHTML"
+			hx-nonce={ d.Nonce }
+		>
+			@Button(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("inbox.mark_read"), Icon: "check"})
+		</form>
+		if v.Group != nil {
+			<div class="w-full">
+				@Disclosure(d.Tr("inbox.group_details")) {
+					<dl class="grid grid-cols-2 gap-2 text-sm">
+						<dt class="text-muted-foreground">{ d.Tr("inbox.participants_label") }</dt>
+						<dd>{ strconv.Itoa(v.Group.Participants) }</dd>
+						if v.Group.Topic != "" {
+							<dt class="text-muted-foreground">{ d.Tr("inbox.topic_label") }</dt>
+							<dd class="whitespace-pre-wrap">{ v.Group.Topic }</dd>
+						}
+					</dl>
+				}
+			</div>
+		}
+	</header>
+}
+
+templ ThreadOlder(d web.LayoutData, v ThreadView) {
+	<div id="thread-older" class="mb-2 flex justify-center">
+		if v.OlderCursor != "" {
+			@Button(ButtonProps{Kind: ButtonGhost, Label: d.Tr("inbox.load_older"), Attrs: templ.Attributes{
+				"hx-get":        threadPath(d, v, messagesQuery("before", v.OlderCursor)),
+				"hx-target":     "#thread-messages",
+				"hx-swap":       "afterbegin",
+				"hx-status:4xx": "target:#hx-error swap:innerHTML",
+				"hx-nonce":      d.Nonce,
+			}})
+		}
+	</div>
+}
+
+templ ThreadPoll(d web.LayoutData, v ThreadView) {
+	<div
+		id="thread-poll"
+		hx-get={ threadPath(d, v, pollQuery(v)) }
+		hx-trigger="every 5s, thread-poll-now from:body"
+		hx-sync="this:replace"
+		hx-target="#thread-messages"
+		hx-swap="beforeend scroll:bottom scrollTarget:#thread-scroll"
+		hx-status:4xx="target:#hx-error swap:innerHTML"
+		hx-status:5xx="swap:none"
+		hx-nonce={ d.Nonce }
+	></div>
+}
+
+// NOTE: hx-sync="this:replace" drops an in-flight poll when thread-poll-now fires, so one since never appends twice.
+templ ThreadAppend(d web.LayoutData, v ThreadView) {
+	for _, b := range v.Bubbles {
+		@Bubble(d, v, b)
+	}
+	for _, b := range v.Refresh {
+		<template hx type="partial" hx-target={ "#msg-" + b.ID } hx-swap="outerMorph" hx-nonce={ d.Nonce }>
+			@Bubble(d, v, b)
+		</template>
+	}
+	<template hx type="partial" hx-target="#thread-poll" hx-swap="outerHTML" hx-nonce={ d.Nonce }>
+		@ThreadPoll(d, v)
+	</template>
+}
+
+templ ThreadPrepend(d web.LayoutData, v ThreadView) {
+	for _, b := range v.Bubbles {
+		@Bubble(d, v, b)
+	}
+	<template hx type="partial" hx-target="#thread-older" hx-swap="outerHTML" hx-nonce={ d.Nonce }>
+		@ThreadOlder(d, v)
+	</template>
+}
+
+templ Bubble(d web.LayoutData, v ThreadView, b BubbleView) {
+	<li id={ "msg-" + b.ID } class={ bubbleRowClass(b.Outbound) }>
+		<div class={ bubbleClass(b.Outbound) }>
+			if b.Quoted != "" {
+				<p class="mb-1 border-s-2 border-border ps-2 text-xs text-muted-foreground">{ b.Quoted }</p>
+			}
+			if b.MediaURL != "" {
+				if b.IsImage {
+					<a href={ templ.SafeURL(b.MediaURL) } target="_blank" rel="noopener">
+						<img src={ b.MediaURL } alt={ b.Filename } loading="lazy" class="mb-1 max-h-64 rounded-md"/>
+					</a>
+				} else {
+					<a href={ templ.SafeURL(b.MediaURL) } class="mb-1 inline-flex items-center gap-1 text-sm underline">
+						@icons.Icon("folder", "h-4 w-4")
+						<span>{ b.Filename }</span>
+					</a>
+				}
+			}
+			if b.Location != "" {
+				<p class="text-sm">{ b.Location }</p>
+			}
+			if b.Body != "" {
+				<p class="whitespace-pre-wrap break-words text-sm">{ b.Body }</p>
+			}
+			<div class="mt-1 flex items-center justify-end gap-2 text-[11px] text-muted-foreground">
+				for _, r := range b.Reactions {
+					<span>{ r }</span>
+				}
+				@Time(d, b.At)
+				if b.Outbound {
+					@StatusDot(statusTone(b.Status), d.Tr(statusKey(b.Status)))
+				}
+			</div>
+			if b.Error != "" {
+				<p class="mt-1 text-xs text-destructive">{ b.Error }</p>
+			}
+			@bubbleActions(d, v, b)
+		</div>
+	</li>
+}
+
+templ bubbleActions(d web.LayoutData, v ThreadView, b BubbleView) {
+	if b.WAID != "" {
+		<div class="mt-1 flex flex-wrap items-center gap-1">
+			<form
+				method="post"
+				action={ templ.SafeURL(messagePath(d, v, b.ID, "/reactions")) }
+				hx-post={ messagePath(d, v, b.ID, "/reactions") }
+				hx-swap="none"
+				hx-status:4xx="target:#hx-error swap:innerHTML"
+				hx-status:5xx="target:#hx-error swap:innerHTML"
+				hx-nonce={ d.Nonce }
+				class="flex gap-0.5"
+			>
+				for _, e := range v.Reactions {
+					<button type="submit" name="emoji" value={ e } aria-label={ d.Tr("inbox.react") + " " + e } class="rounded px-1 text-sm hover:bg-muted">{ e }</button>
+				}
+			</form>
+			if b.Own {
+				@ConfirmDialog(d, ConfirmProps{
+					ID:           "revoke-" + b.ID,
+					Title:        d.Tr("inbox.revoke_title"),
+					Body:         d.Tr("inbox.revoke_body"),
+					ConfirmLabel: d.Tr("inbox.revoke"),
+					Kind:         ButtonDanger,
+					Action:       messagePath(d, v, b.ID, "/revoke"),
+					HxTarget:     "#hx-notice",
+					HxSwap:       "beforeend",
+					Trigger:      ButtonProps{Kind: ButtonIcon, Icon: "trash-2", Attrs: templ.Attributes{"aria-label": d.Tr("inbox.revoke")}},
+				})
+			}
+		</div>
+	}
+}
+
+templ Composer(d web.LayoutData, v ThreadView) {
+	<form
+		id="composer"
+		method="post"
+		action={ templ.SafeURL(threadPath(d, v, "/messages")) }
+		enctype="multipart/form-data"
+		hx-post={ threadPath(d, v, "/messages") }
+		hx-encoding="multipart/form-data"
+		hx-swap="none"
+		hx-disable="find button, find textarea, find input"
+		hx-status:4xx="target:#hx-error swap:innerHTML"
+		hx-status:5xx="target:#hx-error swap:innerHTML"
+		hx-nonce={ d.Nonce }
+		class="flex flex-col gap-2 border-t border-border p-3"
+	>
+		<label for="composer-text" class="sr-only">{ d.Tr("inbox.composer_label") }</label>
+		<textarea id="composer-text" name="text" rows="2" placeholder={ d.Tr("inbox.composer_placeholder") } class={ InputClass() }></textarea>
+		<div class="flex flex-wrap items-center justify-between gap-2">
+			<label class="inline-flex items-center gap-2 text-xs text-muted-foreground">
+				@icons.Icon("plus", "h-4 w-4")
+				<span>{ d.Tr("inbox.attach", "Max", v.MaxMediaMB) }</span>
+				<input type="file" name="file" class="text-xs"/>
+			</label>
+			@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("inbox.send"), Icon: "send"})
+		</div>
+	</form>
+}
+
+templ ComposerReset(d web.LayoutData, v ThreadView) {
+	<template hx type="partial" hx-target="#composer" hx-swap="outerHTML" hx-nonce={ d.Nonce }>
+		@Composer(d, v)
+	</template>
+}

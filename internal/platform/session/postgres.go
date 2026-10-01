@@ -10,9 +10,9 @@ import (
 	"github.com/go-jet/jet/v2/postgres"
 	"github.com/go-jet/jet/v2/qrm"
 
-	"altalune.id/template/internal/apperror"
-	pgent "altalune.id/template/internal/platform/db/entity/postgres"
-	"altalune.id/template/internal/platform/sealer"
+	"altalune.id/openwa/internal/apperror"
+	pgent "altalune.id/openwa/internal/platform/db/entity/postgres"
+	"altalune.id/openwa/internal/platform/sealer"
 )
 
 const deleteExpiredBatch = 500

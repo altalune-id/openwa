@@ -31,4 +31,13 @@ const appStyles = css`
     background: var(--color-background-primary, light-dark(#fff, #18181b));
     color: inherit;
   }
+  .app-qr { display: block; background: #fff; border-radius: 8px; padding: 8px; image-rendering: pixelated; }
+  .app-code { font-family: ui-monospace, monospace; font-size: 1.5rem; font-weight: 600; letter-spacing: 0.2em; }
+  .app-chat { padding: 8px 0; border-bottom: 1px solid var(--color-border-primary, light-dark(#d4d4d8, #3f3f46)); }
+  .app-chat:last-child { border-bottom: none; }
+  .app-clip { margin: 2px 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .app-inline { display: flex; gap: 6px; }
+  .app-input { flex: 1; min-width: 0; font: inherit; padding: 4px 8px; border: 1px solid var(--color-border-primary, light-dark(#d4d4d8, #3f3f46)); border-radius: 6px; background: transparent; color: inherit; }
+  .app-pill { min-width: 1.5em; padding: 0 6px; border-radius: 999px; background: var(--color-badge-success, #16a34a); color: #fff; font-size: 0.75rem; text-align: center; }
+  .app-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 `;

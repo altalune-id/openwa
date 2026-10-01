@@ -3,8 +3,8 @@ package web_test
 import (
 	"testing"
 
-	"altalune.id/template/internal/i18n"
-	"altalune.id/template/internal/web"
+	"altalune.id/openwa/internal/i18n"
+	"altalune.id/openwa/internal/web"
 )
 
 func TestLayoutData_LocaleLabel(t *testing.T) {
@@ -99,5 +99,45 @@ func TestLayoutData_TrNilTranslator(t *testing.T) {
 	}
 	if got := d.TrN("k", 2); got != "k" {
 		t.Errorf("TrN nil=%q", got)
+	}
+}
+
+func TestLayoutData_DocumentTitle(t *testing.T) {
+	t.Parallel()
+	base := web.LayoutData{Title: "API keys", BrandName: "OpenWA"}
+	if got := base.DocumentTitle(); got != "API keys · OpenWA" {
+		t.Errorf("chromeless=%q", got)
+	}
+	proj := base
+	proj.ActiveNav = web.ActiveNav{Scope: web.NavScopeProject}
+	proj.ActiveProject = &web.ActiveProject{Name: "Alpha"}
+	if got := proj.DocumentTitle(); got != "API keys · Alpha · OpenWA" {
+		t.Errorf("project=%q", got)
+	}
+	org := base
+	org.ActiveNav = web.ActiveNav{Scope: web.NavScopeOrg}
+	org.ActiveOrg = &web.ActiveOrg{Name: "Acme"}
+	if got := org.DocumentTitle(); got != "API keys · Acme · OpenWA" {
+		t.Errorf("org=%q", got)
+	}
+	settings := base
+	settings.ActiveNav = web.ActiveNav{Scope: web.NavScopeSettings}
+	settings.ActiveOrg = &web.ActiveOrg{Name: "Acme"}
+	if got := settings.DocumentTitle(); got != "API keys · OpenWA" {
+		t.Errorf("settings=%q", got)
+	}
+	if got := (web.LayoutData{BrandName: "OpenWA"}).DocumentTitle(); got != "OpenWA" {
+		t.Errorf("empty=%q", got)
+	}
+}
+
+func TestLayoutData_StaticCarriesAssetVersion(t *testing.T) {
+	t.Parallel()
+	d := web.LayoutData{BasePath: "/app", AssetVersion: "1.2.3"}
+	if got := d.Static("app.css"); got != "/app/static/app.css?v=1.2.3" {
+		t.Errorf("Static=%q", got)
+	}
+	if got := (web.LayoutData{}).Static("app.css"); got != "/static/app.css" {
+		t.Errorf("unversioned=%q", got)
 	}
 }

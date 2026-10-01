@@ -3,7 +3,7 @@ package webhook
 import (
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/platform/sealer"
+	"altalune.id/openwa/internal/platform/sealer"
 )
 
 const (

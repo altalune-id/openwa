@@ -8,11 +8,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/invite"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/templates"
+	"altalune.id/openwa/internal/invite"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/templates"
 )
 
 // InviteHandler owns /orgs/{slug}/invites and /invites/accept.
@@ -38,7 +38,7 @@ func (h *InviteHandler) GetList(w http.ResponseWriter, r *http.Request) {
 	items, err := h.Invites.ListPending(r.Context())
 	if err != nil {
 		h.LogErr("web invite: list", err)
-		h.ErrorPage(w, r, http.StatusInternalServerError, "List failed", "Could not load invites.", err)
+		h.ErrorPageKey(w, r, http.StatusInternalServerError, "error.load_failed", err)
 		return
 	}
 	canManage, _ := h.Orgs.IsManager(r.Context(), o.ID, p.UserID)
@@ -57,29 +57,30 @@ func (h *InviteHandler) PostSend(w http.ResponseWriter, r *http.Request) {
 	slug := o.Slug
 	canManage, _ := h.Orgs.IsManager(r.Context(), o.ID, p.UserID)
 	if !canManage {
-		h.ErrorPage(w, r, http.StatusForbidden, "Not allowed", "Only owners and admins can invite.")
+		h.ErrorPageKey(w, r, http.StatusForbidden, "error.forbidden", nil)
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		h.ErrorPage(w, r, http.StatusBadRequest, "Bad request", "Could not parse form body.")
+		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.bad_request", nil)
 		return
 	}
 	email := strings.TrimSpace(r.PostForm.Get("email"))
 	roleStr := strings.TrimSpace(r.PostForm.Get("role"))
 	role := invite.Role(roleStr)
 	if !role.IsValid() {
-		h.ErrorPage(w, r, http.StatusBadRequest, "Bad role", "Role must be admin or member.")
+		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.bad_request", nil)
 		return
 	}
 	if _, err := h.Invites.Send(r.Context(), invite.SendRequest{Email: email, Role: role}); err != nil {
 		h.LogErr("web invite: send", err)
 		if invite.IsInvitesDisabledError(err) {
-			h.ErrorPage(w, r, http.StatusConflict, "Invites disabled", err.Error(), err)
+			h.ErrorPageKey(w, r, http.StatusConflict, "error.save_failed", err)
 			return
 		}
-		h.ErrorPage(w, r, http.StatusBadRequest, "Send failed", err.Error())
+		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.save_failed", err)
 		return
 	}
+	h.SetFlash(w, r, web.FlashOK, "flash.invite_sent", "Email", email)
 	http.Redirect(w, r, ResolveReturnTo(h.Cfg.HTTP.BasePath, "/orgs/"+slug+"/invites"), http.StatusSeeOther) //nolint:gosec // G710: destination sanitized via ResolveReturnTo → SanitizeReturnTo
 }
 
@@ -93,24 +94,25 @@ func (h *InviteHandler) PostRevoke(w http.ResponseWriter, r *http.Request) {
 	slug := o.Slug
 	canManage, _ := h.Orgs.IsManager(r.Context(), o.ID, p.UserID)
 	if !canManage {
-		h.ErrorPage(w, r, http.StatusForbidden, "Not allowed", "Only owners and admins can revoke invites.")
+		h.ErrorPageKey(w, r, http.StatusForbidden, "error.forbidden", nil)
 		return
 	}
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		h.ErrorPage(w, r, http.StatusBadRequest, "Bad id", "Malformed invite id.")
+		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.bad_id", nil)
 		return
 	}
 	if err := h.Invites.Revoke(r.Context(), id); err != nil {
 		h.LogErr("web invite: revoke", err)
 		if invite.IsNotFoundError(err) {
-			h.ErrorPage(w, r, http.StatusNotFound, "Invite not found", "That invite no longer exists.", err)
+			h.ErrorPageKey(w, r, http.StatusNotFound, "error.not_found", err)
 			return
 		}
 		// SECURITY: err.Error() names internal ids, so it stays in the log and never reaches the page.
-		h.ErrorPage(w, r, http.StatusInternalServerError, "Revoke failed", "Could not revoke that invite.")
+		h.ErrorPageKey(w, r, http.StatusInternalServerError, "error.save_failed", nil)
 		return
 	}
+	h.SetFlash(w, r, web.FlashOK, "flash.invite_revoked")
 	http.Redirect(w, r, ResolveReturnTo(h.Cfg.HTTP.BasePath, "/orgs/"+slug+"/invites"), http.StatusSeeOther) //nolint:gosec // G710: destination sanitized via ResolveReturnTo → SanitizeReturnTo
 }
 
@@ -118,7 +120,7 @@ func (h *InviteHandler) PostRevoke(w http.ResponseWriter, r *http.Request) {
 func (h *InviteHandler) GetAccept(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
 	if token == "" {
-		h.ErrorPage(w, r, http.StatusBadRequest, "Missing token", "The invite link is malformed.")
+		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.bad_request", nil)
 		return
 	}
 	p, sid, authed := h.LoadSession(r)
@@ -141,15 +143,15 @@ func (h *InviteHandler) GetAccept(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case invite.IsNotFoundError(err), invite.IsExpiredError(err), invite.IsAlreadyUsedError(err):
-			h.ErrorPage(w, r, http.StatusGone, "Invite not usable", err.Error())
+			h.ErrorPageKey(w, r, http.StatusGone, "error.not_found", err)
 			return
 		case invite.IsTokenMismatchError(err):
-			h.ErrorPage(w, r, http.StatusForbidden, "Invite mismatch", "This invite is for a different email.")
+			h.ErrorPageKey(w, r, http.StatusForbidden, "error.forbidden", nil)
 			return
 		default:
 			h.LogErr("web invite: accept", err)
 			// SECURITY: err.Error() names internal ids, so the page shows the code and request id instead.
-			h.ErrorPage(w, r, http.StatusInternalServerError, "Accept failed", "Could not accept that invite.", err)
+			h.ErrorPageKey(w, r, http.StatusInternalServerError, "error.save_failed", err)
 			return
 		}
 	}
@@ -171,7 +173,7 @@ func (h *InviteHandler) GetAccept(w http.ResponseWriter, r *http.Request) {
 		h.LogErr("web invite: refresh session", err)
 	}
 	dest := "/orgs/" + o.Slug
-	if h.Cfg.Compliance.RequireAcceptance && p.TermsAcceptedAt.IsZero() {
+	if needsTerms(p, h.TermsUpdatedAt, h.Cfg.Compliance.RequireAcceptance) {
 		http.Redirect(w, r, web.Path(h.Cfg.HTTP.BasePath, "/welcome")+"?return_to="+url.QueryEscape(dest), http.StatusSeeOther)
 		return
 	}
@@ -185,7 +187,7 @@ func inviteRows(items []*invite.Invite) []templates.InviteRow {
 			ID:        i.ID.String(),
 			Email:     i.Email,
 			Role:      string(i.Role),
-			ExpiresAt: i.ExpiresAt.Format(time.RFC3339),
+			ExpiresAt: i.ExpiresAt,
 		})
 	}
 	return out

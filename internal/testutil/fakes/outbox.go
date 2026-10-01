@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/platform/outbox"
-	"altalune.id/template/internal/platform/tenant"
+	"altalune.id/openwa/internal/platform/outbox"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 // Outbox is an in-memory outbox.Store for tests, holding the same claim and ctx contract as the real adapters.

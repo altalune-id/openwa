@@ -15,15 +15,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/boot"
-	"altalune.id/template/internal/onboard"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/web"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/boot"
+	"altalune.id/openwa/internal/onboard"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/web"
 )
 
 type probeRoute struct {
@@ -41,6 +41,9 @@ func probeRoutes() []probeRoute {
 		pbase = base + "/projects/" + proj
 	)
 	id := uuid.NewString()
+	devID := "dev_ProbeDevice00001"
+	probeChatID := "cht_ProbeChat0000001"
+	probeMessageID := "msg_ProbeMessage0001"
 	return []probeRoute{
 		{http.MethodGet, "/", nil},
 		{http.MethodGet, "/login", nil},
@@ -60,12 +63,18 @@ func probeRoutes() []probeRoute {
 		{http.MethodGet, base + "/projects", nil},
 		{http.MethodGet, base + "/projects/new", nil},
 		{http.MethodGet, pbase + "/overview", nil},
-		{http.MethodGet, pbase + "/todos", nil},
-		{http.MethodGet, pbase + "/posts", nil},
-		{http.MethodGet, pbase + "/posts/new", nil},
-		{http.MethodGet, pbase + "/posts/" + id + "/edit", nil},
-		{http.MethodGet, pbase + "/categories", nil},
-		{http.MethodGet, pbase + "/tags", nil},
+		{http.MethodGet, pbase + "/devices", nil},
+		{http.MethodGet, pbase + "/devices/new", nil},
+		{http.MethodGet, pbase + "/devices/" + devID, nil},
+		{http.MethodGet, pbase + "/devices/" + devID + "/links/current", nil},
+		{http.MethodGet, pbase + "/inbox", nil},
+		{http.MethodGet, pbase + "/inbox/chats", nil},
+		{http.MethodGet, pbase + "/inbox/chats/" + probeChatID, nil},
+		{http.MethodGet, pbase + "/inbox/chats/" + probeChatID + "/messages", nil},
+		{http.MethodGet, pbase + "/inbox/messages/" + probeMessageID + "/media", nil},
+		{http.MethodGet, pbase + "/inbox/new", nil},
+		{http.MethodGet, pbase + "/contacts", nil},
+		{http.MethodGet, pbase + "/settings", nil},
 		{http.MethodGet, pbase + "/apikeys", nil},
 		{http.MethodGet, pbase + "/webhooks", nil},
 		{http.MethodGet, pbase + "/webhooks/new", nil},
@@ -94,30 +103,19 @@ func probeRoutes() []probeRoute {
 		{http.MethodPost, base + "/members/" + id + "/remove", url.Values{}},
 		{http.MethodPost, base + "/projects", url.Values{"slug": {"probe-new-project"}, "name": {"Probe New Project"}}},
 		{http.MethodPost, pbase + "/rename", url.Values{"name": {"Renamed"}}},
-		{http.MethodPost, pbase + "/todos", url.Values{"title": {"probe"}}},
-		{http.MethodPost, pbase + "/todos/clear", url.Values{}},
-		{http.MethodPost, pbase + "/todos/" + id + "/toggle", url.Values{}},
-		{http.MethodPost, pbase + "/todos/" + id + "/delete", url.Values{}},
-		{http.MethodDelete, pbase + "/todos/" + id, nil},
-		{http.MethodPost, pbase + "/posts", url.Values{
-			"title": {"Probe Post"}, "slug": {"probe-post"},
-			"category_id": {id}, "body": {"# Probe"},
-		}},
-		{http.MethodPost, pbase + "/posts/preview", url.Values{"body": {"# Probe"}}},
-		{http.MethodPost, pbase + "/posts/" + id, url.Values{
-			"title": {"Probe Post"}, "slug": {"probe-post"},
-			"category_id": {id}, "body": {"# Probe"},
-		}},
-		{http.MethodPost, pbase + "/posts/" + id + "/publish", url.Values{}},
-		{http.MethodPost, pbase + "/posts/" + id + "/unpublish", url.Values{}},
-		{http.MethodPost, pbase + "/posts/" + id + "/delete", url.Values{}},
-		{http.MethodPost, pbase + "/categories", url.Values{"name": {"Probe Category"}, "slug": {"probe-category"}}},
-		{http.MethodPost, pbase + "/categories/" + id + "/rename", url.Values{"name": {"Renamed"}}},
-		{http.MethodPost, pbase + "/categories/" + id + "/delete", url.Values{}},
-		{http.MethodPost, pbase + "/tags", url.Values{"name": {"Probe Tag"}, "slug": {"probe-tag"}}},
-		{http.MethodPost, pbase + "/tags/quick", url.Values{"name": {"Probe Quick Tag"}}},
-		{http.MethodPost, pbase + "/tags/" + id + "/rename", url.Values{"name": {"Renamed"}}},
-		{http.MethodPost, pbase + "/tags/" + id + "/delete", url.Values{}},
+		{http.MethodPost, pbase + "/devices", url.Values{"name": {"Probe Device"}}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/links", url.Values{}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/phone-links", url.Values{"phone": {"+62 812 3456 7890"}}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/unlink", url.Values{}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/rules", url.Values{"version": {"1"}, "group_mode": {"mention"}}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/rename", url.Values{"version": {"1"}, "name": {"Renamed"}}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/delete", url.Values{}},
+		{http.MethodPost, pbase + "/inbox/chats/" + probeChatID + "/messages", url.Values{"text": {"probe"}}},
+		{http.MethodPost, pbase + "/inbox/chats/" + probeChatID + "/read", url.Values{}},
+		{http.MethodPost, pbase + "/inbox/messages/" + probeMessageID + "/reactions", url.Values{"emoji": {"👍"}}},
+		{http.MethodPost, pbase + "/inbox/messages/" + probeMessageID + "/revoke", url.Values{}},
+		{http.MethodPost, pbase + "/settings/retention", url.Values{"days": {"30"}}},
+		{http.MethodPost, pbase + "/inbox/new", url.Values{"device": {"dev_ProbeDevice00001"}, "phone": {"628111"}, "text": {"probe"}}},
 		{http.MethodPost, pbase + "/apikeys", url.Values{"name": {"Probe Key"}, "scopes": {"posts:read"}}},
 		{http.MethodPost, pbase + "/apikeys/" + id + "/revoke", url.Values{}},
 		{http.MethodPost, pbase + "/webhooks", url.Values{
@@ -292,6 +290,9 @@ func templatize(path string) string {
 		path = strings.Replace(path, "/members/{id}/", "/members/{user}/", 1)
 	}
 	path = strings.Replace(path, "/deliveries/{id}", "/deliveries/{did}", 1)
+	path = strings.Replace(path, "/devices/dev_ProbeDevice00001", "/devices/{device}", 1)
+	path = strings.Replace(path, "/inbox/chats/cht_ProbeChat0000001", "/inbox/chats/{chat}", 1)
+	path = strings.Replace(path, "/inbox/messages/msg_ProbeMessage0001", "/inbox/messages/{message}", 1)
 	if path == "/" {
 		return "/{$}"
 	}

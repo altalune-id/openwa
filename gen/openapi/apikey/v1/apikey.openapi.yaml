@@ -164,6 +164,7 @@ components:
           items:
             type: string
           title: resource_ids
+          description: 'Resources the key is confined to: device public ids (dev_...) or other resource UUIDs; empty means the whole project'
         expiresAt:
           title: expires_at
           description: 'Required: when the key stops working, in the future and at most one year away'

@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/platform/events"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/testutil/fakes"
-	"altalune.id/template/internal/webhook"
+	"altalune.id/openwa/internal/platform/events"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/testutil/fakes"
+	"altalune.id/openwa/internal/webhook"
 )
 
 // TestWebhookStoreScopesByOrgNotProject pins the fake to the real stores' predicate: org from ctx, never project.

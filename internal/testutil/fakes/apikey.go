@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/apikey"
-	"altalune.id/template/internal/platform/tenant"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 // APIKey is an in-memory apikey.Store for tests.

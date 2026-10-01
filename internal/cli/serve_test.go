@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/boot"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/worker"
+	"altalune.id/openwa/internal/boot"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/worker"
 )
 
 func TestServe_ExitsWhenSupervisorReturns(t *testing.T) {

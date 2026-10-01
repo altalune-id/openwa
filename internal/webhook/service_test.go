@@ -16,14 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 
-	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/events"
-	"altalune.id/template/internal/platform/outbox"
-	"altalune.id/template/internal/platform/sealer"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/testutil/fakes"
-	"altalune.id/template/internal/webhook"
+	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/events"
+	"altalune.id/openwa/internal/platform/outbox"
+	"altalune.id/openwa/internal/platform/sealer"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/testutil/fakes"
+	"altalune.id/openwa/internal/webhook"
 )
 
 type slugStub struct {
@@ -55,8 +55,8 @@ func newHarnessWithSealer(t *testing.T, sl sealer.Sealer) *harness {
 	calls := 0
 	unexpected := func(_ context.Context, _ string, err error, _ ...any) *apperror.AppError {
 		calls++
-		return apperror.New("altempl.unexpected", err.Error(), codes.Internal,
-			&apperrorv1.ErrorDetail{Code: "altempl.unexpected"}).WithCause(err)
+		return apperror.New("openwa.unexpected", err.Error(), codes.Internal,
+			&apperrorv1.ErrorDetail{Code: "openwa.unexpected"}).WithCause(err)
 	}
 	h := &harness{
 		store:      fakes.NewWebhookStore(),
@@ -704,4 +704,30 @@ func TestEnvelope_GoldenV1(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, string(want), string(got))
 	assert.Equal(t, string(want), string(got)+"\n", "field order is part of the contract")
+}
+
+func TestService_AllowInsecureURLOption(t *testing.T) {
+	const httpURL = "http://127.0.0.1:9099/hook"
+	types := []events.Type{events.PostPublished}
+
+	t.Run("default service refuses http on create and update", func(t *testing.T) {
+		h := newHarness(t)
+		ctx, _ := svcCtx(t)
+		_, _, err := h.svc.Create(ctx, httpURL, "", types)
+		assert.True(t, webhook.IsInvalidURLError(err), "got %T: %v", err, err)
+		e, _ := h.create(ctx, t, events.PostPublished)
+		_, err = h.svc.Update(ctx, e.ID, httpURL, "", types, true)
+		assert.True(t, webhook.IsInvalidURLError(err), "got %T: %v", err, err)
+	})
+
+	t.Run("opted-in service accepts http on create and update", func(t *testing.T) {
+		h := newHarness(t)
+		h.svc = webhook.NewService(h.store, slog.New(slog.NewTextHandler(io.Discard, nil)), func(context.Context, string, error, ...any) *apperror.AppError { return nil }, h.sealer, h.outbox, h.slugs, webhook.WithAllowInsecureURL())
+		ctx, _ := svcCtx(t)
+		e, _, err := h.svc.Create(ctx, httpURL, "", types)
+		require.NoError(t, err)
+		got, err := h.svc.Update(ctx, e.ID, httpURL+"2", "", types, true)
+		require.NoError(t, err)
+		assert.Equal(t, httpURL+"2", got.URL)
+	})
 }

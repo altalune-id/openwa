@@ -3,9 +3,9 @@ package handlers
 import (
 	"net/http"
 
-	"altalune.id/template/internal/legal"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/templates"
+	"altalune.id/openwa/internal/legal"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/templates"
 )
 
 // LegalHandler serves the embedded Terms and Privacy documents at /terms and /privacy.
@@ -25,7 +25,7 @@ func (h *LegalHandler) get(slug, fallbackTitle string) http.HandlerFunc {
 		doc, err := legal.BySlug(slug)
 		if err != nil {
 			h.LogErr("legal: load", err)
-			h.ErrorPage(w, r, http.StatusInternalServerError, "Load failed", "Could not load the document.", err)
+			h.ErrorPageKey(w, r, http.StatusInternalServerError, "error.load_failed", err)
 			return
 		}
 		title := doc.Title

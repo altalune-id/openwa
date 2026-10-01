@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -18,24 +19,24 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 
-	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/auth"
-	"altalune.id/template/internal/i18n"
-	"altalune.id/template/internal/invite"
-	"altalune.id/template/internal/onboard"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/capabilities"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/testutil/fakes"
-	"altalune.id/template/internal/todo"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/handlers"
-	"altalune.id/template/mailer"
+	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/auth"
+	"altalune.id/openwa/internal/i18n"
+	"altalune.id/openwa/internal/invite"
+	"altalune.id/openwa/internal/onboard"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/capabilities"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/testutil/fakes"
+	"altalune.id/openwa/internal/todo"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/handlers"
+	"altalune.id/openwa/mailer"
 )
 
 func discardLogger() *slog.Logger   { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
@@ -43,8 +44,8 @@ func discardStdLogger() *log.Logger { return log.New(io.Discard, "", 0) }
 
 func passthroughUnexpected() apperror.UnexpectedFunc {
 	return func(_ context.Context, _ string, cause error, _ ...any) *apperror.AppError {
-		return apperror.New("altempl.unexpected", "unexpected", codes.Internal,
-			&apperrorv1.ErrorDetail{Code: "altempl.unexpected"}).WithCause(cause)
+		return apperror.New("openwa.unexpected", "unexpected", codes.Internal,
+			&apperrorv1.ErrorDetail{Code: "openwa.unexpected"}).WithCause(cause)
 	}
 }
 
@@ -461,10 +462,6 @@ func TestTodoHandler_HappyPath(t *testing.T) {
 	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodGet, "/orgs/acme/projects/alpha/todos", "", p))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, rec.Body.String(), "milk")
-
-	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodGet, "/orgs/acme/projects/alpha/overview", "", p))
-	assert.Equal(t, http.StatusOK, rec.Code)
 
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodPost, "/orgs/acme/projects/alpha/todos/clear", "", p))
@@ -1043,7 +1040,7 @@ func (a *authUserStore) ByEmail(ctx context.Context, email string) (*auth.UserRe
 	return &auth.UserRef{ID: u.ID, Email: u.Email, Name: u.Name, Source: u.Source, IsAdmin: u.IsAdmin, Locale: u.Locale, PasswordHash: u.PasswordHash}, nil
 }
 
-// NOTE: mirrors the write-time rule both real stores apply (internal/user/pgwriter.go, internal/user/sqlite.go); fakes.User does not.
+// NOTE: mirrors the write-time rule both real stores apply (internal/user/pgwriter.go); fakes.User does not.
 func (a *authUserStore) Save(ctx context.Context, u *auth.UserRef) error {
 	isAdmin := u.IsAdmin || u.Source == user.SourceGenesis || u.Source == user.SourceLocal
 	return a.store.Save(ctx, &user.User{ID: u.ID, Email: u.Email, Name: u.Name, Source: u.Source, IsAdmin: isAdmin, PasswordHash: u.PasswordHash, Locale: u.Locale})
@@ -1183,4 +1180,138 @@ func setTenant(ctx context.Context, orgID, userID uuid.UUID) context.Context {
 
 func setTenantProject(ctx context.Context, orgID, projectID, userID uuid.UUID) context.Context {
 	return tenant.Into(ctx, tenant.Context{OrgID: orgID, ProjectID: projectID, UserID: userID})
+}
+
+func TestBase_BrandAndAssetVersionAndCrumbs(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.Cfg.Brand.Name = "Acme Chat"
+	deps := f.Deps
+	deps.AssetVersion = "v9"
+	d := deps.Base(httptest.NewRequest(http.MethodGet, "/", nil), "Sign in")
+	assert.Equal(t, "Acme Chat", d.BrandName)
+	assert.Equal(t, "v9", d.AssetVersion)
+	assert.Equal(t, "Sign in · Acme Chat", d.DocumentTitle())
+
+	uid := uuid.New()
+	o := f.seedOrg(t, "acme", uid)
+	proj, err := f.Projects.Create(setTenant(context.Background(), o.ID, uid), o.ID, "alpha", "Alpha")
+	require.NoError(t, err)
+	r := f.authedRequest(t, http.MethodGet, "/orgs/acme/projects/alpha/apikeys", "", session.Principal{UserID: uid, ActiveOrgID: o.ID})
+	l := f.Deps.LayoutForProject(r, "API keys", "acme", proj, "apikeys")
+	require.Len(t, l.Crumbs, 2)
+	assert.Equal(t, web.Crumb{Label: "ACME", Href: "/orgs/acme"}, l.Crumbs[0])
+	assert.Equal(t, web.Crumb{Label: "Alpha", Href: "/orgs/acme/projects/alpha/overview"}, l.Crumbs[1])
+	assert.Equal(t, "API keys · Alpha · Acme Chat", l.DocumentTitle(), "f.Cfg is shared by pointer, so the brand set above applies here too")
+
+	lo := f.Deps.LayoutForOrg(r, "Members", "acme", "members")
+	require.Len(t, lo.Crumbs, 1)
+	assert.Equal(t, "ACME", lo.Crumbs[0].Label)
+}
+
+var colourLiteral = regexp.MustCompile(`\b(bg|text|border|ring|from|to|via|fill|stroke|divide|outline|decoration|placeholder|accent|caret)-(red|green|amber|emerald|yellow|rose|orange)-[0-9]`)
+
+func TestWelcome_PostSetsFlashAndRedirects(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.Cfg.Compliance.RequireAcceptance = true
+	ctx := context.Background()
+	u, err := f.Users.Create(ctx, user.CreateRequest{Email: "a@b.co", Name: "Pending", Source: user.SourceLocal})
+	require.NoError(t, err)
+	h := handlers.NewWelcomeHandler(f.Deps, f.Users)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodPost, "/welcome", "name=Alice&accept_terms=1&return_to=/orgs", session.Principal{UserID: u.ID, Email: u.Email}))
+	require.Equal(t, http.StatusSeeOther, rec.Code)
+	assert.Equal(t, "/orgs", rec.Header().Get("Location"))
+	assert.Contains(t, rec.Header().Get("Set-Cookie"), web.FlashCookieName+"=")
+}
+
+func TestWelcome_LogoutFormIsNotNested(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.Cfg.Compliance.RequireAcceptance = true
+	h := handlers.NewWelcomeHandler(f.Deps, f.Users)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodGet, "/welcome", "", session.Principal{UserID: uuid.New(), Email: "a@b.co"}))
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	welcome := strings.Index(body, `action="/welcome"`)
+	logout := strings.LastIndex(body, `action="/logout"`)
+	closeAt := strings.Index(body[welcome:], "</form>")
+	require.Positive(t, welcome)
+	require.Positive(t, closeAt)
+	assert.Greater(t, logout, welcome+closeAt, "the logout form must start after the welcome form closes")
+}
+
+func TestLogin_RendersFieldPrimitive(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	h := handlers.NewAuthHandler(f.Deps, newAuthSvc(t, f), f.Users, f.Orgs, f.Projects, nil, nil)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/admin-login", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	assert.Contains(t, body, `<label for="email"`)
+	assert.Contains(t, body, `id="email"`)
+	assert.NotRegexp(t, colourLiteral, body)
+}
+
+func TestProjectHandler_PostCreate_SetsFlash(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	uid := uuid.New()
+	f.seedOrg(t, "acme", uid)
+	h := handlers.NewProjectHandler(f.Deps, f.Projects)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodPost, "/orgs/acme/projects", "slug=alpha&name=Alpha", session.Principal{UserID: uid}))
+	require.Equal(t, http.StatusSeeOther, rec.Code)
+	assert.Contains(t, rec.Header().Get("Set-Cookie"), web.FlashCookieName+"=")
+}
+
+func TestOrgHandler_MembersPage_UsesConfirmDialogForRemove(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	owner := uuid.New()
+	o := f.seedOrg(t, "acme", owner)
+	member := uuid.New()
+	m, err := org.NewMembership(o.ID, member, org.RoleMember)
+	require.NoError(t, err)
+	require.NoError(t, f.OrgStore.SaveMembership(context.Background(), m))
+	h := handlers.NewOrgHandler(f.Deps, f.Orgs)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodGet, "/orgs/acme/members", "", session.Principal{UserID: owner, ActiveOrgID: o.ID}))
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	assert.Contains(t, body, `<dialog id="remove-`+member.String()+`"`)
+	assert.Contains(t, body, `action="/orgs/acme/members/`+member.String()+`/remove"`)
+	assert.NotRegexp(t, colourLiteral, body)
+}
+
+func TestInviteHandler_ListShowsRelativeExpiry(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	owner := uuid.New()
+	o := f.seedOrg(t, "acme", owner)
+	sendWorkflow := invite.NewSendWorkflow(f.InvStore, nopMailer{}, "http://localhost", discardLogger(), passthroughUnexpected())
+	invites := invite.NewService(f.InvStore, sendWorkflow, nil, true, discardLogger(), passthroughUnexpected())
+	_, err := invites.Send(setTenant(context.Background(), o.ID, owner), invite.SendRequest{Email: "x@y.z", Role: invite.RoleMember})
+	require.NoError(t, err)
+	h := handlers.NewInviteHandler(f.Deps, f.Orgs, invites)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodGet, "/orgs/acme/invites", "", session.Principal{UserID: owner, ActiveOrgID: o.ID}))
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Regexp(t, `<time datetime="[0-9T:+-]+Z?" title="[^"]+ UTC">`, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "invites.expires")
 }

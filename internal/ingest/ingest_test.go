@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/ingest"
+	"altalune.id/openwa/internal/ingest"
 )
 
 type fakeVerifier struct {

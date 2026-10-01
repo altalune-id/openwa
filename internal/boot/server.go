@@ -13,39 +13,45 @@ import (
 	"sync/atomic"
 	"time"
 
-	"altalune.id/template/authl"
-	"altalune.id/template/httpclient"
-	"altalune.id/template/internal/apikey"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/auth"
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/blog/category"
-	"altalune.id/template/internal/blog/tag"
-	"altalune.id/template/internal/controlplane"
-	"altalune.id/template/internal/invite"
-	"altalune.id/template/internal/onboard"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform"
-	"altalune.id/template/internal/platform/capabilities"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/db"
-	"altalune.id/template/internal/platform/notify"
-	"altalune.id/template/internal/platform/outbox"
-	"altalune.id/template/internal/platform/queue"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/platform/tokens"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/todo"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/webhook"
-	"altalune.id/template/logger"
-	"altalune.id/template/mailer"
-	rootmcp "altalune.id/template/mcp"
-	"altalune.id/template/nanoid"
-	"altalune.id/template/scheduler"
-	"altalune.id/template/telemetry"
-	"altalune.id/template/worker"
+	"altalune.id/openwa/authl"
+	"altalune.id/openwa/httpclient"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/auth"
+	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/blog/category"
+	"altalune.id/openwa/internal/blog/tag"
+	"altalune.id/openwa/internal/chat"
+	"altalune.id/openwa/internal/contact"
+	"altalune.id/openwa/internal/controlplane"
+	"altalune.id/openwa/internal/device"
+	"altalune.id/openwa/internal/invite"
+	"altalune.id/openwa/internal/message"
+	"altalune.id/openwa/internal/onboard"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform"
+	"altalune.id/openwa/internal/platform/capabilities"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/db"
+	"altalune.id/openwa/internal/platform/notify"
+	"altalune.id/openwa/internal/platform/outbox"
+	"altalune.id/openwa/internal/platform/queue"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/platform/tokens"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/todo"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/webhook"
+	"altalune.id/openwa/internal/whatsapp"
+	"altalune.id/openwa/internal/whatsapp/meow"
+	"altalune.id/openwa/logger"
+	"altalune.id/openwa/mailer"
+	rootmcp "altalune.id/openwa/mcp"
+	"altalune.id/openwa/nanoid"
+	"altalune.id/openwa/scheduler"
+	"altalune.id/openwa/telemetry"
+	"altalune.id/openwa/worker"
 )
 
 const setupTokenLen = 32
@@ -60,6 +66,7 @@ type Server struct {
 	Cfg      *config.Config
 	Caps     capabilities.Capabilities
 	Platform *platform.Kernel
+	WA       *meow.Container
 
 	Auth       *auth.Service
 	Users      *user.Service
@@ -73,6 +80,12 @@ type Server struct {
 	Tags       *tag.Service
 	APIKeys    *apikey.Service
 	Webhooks   *webhook.Service
+	Devices    *device.Service
+	WhatsApp   *whatsapp.Service
+	Runtime    *whatsapp.Runtime
+	Chats      *chat.Service
+	Contacts   *contact.Service
+	Messages   *message.Service
 
 	Onboard *user.OnboardWorkflow
 
@@ -136,6 +149,13 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 		return nil, err
 	}
 
+	wa, err := meow.NewContainer(pool.W, log, cfg.WhatsApp.ClientName)
+	if err != nil {
+		_ = pool.Close()
+		_ = shutdownOTel(context.Background())
+		return nil, fmt.Errorf("boot: whatsmeow: %w", err)
+	}
+
 	verifier, err := tokens.NewVerifier(ctx, cfg.Tokens)
 	if err != nil {
 		_ = pool.Close()
@@ -150,7 +170,7 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 		return nil, fmt.Errorf("boot: authl: %w", err)
 	}
 
-	sl, err := buildSealer(cfg, log)
+	sl, err := buildSealer(cfg)
 	if err != nil {
 		_ = pool.Close()
 		_ = shutdownOTel(context.Background())
@@ -170,8 +190,8 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 		Verifier: verifier,
 		Mail:     mail,
 		AltAuth:  altAuth,
-		Tracer:   tp.Tracer("altalune.id/template"),
-		Meter:    mp.Meter("altalune.id/template"),
+		Tracer:   tp.Tracer("altalune.id/openwa"),
+		Meter:    mp.Meter("altalune.id/openwa"),
 		Notify:   sinks,
 		Nano:     nanoid.New,
 		Caps:     caps,
@@ -183,6 +203,7 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 		}
 	}
 	kernel.AddCloser(pool)
+	kernel.AddCloser(wa)
 
 	q, err := openQueue(ctx, cfg, kernel, reporter, log)
 	if err != nil {
@@ -206,7 +227,7 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 
 	required := &atomic.Bool{}
 
-	svcs, err := buildServices(cfg, kernel, caps)
+	svcs, err := buildServices(cfg, kernel, caps, wa)
 	if err != nil {
 		abort()
 		return nil, err
@@ -243,7 +264,10 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 	sup := worker.New(log)
 	sup.Register(health)
 	sup.Register(svcs.APIKeyUsage)
-	sup.Register(outbox.NewWorker(kernel.Outbox, dispatchDeliverer(o, kernel, svcs, log), orgEnumerator(cfg, kernel, log), log, o.dispatch))
+	sup.Register(outbox.NewWorker(kernel.Outbox, dispatchDeliverer(o, cfg, kernel, svcs, log), orgEnumerator(cfg, kernel, log), log, o.dispatch))
+	if !o.schedulerOnly && !o.consumerOnly {
+		sup.Register(svcs.Runtime)
+	}
 	if cfg.Telemetry.Metrics.Prometheus.Enabled {
 		sup.Register(telemetry.PrometheusWorker(cfg.Telemetry.Metrics.Prometheus, log))
 	}
@@ -330,8 +354,8 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 	}
 
 	webHandler, webRoutes := buildWebHandler(cfg, kernel, caps, log, reporter, healthOK,
-		svcs.Auth, svcs.Users, svcs.Orgs, svcs.Projects, svcs.Todos, svcs.Invites, svcs.Onboards,
-		svcs.Posts, svcs.Categories, svcs.Tags, svcs.APIKeys, svcs.Webhooks, required, gate.Complete, setup, apiHandler, dataHandler, mcpSurf, bundle, defaultLoc)
+		svcs.Auth, svcs.Users, svcs.Orgs, svcs.Projects, svcs.Invites, svcs.Onboards,
+		svcs.APIKeys, svcs.Webhooks, svcs.Devices, svcs.Chats, svcs.Messages, svcs.Contacts, required, gate.Complete, setup, apiHandler, dataHandler, mcpSurf, bundle, defaultLoc)
 
 	httpHandler := webHandler
 	if o.schedulerOnly || o.consumerOnly {
@@ -343,6 +367,7 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 		Cfg:                cfg,
 		Caps:               caps,
 		Platform:           kernel,
+		WA:                 wa,
 		Auth:               svcs.Auth,
 		Users:              svcs.Users,
 		Orgs:               svcs.Orgs,
@@ -355,6 +380,12 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 		Tags:               svcs.Tags,
 		APIKeys:            svcs.APIKeys,
 		Webhooks:           svcs.Webhooks,
+		Devices:            svcs.Devices,
+		WhatsApp:           svcs.WhatsApp,
+		Runtime:            svcs.Runtime,
+		Chats:              svcs.Chats,
+		Contacts:           svcs.Contacts,
+		Messages:           svcs.Messages,
 		Onboarded:          onboarded,
 		Routes:             webRoutes,
 		SetupToken:         setup,
@@ -394,20 +425,33 @@ func (s *Server) Close() error {
 	return errors.Join(errs...)
 }
 
-func dispatchDeliverer(o *options, k *platform.Kernel, svcs *Services, log *slog.Logger) outbox.Deliverer {
+func dispatchDeliverer(o *options, cfg *config.Config, k *platform.Kernel, svcs *Services, log *slog.Logger) outbox.Deliverer {
 	if o.deliverer != nil {
 		return o.deliverer
 	}
-	return webhook.NewDeliverer(svcs.WebhookStore, k.Sealer, webhookHTTPClient(), log)
+	return webhook.NewDeliverer(svcs.WebhookStore, k.Sealer, webhookHTTPClient(allowInsecureWebhooks(cfg)), log)
 }
 
 // SECURITY: otel stays off — otelhttp records url.full including the query string, and webhook.Deliver's own span is the only trace a delivery should leave.
-func webhookHTTPClient() *http.Client {
+func webhookHTTPClient(allowPrivateHosts bool) *http.Client {
 	return httpclient.New(
+		httpclient.WithAllowPrivateHosts(allowPrivateHosts),
 		httpclient.WithTimeout(webhookTimeout),
 		httpclient.WithResponseBodyLimit(webhookResponseLimit),
 		httpclient.WithOtel(false),
 	)
+}
+
+// SECURITY: cloud mode forces this false, whatever webhook.allowInsecure says.
+func allowInsecureWebhooks(cfg *config.Config) bool {
+	return cfg.Webhook.AllowInsecure && cfg.Mode == config.ModeSelfhosted
+}
+
+func webhookServiceOptions(cfg *config.Config) []webhook.ServiceOption {
+	if !allowInsecureWebhooks(cfg) {
+		return nil
+	}
+	return []webhook.ServiceOption{webhook.WithAllowInsecureURL()}
 }
 
 func setupToken(cfg *config.Config) (string, error) {
@@ -460,8 +504,8 @@ func buildAltAuth(ctx context.Context, cfg *config.Config, log *slog.Logger) (*a
 		Scopes:           cfg.OIDC.Scopes,
 		Resource:         cfg.OIDC.Resource,
 		RememberLastUser: true,
-		LastUserCookie:   "altempl_last_user",
-		StateCookie:      "altempl_oidc_state",
+		LastUserCookie:   "openwa_last_user",
+		StateCookie:      "openwa_oidc_state",
 		StateSecret:      secret,
 		CookieSecure:     cfg.HTTP.CookieSecure,
 	})
@@ -487,7 +531,7 @@ func resolveStateSecret(cfg *config.Config, log *slog.Logger) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("mint ephemeral state secret: %w", err)
 	}
-	log.Warn("http.stateSecret is empty — using an ephemeral secret; set ALT_HTTP_STATE_SECRET to persist")
+	log.Warn("http.stateSecret is empty — using an ephemeral secret; set OPENWA_HTTP_STATE_SECRET to persist")
 	return ephemeral, nil
 }
 

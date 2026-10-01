@@ -219,11 +219,12 @@ func (x *ListResponse) GetKeys() []*APIKey {
 }
 
 type CreateRequest struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId   string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	Name        string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Scopes      []string               `protobuf:"bytes,3,rep,name=scopes,proto3" json:"scopes,omitempty"`
-	ResourceIds []string               `protobuf:"bytes,4,rep,name=resource_ids,json=resourceIds,proto3" json:"resource_ids,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	Name      string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Scopes    []string               `protobuf:"bytes,3,rep,name=scopes,proto3" json:"scopes,omitempty"`
+	// Resources the key is confined to: device public ids (dev_...) or other resource UUIDs; empty means the whole project
+	ResourceIds []string `protobuf:"bytes,4,rep,name=resource_ids,json=resourceIds,proto3" json:"resource_ids,omitempty"`
 	// Required: when the key stops working, in the future and at most one year away
 	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -480,8 +481,8 @@ const file_apikey_v1_apikey_proto_rawDesc = "" +
 	"\rAPIKeyService\x127\n" +
 	"\x04List\x12\x16.apikey.v1.ListRequest\x1a\x17.apikey.v1.ListResponse\x12=\n" +
 	"\x06Create\x12\x18.apikey.v1.CreateRequest\x1a\x19.apikey.v1.CreateResponse\x12=\n" +
-	"\x06Revoke\x12\x18.apikey.v1.RevokeRequest\x1a\x19.apikey.v1.RevokeResponseB\x91\x01\n" +
-	"\rcom.apikey.v1B\vApikeyProtoP\x01Z.altalune.id/template/gen/go/apikey/v1;apikeyv1\xa2\x02\x03AXX\xaa\x02\tApikey.V1\xca\x02\tApikey\\V1\xe2\x02\x15Apikey\\V1\\GPBMetadata\xea\x02\n" +
+	"\x06Revoke\x12\x18.apikey.v1.RevokeRequest\x1a\x19.apikey.v1.RevokeResponseB\x8f\x01\n" +
+	"\rcom.apikey.v1B\vApikeyProtoP\x01Z,altalune.id/openwa/gen/go/apikey/v1;apikeyv1\xa2\x02\x03AXX\xaa\x02\tApikey.V1\xca\x02\tApikey\\V1\xe2\x02\x15Apikey\\V1\\GPBMetadata\xea\x02\n" +
 	"Apikey::V1b\x06proto3"
 
 var (

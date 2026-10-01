@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"log/slog"
-	"maps"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -17,19 +16,19 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/apikey"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/boot"
-	mcpinternal "altalune.id/template/internal/mcp"
-	"altalune.id/template/internal/onboard"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/platform/tokens"
-	"altalune.id/template/internal/user"
-	rootmcp "altalune.id/template/mcp"
-	"altalune.id/template/reqid"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/boot"
+	mcpinternal "altalune.id/openwa/internal/mcp"
+	"altalune.id/openwa/internal/onboard"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/platform/tokens"
+	"altalune.id/openwa/internal/user"
+	rootmcp "altalune.id/openwa/mcp"
+	"altalune.id/openwa/reqid"
 )
 
 const (
@@ -40,9 +39,6 @@ const (
 	tokenEmail        = "mcp-agent@example.com"
 	mcpMetadataPath   = "/.well-known/oauth-protected-resource/mcp"
 	mcpProtocolHeader = "application/json, text/event-stream"
-
-	todoCreateProcedure = "/api/todo.v1.TodoService/Create"
-	todoListProcedure   = "/api/todo.v1.TodoService/List"
 )
 
 type tokenIssuer struct {
@@ -116,6 +112,8 @@ type mcpFixture struct {
 	projectID string
 	readKey   string
 	noneKey   string
+	deviceKey string
+	msgKey    string
 }
 
 func newMCPFixture(t *testing.T, opts mcpOpts) *mcpFixture {
@@ -163,14 +161,15 @@ func newMCPFixture(t *testing.T, opts mcpOpts) *mcpFixture {
 	require.NoError(t, err)
 
 	projCtx := tenant.WithProject(orgCtx, p.ID)
-	cat, err := srv.Categories.Create(projCtx, "News", "news")
-	require.NoError(t, err)
-	post, err := srv.Posts.Create(projCtx, cat.ID, "Hello", "hello", "body")
-	require.NoError(t, err)
-	_, err = srv.Posts.Publish(projCtx, post.ID, 0)
-	require.NoError(t, err)
 
-	_, readKey, err := srv.APIKeys.Mint(projCtx, "mcp-reader", []string{authn.ScopePostsRead}, nil, soon())
+	_, readKey, err := srv.APIKeys.Mint(projCtx, "mcp-reader", []string{authn.ScopeProjectsRead}, nil, soon())
+	require.NoError(t, err)
+	_, deviceKey, err := srv.APIKeys.Mint(projCtx, "mcp-devices", []string{authn.ScopeDevicesRead, authn.ScopeDevicesWrite, authn.ScopeProjectsRead}, nil, soon())
+	require.NoError(t, err)
+	_, msgKey, err := srv.APIKeys.Mint(projCtx, "mcp-messaging", []string{
+		authn.ScopeMessagesRead, authn.ScopeMessagesWrite, authn.ScopeChatsRead, authn.ScopeChatsWrite,
+		authn.ScopeContactsRead, authn.ScopeProjectsRead,
+	}, nil, soon())
 	require.NoError(t, err)
 	_, noneKey, err := srv.APIKeys.Mint(projCtx, "mcp-keys-only", []string{authn.ScopeAPIKeysRead}, nil, soon())
 	require.NoError(t, err)
@@ -182,6 +181,8 @@ func newMCPFixture(t *testing.T, opts mcpOpts) *mcpFixture {
 		projectID: p.ID.String(),
 		readKey:   readKey,
 		noneKey:   noneKey,
+		deviceKey: deviceKey,
+		msgKey:    msgKey,
 	}
 }
 
@@ -271,8 +272,8 @@ func callToolBody(name string, args map[string]any) map[string]any {
 func TestMCP_RejectsAControlPlaneAudienceToken(t *testing.T) {
 	f := newMCPFixture(t, mcpOpts{enabled: true})
 
-	controlToken := f.issuer.mint(t, controlAudience, []string{authn.ScopePostsRead})
-	mcpToken := f.issuer.mint(t, mcpAudience, []string{authn.ScopePostsRead})
+	controlToken := f.issuer.mint(t, controlAudience, []string{authn.ScopeProjectsRead})
+	mcpToken := f.issuer.mint(t, mcpAudience, []string{authn.ScopeProjectsRead})
 
 	t.Run("the mcp-audience token is accepted at /mcp", func(t *testing.T) {
 		rec := f.call(t, mcpToken, listToolsBody())
@@ -333,19 +334,19 @@ func TestMCP_ScopelessJWTCannotCallATool(t *testing.T) {
 	}{
 		{"no scopes at all", nil, true},
 		{"an unrelated scope", []string{authn.ScopeAPIKeysRead}, true},
-		{"the tool's own scope", []string{authn.ScopePostsRead}, false},
+		{"the tool's own scope", []string{authn.ScopeProjectsRead}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			token := f.issuer.mint(t, mcpAudience, tt.scopes)
-			rec := f.call(t, token, callToolBody("blog_list", map[string]any{"projectId": f.projectID}))
+			rec := f.call(t, token, callToolBody(mcpinternal.ToolProjectList, map[string]any{}))
 			require.Equal(t, http.StatusOK, rec.Code,
 				"the JWT must authenticate, or this guard measures authentication rather than scope; body=%s", rec.Body.String())
 
-			denied := scopeDeniedFor(t, rec, authn.ScopePostsRead)
+			denied := scopeDeniedFor(t, rec, authn.ScopeProjectsRead)
 			if tt.wantDenied {
 				require.True(t, denied,
-					"R4/S7: a JWT holding %v called blog_list; an MCP JWT is scope-checked like a key; body=%s", tt.scopes, rec.Body.String())
+					"R4/S7: a JWT holding %v called project_list; an MCP JWT is scope-checked like a key; body=%s", tt.scopes, rec.Body.String())
 				return
 			}
 			require.False(t, denied,
@@ -358,17 +359,17 @@ func TestMCP_ScopelessJWTCannotCallATool(t *testing.T) {
 func TestMCP_KeyScopeIsCheckedPerTool(t *testing.T) {
 	f := newMCPFixture(t, mcpOpts{enabled: true})
 
-	t.Run("a key holding posts:read lists posts", func(t *testing.T) {
-		rec := f.call(t, f.readKey, callToolBody("blog_list", map[string]any{"projectId": f.projectID}))
+	t.Run("a key holding projects:read lists projects", func(t *testing.T) {
+		rec := f.call(t, f.readKey, callToolBody(mcpinternal.ToolProjectList, map[string]any{}))
 		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
-		require.False(t, scopeDeniedFor(t, rec, authn.ScopePostsRead), "body=%s", rec.Body.String())
-		require.Contains(t, rec.Body.String(), `\"slug\":\"hello\"`,
-			"the tool must answer from the same blog service /api serves; body=%s", rec.Body.String())
+		require.False(t, scopeDeniedFor(t, rec, authn.ScopeProjectsRead), "body=%s", rec.Body.String())
+		require.Contains(t, rec.Body.String(), `\"slug\":\"mcp-project\"`,
+			"the tool must answer from the same project service /api serves; body=%s", rec.Body.String())
 	})
 
-	t.Run("a key without posts:read is denied", func(t *testing.T) {
-		rec := f.call(t, f.noneKey, callToolBody("blog_list", map[string]any{"projectId": f.projectID}))
-		require.True(t, scopeDeniedFor(t, rec, authn.ScopePostsRead),
+	t.Run("a key without projects:read is denied", func(t *testing.T) {
+		rec := f.call(t, f.noneKey, callToolBody(mcpinternal.ToolProjectList, map[string]any{}))
+		require.True(t, scopeDeniedFor(t, rec, authn.ScopeProjectsRead),
 			"a key lacking the tool's scope called it; body=%s", rec.Body.String())
 	})
 }
@@ -377,14 +378,14 @@ func TestMCP_KeyScopeIsCheckedPerTool(t *testing.T) {
 func TestMCP_CallWithoutArgumentsDecodes(t *testing.T) {
 	f := newMCPFixture(t, mcpOpts{enabled: true})
 
-	token := f.issuer.mint(t, mcpAudience, []string{authn.ScopePostsWrite})
+	token := f.issuer.mint(t, mcpAudience, []string{authn.ScopeProjectsRead})
 	rec := f.call(t, token, map[string]any{
 		"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-		"params": map[string]any{"name": mcpinternal.ToolBlogPublish},
+		"params": map[string]any{"name": mcpinternal.ToolProjectList},
 	})
 	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
-	require.Equal(t, apperror.CodeValidation, toolPayload(t, rec).Code,
-		"the call did not reach the service's own validation, so protojson was handed a nil body; body=%s", rec.Body.String())
+	require.NotEmpty(t, projectsFromTool(t, rec),
+		"the call did not reach the service, so protojson was handed a nil body; body=%s", rec.Body.String())
 }
 
 func toolPayload(t *testing.T, rec *httptest.ResponseRecorder) rootmcp.ErrorPayload {
@@ -470,7 +471,7 @@ func TestMCP_DisabledLeavesThePathUnmounted(t *testing.T) {
 			rec := f.post(t, path, f.readKey, listToolsBody())
 			require.NotEqual(t, http.StatusOK, rec.Code,
 				"%s answered while mcp.enabled is false; body=%s", path, rec.Body.String())
-			require.NotContains(t, rec.Body.String(), "blog_list",
+			require.NotContains(t, rec.Body.String(), "project_list",
 				"a disabled MCP surface published its tool catalog; body=%s", rec.Body.String())
 		})
 	}
@@ -488,11 +489,18 @@ func TestMCP_ToolsCarryAScopeAndTheSharedInstances(t *testing.T) {
 	require.NotEmpty(t, names, "boot registered no MCP tools")
 
 	instances := map[string]any{
-		"todo_create":  f.srv.API.TodoSvc,
-		"blog_publish": f.srv.API.BlogSvc,
-		"blog_list":    f.srv.API.BlogSvc,
-		"project_list": f.srv.API.ProjectSvc,
-		"member_list":  f.srv.API.MemberSvc,
+		"project_list":  f.srv.API.ProjectSvc,
+		"member_list":   f.srv.API.MemberSvc,
+		"device_list":   f.srv.API.DeviceSvc,
+		"device_get":    f.srv.API.DeviceSvc,
+		"device_pair":   f.srv.API.DeviceSvc,
+		"device_logout": f.srv.API.DeviceSvc,
+		"message_send":  f.srv.API.MessageSvc,
+		"message_list":  f.srv.API.MessageSvc,
+		"chat_list":     f.srv.API.ChatSvc,
+		"group_list":    f.srv.API.ChatSvc,
+		"group_join":    f.srv.API.ChatSvc,
+		"contact_list":  f.srv.API.ContactSvc,
 	}
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {
@@ -512,7 +520,7 @@ func TestMCP_ToolsCarryAScopeAndTheSharedInstances(t *testing.T) {
 	}
 }
 
-// TestMCP_ToolsShareTheConnectHandlerInstance is the identity guard the surface rests on: each tool must close over the very *controlplane.TodoService / *controlplane.BlogService the Connect mount serves. SECURITY: a second, independently constructed service — or a tool body calling straight into internal/todo past Connect — would still satisfy the behavioral test below while duplicating a verb, and a duplicated verb is a verb whose tenant scoping and authorization can diverge.
+// TestMCP_ToolsShareTheConnectHandlerInstance is the identity guard the surface rests on: each tool must close over the very *controlplane service the Connect mount serves. SECURITY: a second, independently constructed service — or a tool body calling straight into a domain package past Connect — would still satisfy the behavioral test below while duplicating a verb, and a duplicated verb is a verb whose tenant scoping and authorization can diverge.
 func TestMCP_ToolsShareTheConnectHandlerInstance(t *testing.T) {
 	f := newMCPFixture(t, mcpOpts{enabled: true})
 	require.NotNil(t, f.srv.MCP, "mcp.enabled is true, so boot must have built a server")
@@ -523,11 +531,18 @@ func TestMCP_ToolsShareTheConnectHandlerInstance(t *testing.T) {
 		tool string
 		want any
 	}{
-		{mcpinternal.ToolTodoCreate, f.srv.API.TodoSvc},
-		{mcpinternal.ToolBlogPublish, f.srv.API.BlogSvc},
-		{mcpinternal.ToolBlogList, f.srv.API.BlogSvc},
 		{mcpinternal.ToolProjectList, f.srv.API.ProjectSvc},
 		{mcpinternal.ToolMemberList, f.srv.API.MemberSvc},
+		{mcpinternal.ToolDeviceList, f.srv.API.DeviceSvc},
+		{mcpinternal.ToolDeviceGet, f.srv.API.DeviceSvc},
+		{mcpinternal.ToolDevicePair, f.srv.API.DeviceSvc},
+		{mcpinternal.ToolDeviceLogout, f.srv.API.DeviceSvc},
+		{mcpinternal.ToolMessageSend, f.srv.API.MessageSvc},
+		{mcpinternal.ToolMessageList, f.srv.API.MessageSvc},
+		{mcpinternal.ToolChatList, f.srv.API.ChatSvc},
+		{mcpinternal.ToolGroupList, f.srv.API.ChatSvc},
+		{mcpinternal.ToolGroupJoin, f.srv.API.ChatSvc},
+		{mcpinternal.ToolContactList, f.srv.API.ContactSvc},
 	}
 
 	covered := make([]string, 0, len(tests))
@@ -551,103 +566,25 @@ func TestMCP_ToolsShareTheConnectHandlerInstance(t *testing.T) {
 	}
 }
 
-// TestMCP_ToolCallMatchesTheConnectCall is the behavioral complement: the same fixture driven through TodoService.Create over Connect and over the MCP tool must produce the same row. NOTE: this proves equivalence only.
-func TestMCP_ToolCallMatchesTheConnectCall(t *testing.T) {
+// TestMCP_PublishesMemberAndProjectTools pins the whole tool catalog the template core exposes.
+func TestMCP_PublishesMemberAndProjectTools(t *testing.T) {
 	f := newMCPFixture(t, mcpOpts{enabled: true})
 
-	controlToken := f.issuer.mint(t, controlAudience, []string{authn.ScopePostsWrite})
-	mcpToken := f.issuer.mint(t, mcpAudience, []string{authn.ScopePostsWrite})
+	rec := f.call(t, f.readKey, listToolsBody())
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
 
-	created := f.connectRPC(t, controlToken, todoCreateProcedure,
-		map[string]any{"projectId": f.projectID, "title": "via-connect"})
-	require.Equal(t, http.StatusOK, created.Code, "the Connect call must succeed; body=%s", created.Body.String())
-	connectTodo := todoFromConnect(t, created)
-
-	rec := f.call(t, mcpToken, callToolBody(mcpinternal.ToolTodoCreate,
-		map[string]any{"projectId": f.projectID, "title": "via-mcp"}))
-	require.Equal(t, http.StatusOK, rec.Code, "the tool call must succeed; body=%s", rec.Body.String())
-	mcpTodo := todoFromTool(t, rec)
-
-	t.Run("each call produced a real row", func(t *testing.T) {
-		for name, todo := range map[string]map[string]any{"connect": connectTodo, "mcp": mcpTodo} {
-			require.NotEmpty(t, todo["id"], "the %s call returned a todo with no id", name)
-			require.Equal(t, f.projectID, todo["projectId"], "the %s call scoped the todo to another project", name)
-			require.NotEmpty(t, todo["createdAt"], "the %s call returned a todo with no creation time", name)
-		}
-		require.Equal(t, "via-connect", connectTodo["title"])
-		require.Equal(t, "via-mcp", mcpTodo["title"])
-		require.ElementsMatch(t, slices.Collect(maps.Keys(connectTodo)), slices.Collect(maps.Keys(mcpTodo)),
-			"the MCP tool emitted a different field set than the Connect call: connect=%v mcp=%v", connectTodo, mcpTodo)
-	})
-
-	t.Run("the two rows differ only in id, title and timestamps", func(t *testing.T) {
-		require.Equal(t, stableTodoFields(connectTodo), stableTodoFields(mcpTodo),
-			"the MCP tool and the Connect call disagree on the row they produced: connect=%v mcp=%v", connectTodo, mcpTodo)
-	})
-
-	t.Run("both rows are readable through the Connect mount", func(t *testing.T) {
-		listed := f.connectRPC(t, controlToken, todoListProcedure, map[string]any{"projectId": f.projectID})
-		require.Equal(t, http.StatusOK, listed.Code, "body=%s", listed.Body.String())
-
-		var body struct {
-			Todos []map[string]any `json:"todos"`
-		}
-		require.NoError(t, json.Unmarshal(listed.Body.Bytes(), &body), "body=%s", listed.Body.String())
-
-		titles := make([]string, 0, len(body.Todos))
-		for _, todo := range body.Todos {
-			title, _ := todo["title"].(string)
-			titles = append(titles, title)
-		}
-		require.ElementsMatch(t, []string{"via-connect", "via-mcp"}, titles,
-			"the tool wrote somewhere the Connect mount cannot read; titles=%v", titles)
-	})
-}
-
-func (f *mcpFixture) connectRPC(t *testing.T, credential, procedure string, body any) *httptest.ResponseRecorder {
-	t.Helper()
-	raw, err := json.Marshal(body)
-	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodPost, procedure, strings.NewReader(string(raw)))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Connect-Protocol-Version", "1")
-	req.Header.Set("Authorization", "Bearer "+credential)
-	rec := httptest.NewRecorder()
-	f.srv.Web.ServeHTTP(rec, req)
-	return rec
-}
-
-func todoFromConnect(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
-	t.Helper()
-	var body struct {
-		Todo map[string]any `json:"todo"`
+	var out struct {
+		Result struct {
+			Tools []struct {
+				Name string `json:"name"`
+			} `json:"tools"`
+		} `json:"result"`
 	}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "body=%s", rec.Body.String())
-	require.NotNil(t, body.Todo, "the Connect response carried no todo; body=%s", rec.Body.String())
-	return body.Todo
-}
-
-func todoFromTool(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
-	t.Helper()
-	resp := decodeRPC(t, rec)
-	require.Nil(t, resp.Error, "the tool call was refused: %v", resp.Error)
-
-	var result struct {
-		IsError           bool `json:"isError"`
-		StructuredContent struct {
-			Todo map[string]any `json:"todo"`
-		} `json:"structuredContent"`
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &out), "body=%s", rec.Body.String())
+	names := make([]string, 0, len(out.Result.Tools))
+	for _, tool := range out.Result.Tools {
+		names = append(names, tool.Name)
 	}
-	require.NoError(t, json.Unmarshal(resp.Result, &result), "result=%s", string(resp.Result))
-	require.False(t, result.IsError, "the tool reported an error: %s", string(resp.Result))
-	require.NotNil(t, result.StructuredContent.Todo, "the tool result carried no todo: %s", string(resp.Result))
-	return result.StructuredContent.Todo
-}
-
-func stableTodoFields(todo map[string]any) map[string]any {
-	stable := maps.Clone(todo)
-	for _, field := range []string{"id", "title", "createdAt", "updatedAt"} {
-		delete(stable, field)
-	}
-	return stable
+	slices.Sort(names)
+	require.Equal(t, []string{"chat_list", "contact_list", "device_get", "device_list", "device_logout", "device_pair", "group_join", "group_list", "member_list", "message_list", "message_send", "project_list"}, names)
 }

@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"altalune.id/template/telemetry"
+	"altalune.id/openwa/telemetry"
 )
 
 func TestSetup_DisabledReturnsNoopProviders(t *testing.T) {

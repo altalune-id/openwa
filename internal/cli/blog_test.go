@@ -52,6 +52,7 @@ func (rs *recordingServer) hits() int {
 func runBlog(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 	root := NewRootCmd(stubServerBoot, stubClientBoot)
+	root.AddCommand(newBlogCmd())
 	buf := &bytes.Buffer{}
 	root.SetOut(buf)
 	root.SetErr(buf)

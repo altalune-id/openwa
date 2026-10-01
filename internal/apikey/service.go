@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"log/slog"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,14 +13,15 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/publicid"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 //nolint:gochecknoglobals // OTel tracer is a package-level fixture, not runtime state.
-var tracer = otel.Tracer("altalune.id/template/internal/apikey")
+var tracer = otel.Tracer("altalune.id/openwa/internal/apikey")
 
 // Members is the org membership gate: RequireManager guards org and project keys, RequireMember guards a personal token and its use.
 type Members interface {
@@ -32,6 +34,18 @@ type Projects interface {
 	ProjectIDs(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
 }
 
+// DevicePrefix is the device public id prefix; apikey never imports device, and a boot test pins it to device.PublicIDPrefix.
+const DevicePrefix = "dev"
+
+// DeletedDeviceLabel is what a key shows for a bound device that no longer exists; the stored UUID is never shown.
+const DeletedDeviceLabel = "dev_deleted"
+
+// DeviceResolver maps device public ids to the UUIDs a key stores, and back; unknown ids are absent from the result.
+type DeviceResolver interface {
+	DeviceIDs(ctx context.Context, publicIDs []string) (map[string]uuid.UUID, error)
+	DevicePublicIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]string, error)
+}
+
 // Service is the API key driving port. SECURITY: every caller-initiated write asks Members first — an owner or admin for an org or project key, the owner for a personal token.
 type Service struct {
 	store      Store
@@ -41,6 +55,9 @@ type Service struct {
 	log        *slog.Logger
 	unexpected apperror.UnexpectedFunc
 	now        func() time.Time
+
+	// Devices resolves device public ids; nil refuses every device id.
+	Devices DeviceResolver
 }
 
 // NewService binds the service to its dependencies.
@@ -405,6 +422,22 @@ func (a *Authenticator) AuthorizeProject(ctx context.Context, raw, scope string,
 	return p, nil
 }
 
+// AuthorizeScope resolves raw, requires scope, and requires the key to reach orgID/projectID; the caller narrows to a resource with the returned principal's ReachesResource/ReachesWholeProject.
+func (a *Authenticator) AuthorizeScope(ctx context.Context, raw, scope string, orgID, projectID uuid.UUID) (session.Principal, error) {
+	k, err := a.resolve(ctx, raw)
+	if err != nil {
+		return session.Principal{}, err
+	}
+	p := principalFor(k)
+	if !p.ReachesProject(orgID, projectID) {
+		return session.Principal{}, &authn.UnauthorizedError{}
+	}
+	if !slices.Contains(p.Scopes, scope) {
+		return session.Principal{}, &authn.InsufficientScopeError{Scope: scope}
+	}
+	return p, nil
+}
+
 // SECURITY: every rejection collapses to one opaque *authn.UnauthorizedError; the shape gate short-circuits on purpose because the prefix is public config, and equalizing it would buy a DoS amplifier (see BACKLOG).
 func (a *Authenticator) resolve(ctx context.Context, raw string) (*APIKey, error) {
 	if a.scheme.Authn().Looks(raw) != authn.ShapeAPIKey {
@@ -450,4 +483,96 @@ func principalFor(k *APIKey) session.Principal {
 		ResourceIDs:     slices.Clone(k.ResourceIDs),
 		IssuedAt:        k.CreatedAt,
 	}
+}
+
+// ResourceIDs turns mint-time resource references into stored ids: a dev_ public id becomes its device's UUID, any other entry must be a UUID. SECURITY: the manager gate runs before any device lookup, and a device binding is refused unless every scope is a device scope.
+func (s *Service) ResourceIDs(ctx context.Context, scopes, raw []string) ([]uuid.UUID, error) {
+	ctx, span := tracer.Start(ctx, "apikey.ResourceIDs")
+	defer span.End()
+
+	tc, err := tenant.From(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.members.RequireManager(ctx, tc.OrgID, tc.UserID); err != nil {
+		span.RecordError(err)
+		return nil, err
+	}
+
+	var devicesWanted []string
+	for _, r := range raw {
+		if r = strings.TrimSpace(r); strings.HasPrefix(r, DevicePrefix+"_") {
+			if !publicid.Valid(DevicePrefix, r) {
+				return nil, &InvalidResourceError{Raw: r}
+			}
+			devicesWanted = append(devicesWanted, r)
+		}
+	}
+	if len(devicesWanted) > 0 && hasNonDeviceScope(scopes) {
+		return nil, &DeviceBindingScopeError{}
+	}
+	resolved := map[string]uuid.UUID{}
+	if len(devicesWanted) > 0 {
+		if s.Devices == nil {
+			return nil, &InvalidResourceError{Raw: devicesWanted[0]}
+		}
+		if resolved, err = s.Devices.DeviceIDs(ctx, devicesWanted); err != nil {
+			span.RecordError(err)
+			return nil, s.unexpected(ctx, "apikey.ResourceIDs: resolve devices", err)
+		}
+	}
+	out := make([]uuid.UUID, 0, len(raw))
+	for _, r := range raw {
+		r = strings.TrimSpace(r)
+		if r == "" {
+			continue
+		}
+		id, ok := resolved[r]
+		if !ok {
+			parsed, err := uuid.Parse(r)
+			if err != nil || strings.HasPrefix(r, DevicePrefix+"_") {
+				return nil, &InvalidResourceError{Raw: r}
+			}
+			id = parsed
+		}
+		if !slices.Contains(out, id) {
+			out = append(out, id)
+		}
+	}
+	return out, nil
+}
+
+// ResourceLabels renders a key's stored resource ids for output: a device's UUID becomes its public id; on a key whose scopes are all device scopes an id that is no longer a device renders DeletedDeviceLabel, never the UUID.
+func (s *Service) ResourceLabels(ctx context.Context, k *APIKey) ([]string, error) {
+	ctx, span := tracer.Start(ctx, "apikey.ResourceLabels")
+	defer span.End()
+
+	out := make([]string, 0, len(k.ResourceIDs))
+	names := map[uuid.UUID]string{}
+	if s.Devices != nil && len(k.ResourceIDs) > 0 {
+		var err error
+		if names, err = s.Devices.DevicePublicIDs(ctx, k.ResourceIDs); err != nil {
+			span.RecordError(err)
+			return nil, s.unexpected(ctx, "apikey.ResourceLabels: resolve devices", err)
+		}
+	}
+	deviceOnly := len(k.Scopes) > 0 && !hasNonDeviceScope(k.Scopes)
+	for _, id := range k.ResourceIDs {
+		label, ok := names[id]
+		switch {
+		case ok:
+		case deviceOnly:
+			label = DeletedDeviceLabel
+		default:
+			label = id.String()
+		}
+		out = append(out, label)
+	}
+	return out, nil
+}
+
+func hasNonDeviceScope(scopes []string) bool {
+	return slices.ContainsFunc(scopes, func(sc string) bool {
+		return sc != authn.ScopeDevicesRead && sc != authn.ScopeDevicesWrite
+	})
 }

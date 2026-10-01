@@ -9,13 +9,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/apikey"
-	"altalune.id/template/internal/apperror"
-	mcpinternal "altalune.id/template/internal/mcp"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/user"
+	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/apperror"
+	mcpinternal "altalune.id/openwa/internal/mcp"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/user"
 )
 
 type toolProject struct {
@@ -41,30 +41,6 @@ func projectsFromTool(t *testing.T, rec *httptest.ResponseRecorder) []toolProjec
 	return result.StructuredContent.Projects
 }
 
-func postSlugsFromTool(t *testing.T, rec *httptest.ResponseRecorder) []string {
-	t.Helper()
-	resp := decodeRPC(t, rec)
-	require.Nil(t, resp.Error, "a tool failure must answer in the result, not the JSON-RPC envelope")
-
-	var result struct {
-		IsError           bool `json:"isError"`
-		StructuredContent struct {
-			Posts []struct {
-				Slug      string `json:"slug"`
-				ProjectID string `json:"projectId"`
-			} `json:"posts"`
-		} `json:"structuredContent"`
-	}
-	require.NoError(t, json.Unmarshal(resp.Result, &result), "result=%s", string(resp.Result))
-	require.False(t, result.IsError, "blog_list reported an error: %s", string(resp.Result))
-
-	slugs := make([]string, 0, len(result.StructuredContent.Posts))
-	for _, p := range result.StructuredContent.Posts {
-		slugs = append(slugs, p.Slug)
-	}
-	return slugs
-}
-
 // TestMCP_ProjectListIsScopedToTheCallersOrg drives the discovery tool over the real surface. SECURITY: project_list is the only tool that hands an agent project UUIDs, so a foreign row surfacing here is a UUID the agent can then feed to every other tool.
 func TestMCP_ProjectListIsScopedToTheCallersOrg(t *testing.T) {
 	f := newMCPFixture(t, mcpOpts{enabled: true})
@@ -72,7 +48,7 @@ func TestMCP_ProjectListIsScopedToTheCallersOrg(t *testing.T) {
 
 	credentials := map[string]string{
 		"key": f.readKey,
-		"jwt": f.issuer.mint(t, mcpAudience, []string{authn.ScopePostsRead}),
+		"jwt": f.issuer.mint(t, mcpAudience, []string{authn.ScopeProjectsRead}),
 	}
 	for name, credential := range credentials {
 		t.Run(name, func(t *testing.T) {
@@ -99,74 +75,7 @@ func TestMCP_ProjectListIsScopedToTheCallersOrg(t *testing.T) {
 	}
 }
 
-// TestMCP_BlogListResolvesItsProject pins the three ways blog_list arrives at a project over the MCP surface: the explicit argument, the credential's active project, and neither.
-func TestMCP_BlogListResolvesItsProject(t *testing.T) {
-	t.Run("an omitted projectId reads the credential's active project", func(t *testing.T) {
-		f := newMCPFixture(t, mcpOpts{enabled: true})
-		seedForeignTenant(t, f)
-
-		rec := f.call(t, f.readKey, callToolBody(mcpinternal.ToolBlogList, map[string]any{}))
-		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
-		require.Equal(t, []string{"hello"}, postSlugsFromTool(t, rec),
-			"an argument-less blog_list did not read the key's own project; body=%s", rec.Body.String())
-		require.NotContains(t, rec.Body.String(), "foreign-secret",
-			"an argument-less blog_list read another org's posts; body=%s", rec.Body.String())
-	})
-
-	t.Run("an explicit projectId still reads that project", func(t *testing.T) {
-		f := newMCPFixture(t, mcpOpts{enabled: true})
-
-		rec := f.call(t, f.readKey, callToolBody(mcpinternal.ToolBlogList, map[string]any{"projectId": f.projectID}))
-		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
-		require.Equal(t, []string{"hello"}, postSlugsFromTool(t, rec), "body=%s", rec.Body.String())
-	})
-
-	t.Run("an explicit projectId in another org stays unreadable", func(t *testing.T) {
-		f := newMCPFixture(t, mcpOpts{enabled: true})
-		foreign := seedForeignTenant(t, f)
-
-		rec := f.call(t, f.readKey, callToolBody(mcpinternal.ToolBlogList, map[string]any{"projectId": foreign.projectID}))
-		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
-		require.NotContains(t, rec.Body.String(), "foreign-secret",
-			"naming another org's project UUID made its posts readable; body=%s", rec.Body.String())
-		require.NotEmpty(t, toolPayload(t, rec).Code,
-			"a cross-org read must fail with a code, not an empty list; body=%s", rec.Body.String())
-	})
-
-	t.Run("no projectId and no active project names the remedy", func(t *testing.T) {
-		f := newMCPFixture(t, mcpOpts{enabled: true})
-		token := f.untenantedToken(t)
-
-		rec := f.call(t, token, callToolBody(mcpinternal.ToolBlogList, map[string]any{}))
-		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
-
-		payload := toolPayload(t, rec)
-		require.Equal(t, apperror.CodeProjectUnresolved, payload.Code,
-			"an unresolvable project must answer with its own code, not a generic failure; body=%s", rec.Body.String())
-		require.Contains(t, payload.Message, mcpinternal.ToolProjectList,
-			"the error must name the tool that resolves it; message=%q", payload.Message)
-	})
-}
-
-func (f *mcpFixture) untenantedToken(t *testing.T) string {
-	t.Helper()
-	const subject = "mcp-agent-no-project"
-
-	u, err := f.srv.Users.EnsureFromOIDC(t.Context(), user.Claims{
-		Issuer: f.issuer.url, Subject: subject, Email: "no-project@example.com", Name: "No Project",
-	})
-	require.NoError(t, err)
-	_, err = f.srv.Orgs.Create(t.Context(), org.CreateRequest{
-		Slug: "no-project-org", Name: "No Project Org", OwnerID: u.ID,
-	})
-	require.NoError(t, err)
-
-	return f.issuer.mintWith(t, mcpAudience, []string{authn.ScopePostsRead}, map[string]any{
-		"sub": subject, "email": "no-project@example.com",
-	})
-}
-
-// TestMCP_KeyNeverReachesASiblingProject drives a project-bound key over the real surface. SECURITY: the fixture runs on SQLite, so the handler's reach check is the only guard between the key and its sibling project.
+// TestMCP_KeyNeverReachesASiblingProject drives a project-bound key over the real surface. SECURITY: the fixture runs on superuser Postgres (RLS bypassed), so the reach check is the only guard between the key and its sibling project. TODO: restore the blog_list-style reach proofs on device_list in plan 03 Task 11.
 func TestMCP_KeyNeverReachesASiblingProject(t *testing.T) {
 	f := newMCPFixture(t, mcpOpts{enabled: true})
 	ctx := t.Context()
@@ -178,14 +87,7 @@ func TestMCP_KeyNeverReachesASiblingProject(t *testing.T) {
 	o, err := f.srv.Orgs.BySlug(ctx, "mcp-org")
 	require.NoError(t, err)
 	orgCtx := tenant.Into(ctx, tenant.Context{OrgID: o.ID, UserID: owner.ID})
-	sibling, err := f.srv.Projects.Create(orgCtx, o.ID, "sibling-project", "Sibling Project")
-	require.NoError(t, err)
-	projCtx := tenant.WithProject(orgCtx, sibling.ID)
-	cat, err := f.srv.Categories.Create(projCtx, "Internal", "internal")
-	require.NoError(t, err)
-	post, err := f.srv.Posts.Create(projCtx, cat.ID, "Sibling", "sibling-secret", "body")
-	require.NoError(t, err)
-	_, err = f.srv.Posts.Publish(projCtx, post.ID, 0)
+	_, err = f.srv.Projects.Create(orgCtx, o.ID, "sibling-project", "Sibling Project")
 	require.NoError(t, err)
 
 	t.Run("project_list hides the sibling project", func(t *testing.T) {
@@ -198,23 +100,19 @@ func TestMCP_KeyNeverReachesASiblingProject(t *testing.T) {
 		require.Equal(t, []string{"mcp-project"}, slugs, "a project-bound key discovered a project it does not reach")
 	})
 
-	t.Run("blog_list refuses the sibling project", func(t *testing.T) {
-		rec := f.call(t, f.readKey, callToolBody(mcpinternal.ToolBlogList, map[string]any{"projectId": sibling.ID.String()}))
+	t.Run("a person in the org still discovers the sibling project", func(t *testing.T) {
+		token := f.issuer.mint(t, mcpAudience, []string{authn.ScopeProjectsRead})
+		rec := f.call(t, token, callToolBody(mcpinternal.ToolProjectList, map[string]any{}))
 		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
-		require.NotContains(t, rec.Body.String(), "sibling-secret",
-			"a key read its sibling project's posts; body=%s", rec.Body.String())
-		require.Equal(t, apperror.CodeForbidden, toolPayload(t, rec).Code, "body=%s", rec.Body.String())
-	})
-
-	t.Run("a person in the org still reaches the sibling project", func(t *testing.T) {
-		token := f.issuer.mint(t, mcpAudience, []string{authn.ScopePostsRead})
-		rec := f.call(t, token, callToolBody(mcpinternal.ToolBlogList, map[string]any{"projectId": sibling.ID.String()}))
-		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
-		require.Equal(t, []string{"sibling-secret"}, postSlugsFromTool(t, rec), "body=%s", rec.Body.String())
+		slugs := make([]string, 0)
+		for _, p := range projectsFromTool(t, rec) {
+			slugs = append(slugs, p.Slug)
+		}
+		require.ElementsMatch(t, []string{"mcp-project", "sibling-project"}, slugs, "body=%s", rec.Body.String())
 	})
 }
 
-// TestMCP_OrgKeyReachesOnlyItsGrantedProjects drives an org key over the real surface on SQLite, where no RLS backs the reach check.
+// TestMCP_OrgKeyReachesOnlyItsGrantedProjects drives an org key over the real surface with RLS bypassed, where no RLS backs the reach check.
 func TestMCP_OrgKeyReachesOnlyItsGrantedProjects(t *testing.T) {
 	f := newMCPFixture(t, mcpOpts{enabled: true})
 	ctx := t.Context()
@@ -231,10 +129,10 @@ func TestMCP_OrgKeyReachesOnlyItsGrantedProjects(t *testing.T) {
 	_, err = f.srv.Projects.Create(orgCtx, o.ID, "ungranted-project", "Ungranted Project")
 	require.NoError(t, err)
 
-	_, selected, err := f.srv.APIKeys.MintOrg(orgCtx, "org-reader", []string{authn.ScopePostsRead},
+	_, selected, err := f.srv.APIKeys.MintOrg(orgCtx, "org-reader", []string{authn.ScopeProjectsRead},
 		apikey.ProjectGrant{ProjectIDs: []uuid.UUID{granted.ID}}, soon())
 	require.NoError(t, err)
-	_, everything, err := f.srv.APIKeys.MintOrg(orgCtx, "org-all", []string{authn.ScopePostsRead}, apikey.ProjectGrant{All: true}, soon())
+	_, everything, err := f.srv.APIKeys.MintOrg(orgCtx, "org-all", []string{authn.ScopeProjectsRead}, apikey.ProjectGrant{All: true}, soon())
 	require.NoError(t, err)
 
 	slugsFor := func(t *testing.T, key string) []string {
@@ -251,18 +149,8 @@ func TestMCP_OrgKeyReachesOnlyItsGrantedProjects(t *testing.T) {
 	t.Run("a selected-projects key discovers only its grant", func(t *testing.T) {
 		require.Equal(t, []string{"granted-project"}, slugsFor(t, selected))
 	})
-	t.Run("a selected-projects key cannot read an ungranted project", func(t *testing.T) {
-		rec := f.call(t, selected, callToolBody(mcpinternal.ToolBlogList, map[string]any{"projectId": f.projectID}))
-		require.Equal(t, apperror.CodeForbidden, toolPayload(t, rec).Code, "body=%s", rec.Body.String())
-	})
-	t.Run("an org key names no active project, so it must pass one", func(t *testing.T) {
-		rec := f.call(t, selected, callToolBody(mcpinternal.ToolBlogList, map[string]any{}))
-		require.Equal(t, apperror.CodeProjectUnresolved, toolPayload(t, rec).Code, "body=%s", rec.Body.String())
-	})
 	t.Run("an all-projects key discovers every project of its org", func(t *testing.T) {
 		require.ElementsMatch(t, []string{"mcp-project", "granted-project", "ungranted-project"}, slugsFor(t, everything))
-		rec := f.call(t, everything, callToolBody(mcpinternal.ToolBlogList, map[string]any{"projectId": f.projectID}))
-		require.Equal(t, []string{"hello"}, postSlugsFromTool(t, rec), "body=%s", rec.Body.String())
 	})
 }
 
@@ -279,22 +167,22 @@ func TestMCP_PersonalTokenActsForItsOwner(t *testing.T) {
 	_, err = f.srv.Orgs.AddMember(memberCtx, o.ID, member.ID, org.RoleMember)
 	require.NoError(t, err)
 
-	_, token, err := f.srv.APIKeys.MintPersonal(memberCtx, "laptop", []string{authn.ScopePostsRead}, apikey.ProjectGrant{All: true}, soon())
+	_, token, err := f.srv.APIKeys.MintPersonal(memberCtx, "laptop", []string{authn.ScopeProjectsRead}, apikey.ProjectGrant{All: true}, soon())
 	require.NoError(t, err)
 
-	rec := f.call(t, token, callToolBody(mcpinternal.ToolBlogList, map[string]any{"projectId": f.projectID}))
+	rec := f.call(t, token, callToolBody(mcpinternal.ToolProjectList, map[string]any{}))
 	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
-	require.Equal(t, []string{"hello"}, postSlugsFromTool(t, rec), "a member's token must read what the member can; body=%s", rec.Body.String())
+	require.NotEmpty(t, projectsFromTool(t, rec), "a member's token must read what the member can; body=%s", rec.Body.String())
 
 	owner, err := f.srv.Users.EnsureFromOIDC(ctx, user.Claims{Issuer: f.issuer.url, Subject: tokenSubject, Email: tokenEmail, Name: "MCP Agent"})
 	require.NoError(t, err)
 	require.NoError(t, f.srv.Orgs.RemoveMember(tenant.Into(ctx, tenant.Context{OrgID: o.ID, UserID: owner.ID}), o.ID, member.ID))
-	rec = f.call(t, token, callToolBody(mcpinternal.ToolBlogList, map[string]any{"projectId": f.projectID}))
+	rec = f.call(t, token, callToolBody(mcpinternal.ToolProjectList, map[string]any{}))
 	require.Equal(t, http.StatusUnauthorized, rec.Code, "a departed member's token must be refused at the door; body=%s", rec.Body.String())
 
 	_, err = f.srv.Orgs.AddMember(memberCtx, o.ID, member.ID, org.RoleMember)
 	require.NoError(t, err)
-	rec = f.call(t, token, callToolBody(mcpinternal.ToolBlogList, map[string]any{"projectId": f.projectID}))
+	rec = f.call(t, token, callToolBody(mcpinternal.ToolProjectList, map[string]any{}))
 	require.Equal(t, http.StatusUnauthorized, rec.Code, "removal revoked the token for good, so re-joining must not revive it; body=%s", rec.Body.String())
 }
 

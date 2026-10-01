@@ -3,7 +3,6 @@ package dataplane
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"math"
 	"net/http"
 	"strconv"
@@ -11,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/authn"
 )
 
 type postView struct {
@@ -29,9 +28,11 @@ type listView struct {
 }
 
 type request struct {
-	ctx   context.Context
-	scope scope
-	raw   string
+	ctx         context.Context
+	scope       scope
+	raw         string
+	orgSlug     string
+	projectSlug string
 }
 
 // SECURITY: the credential is verified before the path is resolved, so a bad key cannot enumerate slugs.
@@ -52,7 +53,7 @@ func (h *Handler) begin(w http.ResponseWriter, r *http.Request) (request, bool) 
 		h.fail(w, r, err)
 		return request{}, false
 	}
-	return request{ctx: ctx, scope: sc, raw: raw}, true
+	return request{ctx: ctx, scope: sc, raw: raw, orgSlug: r.PathValue("org"), projectSlug: r.PathValue("project")}, true
 }
 
 // SECURITY: a write demands a credential before the path is resolved, so writes cannot enumerate {org, project} pairs.
@@ -207,7 +208,7 @@ func (h *Handler) createPost(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	raw, in, shapeErr := decodeBody(r)
+	raw, in, shapeErr := decodeJSON[postRequest](r)
 	categoryID, idErr := categoryOf(in.CategoryID, uuid.Nil)
 	if shapeErr == nil {
 		shapeErr = idErr
@@ -221,42 +222,17 @@ func (h *Handler) createPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
-	if key != "" {
-		rec, reserveErr := h.idem.reserve(req.scope.projectID, key, raw)
-		if reserveErr != nil {
-			h.fail(w, r, reserveErr)
-			return
+	h.createIdempotently(w, r, req.scope.projectID, idempotencyKeyOf(r, "posts:"), raw, func() (string, []byte, error) {
+		post, err := h.posts.Create(req.ctx, categoryID, deref(in.Title), deref(in.Slug), deref(in.Body))
+		if err != nil {
+			return "", nil, err
 		}
-		if rec != nil {
-			w.Header().Set("ETag", rec.resp.etag)
-			writeBytes(w, rec.resp.status, rec.resp.body)
-			return
+		body, err := json.Marshal(viewOf(post))
+		if err != nil {
+			return "", nil, err
 		}
-		// NOTE: releases the reservation unless store() completed it, so a failed create is retryable.
-		defer h.idem.release(req.scope.projectID, key)
-	}
-
-	post, err := h.posts.Create(req.ctx, categoryID, deref(in.Title), deref(in.Slug), deref(in.Body))
-	if err != nil {
-		h.fail(w, r, err)
-		return
-	}
-	body, err := json.Marshal(viewOf(post))
-	if err != nil {
-		h.fail(w, r, err)
-		return
-	}
-	tag := etagFor(post.Version)
-	if key != "" {
-		h.idem.store(req.scope.projectID, key, raw, idempotencyResponse{
-			status: http.StatusCreated,
-			etag:   tag,
-			body:   body,
-		})
-	}
-	w.Header().Set("ETag", tag)
-	writeBytes(w, http.StatusCreated, body)
+		return etagFor(post.Version), body, nil
+	})
 }
 
 func (h *Handler) replacePost(w http.ResponseWriter, r *http.Request) { h.writePost(w, r, false) }
@@ -285,7 +261,7 @@ func (h *Handler) writePost(w http.ResponseWriter, r *http.Request, patch bool) 
 		h.fail(w, r, err)
 		return
 	}
-	_, in, err := decodeBody(r)
+	_, in, err := decodeJSON[postRequest](r)
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -351,20 +327,6 @@ func (h *Handler) deletePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func decodeBody(r *http.Request) ([]byte, postRequest, error) {
-	raw, err := io.ReadAll(io.LimitReader(r.Body, maxRequestBytes+1))
-	if err != nil || len(raw) > maxRequestBytes {
-		return nil, postRequest{}, &BadRequestError{}
-	}
-	var in postRequest
-	if len(raw) > 0 {
-		if unmarshalErr := json.Unmarshal(raw, &in); unmarshalErr != nil {
-			return nil, postRequest{}, &BadRequestError{}
-		}
-	}
-	return raw, in, nil
 }
 
 func categoryOf(raw *string, fallback uuid.UUID) (uuid.UUID, error) {

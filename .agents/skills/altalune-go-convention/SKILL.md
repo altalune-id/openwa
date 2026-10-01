@@ -1,12 +1,12 @@
 ---
 name: altalune-go-convention
-description: Write or review Go code in this multitenant template (altempl) or a downstream fork, without breaking its conventions — the seven-surface route taxonomy, domain-module shape, tenant scoping and RLS, guarded upserts, optimistic concurrency, typed errors and error codes, migrations, config keys, platform primitives and workers, and boot wiring. Use this whenever adding or changing a route, endpoint, web page, RPC, MCP tool, CLI command, module, aggregate, subdomain, Store method, Service method, migration, config key, worker or error code — or when reviewing such a change. Also use it when the task mentions tenant isolation, org scoping, row level security, ON CONFLICT, If-Match, scopes, or "how do I add X here".
+description: Write or review Go code in this multitenant codebase or a downstream fork, without breaking its conventions — the seven-surface route taxonomy, domain-module shape, tenant scoping and RLS, guarded upserts, optimistic concurrency, typed errors and error codes, migrations, config keys, platform primitives and workers, and boot wiring. Use this whenever adding or changing a route, endpoint, web page, RPC, MCP tool, CLI command, module, aggregate, subdomain, Store method, Service method, migration, config key, worker or error code — or when reviewing such a change. Also use it when the task mentions tenant isolation, org scoping, row level security, ON CONFLICT, If-Match, scopes, or "how do I add X here".
 license: Proprietary
 metadata:
   reference-impl: internal/blog (relations), internal/todo (flat)
 ---
 
-# Working in altempl
+# Working in this codebase
 
 `docs/` holds the contracts. [`docs/howto/`](../../../docs/howto/README.md) holds the task
 recipes. This skill routes you to the right one, fixes the order you do things in, and carries
@@ -50,7 +50,7 @@ is numbered that way.
 1. **Schema** — migrations + RLS + jet bindings → [`references/schema.md`](references/schema.md)
 2. **Error codes** — before any code constructs one → [`references/errors.md`](references/errors.md)
 3. **Domain** — aggregate, `Store`, typed errors, service → [`references/domain.md`](references/domain.md)
-4. **Adapters** — `postgres.go` / `sqlite.go` → [`references/persistence.md`](references/persistence.md)
+4. **Adapters** — `postgres.go` → [`references/persistence.md`](references/persistence.md)
 5. **Wiring** — fake, boot, depguard → [`references/wiring.md`](references/wiring.md)
 6. **Surfaces** — one recipe per surface the module needs → [`references/surfaces.md`](references/surfaces.md)
 7. **Verify** — `scripts/verify.sh`
@@ -81,7 +81,7 @@ so you cannot miss it.
   `IsErr*`. Codes are append-only —
   [`error codes`](../../../docs/errors/README.md).
 - **Never wrap jet's `NULL` singleton.** Use the `Null*` helpers in
-  `internal/platform/db/entity/{postgres,sqlite}`, matched to the column's declared type.
+  `internal/platform/db/entity/postgres`, matched to the column's declared type.
 
 ## Tests that cannot fail
 
@@ -90,7 +90,7 @@ This is the failure class that survives a plan, a spec review and a green suite.
 
 **A security guard's test must run where the guard is the only protection.** A hijack test on
 an RLS-enforcing Postgres fixture cannot detect its own guard's removal — RLS refuses the
-write either way. Put those on SQLite or a superuser fixture, and prove each one by reverting
+write either way. Run those as a `NOBYPASSRLS` role through `pgtest.CreateRole` with `RLSEnforce: true`, and prove each one by reverting
 the guard and watching it fail.
 
 **A fake must not enforce what the test is proving.** A fake that filters by project makes
@@ -108,12 +108,11 @@ enters a handler body. More of these in the `altalune-go-review` skill, `referen
 ## Verifying
 
 `scripts/verify.sh` runs the gates in dependency order and explains each failure. It takes
-`--integration` to add the Postgres suite, and `--check` to run read-only (it regenerates and
-formats files otherwise). Run it before claiming a module is done.
+`--check` to run read-only (it regenerates and formats files otherwise). Run it before claiming a module is done.
 
-Integration tests need Postgres. Set `TEST_PG_DSN` at a throwaway database and use `-p 1` —
+Every test runs on Postgres. Set `TEST_PG_DSN` at a throwaway database and use `-p 1` —
 without it, packages race on `CREATE/DROP ROLE` and cleanup fails. Without `TEST_PG_DSN` each
-`pgtest.New` starts its own container and the suite takes ~25 minutes instead of ~2.
+`pgtest.New` starts its own container, which is much slower.
 
 What `verify.sh` cannot check, and you still must do: open the page, run
 `bash scripts/verify-serve-smoke.sh` (and `verify-mcp-smoke.sh` for S7), and revert each

@@ -14,21 +14,19 @@ import (
 const storeRoot = "../internal"
 
 var storeFileNames = map[string]bool{ //nolint:gochecknoglobals // Immutable manifest; not runtime state.
-	"postgres.go": true,
-	"sqlite.go":   true,
-	"pgwriter.go": true,
-	"pgreader.go": true,
+	"postgres.go":       true,
+	"pgwriter.go":       true,
+	"pgreader.go":       true,
+	"postgres_lease.go": true,
 }
 
-const unguardedConflictConsequence = "an ON_CONFLICT ... DO_UPDATE with no tenant predicate is a cross-tenant write: a Save carrying an attacker-supplied row id from another org takes the UPDATE branch and rewrites that org's row. Postgres RLS refuses it, but SQLite has no RLS at all and a BYPASSRLS role bypasses it, so the predicate in the conflict clause is the only protection on those paths. Fix it by qualifying the action — DO_UPDATE(SET(...).WHERE(table.OrgID.EQ(<tenant org>))) — plus a RowsAffected() == 0 branch returning a NotFoundError, not by widening the exemption list"
+const unguardedConflictConsequence = "an ON_CONFLICT ... DO_UPDATE with no tenant predicate is a cross-tenant write: a Save carrying an attacker-supplied row id from another org takes the UPDATE branch and rewrites that org's row. Postgres RLS refuses it, but a BYPASSRLS role bypasses it, so the predicate in the conflict clause is the only protection on those paths. Fix it by qualifying the action — DO_UPDATE(SET(...).WHERE(table.OrgID.EQ(<tenant org>))) — plus a RowsAffected() == 0 branch returning a NotFoundError, not by widening the exemption list"
 
 var upsertGuardExemptions = map[string]string{ //nolint:gochecknoglobals // Immutable manifest; not runtime state.
 	"user/pgwriter.go:Save":             "users is global — a user exists before and across every org, so the table has no org_id column",
-	"user/sqlite.go:Save":               "users is global — a user exists before and across every org, so the table has no org_id column",
 	"platform/session/postgres.go:Save": "sessions carries no org_id by design; a session is resolved before any tenant scope exists (see schema.RequiredTableSuffixes and migrations/postgres/001_init.sql)",
-	"platform/session/sqlite.go:Save":   "sessions carries no org_id by design; a session is resolved before any tenant scope exists (see schema.RequiredTableSuffixes and migrations/postgres/001_init.sql)",
 	"org/pgwriter.go:Save":              "the orgs table has no org_id column — its own id is the tenant id, and org.Service.Create writes a row for an org that does not exist yet",
-	"org/sqlite.go:Save":                "the orgs table has no org_id column — its own id is the tenant id, and org.Service.Create writes a row for an org that does not exist yet",
+	"whatsapp/postgres_lease.go:Upsert": "whatsapp_leases is the cross-tenant registry of what to run: it has no RLS policy, org_id is data rather than a predicate, and only the runtime writes it, so device_id is the whole authority for the row",
 }
 
 type conflictSite struct {

@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"altalune.id/template/internal/dataplane"
+	"altalune.id/openwa/internal/dataplane"
 )
 
 func TestClientListPostsSendsBearerKey(t *testing.T) {

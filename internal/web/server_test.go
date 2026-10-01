@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/web"
+	"altalune.id/openwa/internal/web"
 )
 
 type stubRegister struct {

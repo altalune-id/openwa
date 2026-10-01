@@ -167,7 +167,7 @@ fi
 "$TW_BIN" \
 	-i "$SRC" \
 	-o "$STATIC/app.css" \
-	--content "$ROOT/internal/web/**/*.templ" \
+	--content "$ROOT/internal/web/**/*.templ,$ROOT/internal/web/templates/*.go" \
 	--minify
 
 echo "==> done — vendored assets in $STATIC"

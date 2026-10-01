@@ -12,19 +12,12 @@ type Pool struct {
 	R *sql.DB
 }
 
-// OpenPool opens the writer and, for Postgres, any configured reader connection.
+// OpenPool opens the writer and any configured reader connection.
 func OpenPool(ctx context.Context, cfg DBConfig, log *slog.Logger) (Pool, error) {
 	writer, err := Open(ctx, cfg, log)
 	if err != nil {
 		return Pool{}, err
 	}
-	if cfg.Driver == DriverSQLite {
-		if log != nil && cfg.Reader.DSN != "" {
-			log.Debug("db: reader DSN ignored for sqlite driver")
-		}
-		return Pool{W: writer, R: writer}, nil
-	}
-
 	p := Pool{W: writer, R: writer}
 
 	if cfg.Reader.DSN != "" {

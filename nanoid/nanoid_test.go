@@ -56,3 +56,26 @@ func TestNewInviteToken_Unique(t *testing.T) {
 		seen[raw] = true
 	}
 }
+
+func TestValid(t *testing.T) {
+	id, err := New(16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		in   string
+		n    int
+		want bool
+	}{
+		{id, 16, true},
+		{"V1St-XR8Z5jd_i6B", 16, true},
+		{id, 15, false},
+		{"V1StGXR8Z5jdHi6.", 16, false},
+		{"", 0, false},
+	}
+	for _, tc := range cases {
+		if got := Valid(tc.in, tc.n); got != tc.want {
+			t.Errorf("Valid(%q, %d) = %v, want %v", tc.in, tc.n, got, tc.want)
+		}
+	}
+}

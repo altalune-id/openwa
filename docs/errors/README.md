@@ -16,7 +16,7 @@ code: [`howto/error-code.md`](../howto/error-code.md); raising one: [`howto/erro
 - **CLI (S6)** — printed with the message; exit codes are separate ([`cli`](../cli/README.md)).
 - **Data plane `/api/v1/` (S3) and ingest `/hooks/` (S4) emit no codes** — only an opaque outcome
   word (`not_found`, `unauthorized`, `bad_request`, `conflict`, `in_progress`,
-  `precondition_failed`, `precondition_required`, `method_not_allowed`, `payload_too_large`,
+  `precondition_failed`, `precondition_required`, `method_not_allowed`, `payload_too_large`, `gone`,
   `internal`), so a denied scope and a missing row look the same. See [`surfaces`](../surfaces/README.md) R6.
 
 In the Status column, `—` means registered but not yet constructed.
@@ -182,6 +182,8 @@ scope-denial code, returned by `internal/mcp/auth.go` — for a denied or undecl
 | `APK010` | `apperror.CodeAPIKeyExpiryRequired`     | `InvalidArgument`    | API Key Expiry Required      |
 | `APK011` | `apperror.CodeAPIKeyExpiryInPast`       | `InvalidArgument`    | API Key Expiry In Past       |
 | `APK012` | `apperror.CodeAPIKeyExpiryTooLong`      | `InvalidArgument`    | API Key Expiry Too Long      |
+| `APK013` | `apperror.CodeAPIKeyInvalidResource`    | `InvalidArgument`    | API Key Invalid Resource     |
+| `APK014` | `apperror.CodeAPIKeyDeviceBindingScope` | `InvalidArgument`    | API Key Device Binding Scope |
 
 ## WHK — Webhooks
 
@@ -195,3 +197,62 @@ scope-denial code, returned by `internal/mcp/auth.go` — for a denied or undecl
 | `WHK006` | `apperror.CodeWebhookDeliveryNotFound`     | `NotFound`           | Webhook Delivery Not Found     |
 | `WHK007` | `apperror.CodeWebhookEndpointInactive`     | `FailedPrecondition` | Webhook Endpoint Inactive      |
 | `WHK008` | `apperror.CodeWebhookSecretConflict`       | `FailedPrecondition` | Webhook Secret Conflict        |
+
+## DEV — Devices
+
+| Code     | Constant                          | Status            | Meaning              |
+| -------- | --------------------------------- | ----------------- | -------------------- |
+| `DEV001` | `apperror.CodeDeviceNotFound`     | `NotFound`        | Device Not Found     |
+| `DEV002` | `apperror.CodeDeviceNameTaken`    | `AlreadyExists`   | Device Name Taken    |
+| `DEV003` | `apperror.CodeDeviceInvalidName`  | `InvalidArgument` | Device Invalid Name  |
+| `DEV004` | `apperror.CodeDeviceInvalidRules` | `InvalidArgument` | Device Invalid Rules |
+| `DEV005` | `apperror.CodeDeviceStaleVersion` | `Aborted`         | Device Stale Version |
+
+`DEV005` is the optimistic-concurrency outcome of `device.StaleVersionError`. On the data plane it answers `412 Precondition Failed`.
+
+## WAS — WhatsApp sessions
+
+| Code     | Constant                               | Status               | Meaning                                    |
+| -------- | -------------------------------------- | -------------------- | ------------------------------------------ |
+| `WAS001` | `apperror.CodeWhatsAppSessionNotFound` | `NotFound`           | WhatsApp Session Not Found                 |
+| `WAS002` | `apperror.CodeWhatsAppNotOwned`        | `Unavailable`        | WhatsApp Session Not Owned By This Process |
+| `WAS003` | `apperror.CodeWhatsAppAlreadyLinked`   | `FailedPrecondition` | WhatsApp Session Already Linked            |
+| `WAS004` | `apperror.CodeWhatsAppLinkTimeout`     | `DeadlineExceeded`   | WhatsApp Link Timeout                      |
+| `WAS005` | `apperror.CodeWhatsAppUnsupported`     | `Unimplemented`      | WhatsApp Feature Unsupported By The Engine |
+| `WAS006` | `apperror.CodeWhatsAppNotConnected`    | `FailedPrecondition` | WhatsApp Session Not Connected             |
+| `WAS007` | `apperror.CodeWhatsAppInvalidPhone`    | `InvalidArgument`    | WhatsApp Invalid Phone Number              |
+| `WAS008` | `apperror.CodeWhatsAppSessionGone`     | `NotFound`           | WhatsApp Session Gone From The Engine      |
+| `WAS009` | `apperror.CodeWhatsAppEngine`          | `Internal`           | WhatsApp Engine Failure                    |
+
+## MSG — Messages
+
+| Code     | Constant                               | Status               | Meaning                    |
+| -------- | -------------------------------------- | -------------------- | -------------------------- |
+| `MSG001` | `apperror.CodeMessageNotFound`         | `NotFound`           | Message Not Found          |
+| `MSG002` | `apperror.CodeMessageInvalidInput`     | `InvalidArgument`    | Message Invalid Input      |
+| `MSG003` | `apperror.CodeMessageDeviceNotLinked`  | `FailedPrecondition` | Message Device Not Linked  |
+| `MSG004` | `apperror.CodeMessageMediaTooLarge`    | `InvalidArgument`    | Message Media Too Large    |
+| `MSG005` | `apperror.CodeMessageUnsupportedMime`  | `InvalidArgument`    | Message Unsupported Mime   |
+| `MSG006` | `apperror.CodeMessageEditWindowClosed` | `FailedPrecondition` | Message Edit Window Closed |
+| `MSG007` | `apperror.CodeMessageNotOwn`           | `FailedPrecondition` | Message Not Own            |
+| `MSG008` | `apperror.CodeMessageVersionMismatch`  | `Aborted`            | Message Version Mismatch   |
+| `MSG009` | `apperror.CodeMessageMediaUnavailable` | `FailedPrecondition` | Message Media Unavailable  |
+| `MSG010` | `apperror.CodeMessageInvalidRetention` | `InvalidArgument`    | Message Invalid Retention  |
+| `MSG011` | `apperror.CodeMessageMediaFetch`       | `InvalidArgument`    | Message Media Fetch        |
+
+`MSG009` answers `410 Gone` on the data plane and the console media door: WhatsApp's CDN no longer holds the file. This applies to sent and received media alike.
+
+## CHT — Chats
+
+| Code     | Constant                           | Status               | Meaning               |
+| -------- | ---------------------------------- | -------------------- | --------------------- |
+| `CHT001` | `apperror.CodeChatNotFound`        | `NotFound`           | Chat Not Found        |
+| `CHT002` | `apperror.CodeChatVersionMismatch` | `Aborted`            | Chat Version Mismatch |
+| `CHT003` | `apperror.CodeChatInvalidJID`      | `InvalidArgument`    | Chat Invalid JID      |
+| `CHT004` | `apperror.CodeChatNotAGroup`       | `FailedPrecondition` | Chat Not A Group      |
+
+## CNT — Contacts
+
+| Code     | Constant                       | Status     | Meaning           |
+| -------- | ------------------------------ | ---------- | ----------------- |
+| `CNT001` | `apperror.CodeContactNotFound` | `NotFound` | Contact Not Found |

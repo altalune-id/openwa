@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/auth"
-	"altalune.id/template/internal/password"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/user"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/handlers"
+	"altalune.id/openwa/internal/auth"
+	"altalune.id/openwa/internal/password"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/handlers"
 )
 
 func newAuthHandlerWithGenesis(t *testing.T, f *handlerFixture, email, plain string) *handlers.AuthHandler {

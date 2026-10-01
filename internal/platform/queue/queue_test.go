@@ -18,8 +18,8 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/tenant"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 func testJob() Job { return Job{Name: "test.run", Version: 1} }
@@ -179,13 +179,13 @@ func TestSubmit_PublishesWithHeaders(t *testing.T) {
 
 	_, err := uuid.Parse(m.Header.Get("Nats-Msg-Id"))
 	require.NoError(t, err)
-	assert.Equal(t, "test.run", m.Header.Get("Altempl-Job"))
-	assert.Equal(t, "1", m.Header.Get("Altempl-Job-Version"))
-	_, err = time.Parse(time.RFC3339, m.Header.Get("Altempl-Created-At"))
+	assert.Equal(t, "test.run", m.Header.Get("Openwa-Job"))
+	assert.Equal(t, "1", m.Header.Get("Openwa-Job-Version"))
+	_, err = time.Parse(time.RFC3339, m.Header.Get("Openwa-Created-At"))
 	require.NoError(t, err)
-	assert.Equal(t, tc.OrgID.String(), m.Header.Get("Altempl-Org-Id"))
-	assert.Equal(t, tc.ProjectID.String(), m.Header.Get("Altempl-Project-Id"))
-	assert.Equal(t, tc.UserID.String(), m.Header.Get("Altempl-User-Id"))
+	assert.Equal(t, tc.OrgID.String(), m.Header.Get("Openwa-Org-Id"))
+	assert.Equal(t, tc.ProjectID.String(), m.Header.Get("Openwa-Project-Id"))
+	assert.Equal(t, tc.UserID.String(), m.Header.Get("Openwa-User-Id"))
 }
 
 func TestSubmit_Unscoped(t *testing.T) {
@@ -195,7 +195,7 @@ func TestSubmit_Unscoped(t *testing.T) {
 	require.NoError(t, c.Submit(t.Context(), testJob(), testPayload{}))
 
 	m := lastMsg(t, c, streamWork, "jobs.test.run.v1")
-	assert.Empty(t, m.Header.Values("Altempl-Org-Id"))
+	assert.Empty(t, m.Header.Values("Openwa-Org-Id"))
 }
 
 func TestSubmit_UndeclaredJob(t *testing.T) {
@@ -266,11 +266,11 @@ func TestEmit(t *testing.T) {
 
 	assert.Equal(t, uint64(1), streamInfo(t, c, streamBroadcast).State.Msgs)
 	m := lastMsg(t, c, streamBroadcast, "broadcast.test.ping.v1")
-	assert.Equal(t, "test.ping", m.Header.Get("Altempl-Broadcast"))
-	assert.Equal(t, "1", m.Header.Get("Altempl-Broadcast-Version"))
+	assert.Equal(t, "test.ping", m.Header.Get("Openwa-Broadcast"))
+	assert.Equal(t, "1", m.Header.Get("Openwa-Broadcast-Version"))
 	_, err := uuid.Parse(m.Header.Get("Nats-Msg-Id"))
 	require.NoError(t, err)
-	assert.Empty(t, m.Header.Values("Altempl-Job"))
+	assert.Empty(t, m.Header.Values("Openwa-Job"))
 }
 
 func TestEmit_UndeclaredBroadcast(t *testing.T) {

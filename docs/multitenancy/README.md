@@ -23,13 +23,12 @@ flowchart LR
   SVC["Service<br/>org from ctx"] --> ST["Store"]
   ST -->|"WHERE org_id = tc.OrgID"| Q["query"]
   Q --> PG["<b>Postgres</b><br/>ENABLE + FORCE RLS<br/>USING (org_id = current_org_id())"]
-  Q --> SL["<b>SQLite</b><br/>no RLS — the predicate<br/>is the only guard"]
 ```
 
 - **Every query filters by `org_id` explicitly** — defence in depth _alongside_ RLS, never
   instead of it.
 - **`FORCE`** so even the owning role is subject to its own tables' policies.
-- **SQLite has no RLS**, so a SQLite-only test proves nothing about isolation.
+- **A test on a `BYPASSRLS` role proves nothing about RLS**; isolation tests run as a `NOBYPASSRLS` role.
 - **Tenant tables are codegen'd** into `schema/tenant_tables_gen.go`; `make tenant-tables`
   after adding one.
 - `tenant.PgConn.BeginTenanted` opens the transaction and runs
@@ -42,20 +41,20 @@ flowchart LR
 
 ## Postgres roles
 
-`scripts/db/provision.sh` (`APP=altempl DB_NAME=altempl`) creates:
+`scripts/db/provision.sh` (`APP=openwa DB_NAME=openwa`) creates:
 
-| Role                                  | Login | BYPASSRLS | Job                                                        |
-| ------------------------------------- | ----- | --------- | ---------------------------------------------------------- |
-| `altempl_owner`                       | no    | **yes**   | Owns every table and every `SECURITY DEFINER` function     |
-| `altempl_migrator`                    | yes   | no        | Runs migrations under `SET ROLE altempl_owner`             |
-| `altempl_service`                     | yes   | no        | The runtime connection                                     |
-| `altempl_editor` / `_reader` / `_ops` | no    | no        | Human roles, granted through `scripts/db/ops.template.sql` |
+| Role                                 | Login | BYPASSRLS | Job                                                        |
+| ------------------------------------ | ----- | --------- | ---------------------------------------------------------- |
+| `openwa_owner`                       | no    | **yes**   | Owns every table and every `SECURITY DEFINER` function     |
+| `openwa_migrator`                    | yes   | no        | Runs migrations under `SET ROLE openwa_owner`              |
+| `openwa_service`                     | yes   | no        | The runtime connection                                     |
+| `openwa_editor` / `_reader` / `_ops` | no    | no        | Human roles, granted through `scripts/db/ops.template.sql` |
 
 - **The owner needs `BYPASSRLS`** so its `SECURITY DEFINER` wrappers can read across tenants;
   `005_definer_functions.sql` raises if the migrating role lacks it.
 - **The runtime role must not have it.** `BYPASSRLS` is a role attribute, not a privilege —
-  `GRANT altempl_owner TO x` does not confer it; only `SET ROLE` or a definer function does.
-- `ALT_DB_MIGRATOR_DSN` → migrator (`ALT_DB_MIGRATOR_ROLE=altempl_owner`), `ALT_DB_DSN` →
+  `GRANT openwa_owner TO x` does not confer it; only `SET ROLE` or a definer function does.
+- `OPENWA_DB_MIGRATOR_DSN` → migrator (`OPENWA_DB_MIGRATOR_ROLE=openwa_owner`), `OPENWA_DB_DSN` →
   service. Boot migrates, closes that pool, then serves from the service one.
 - **`schema.RLSGuard` refuses to start** when `rolbypassrls` is true for `current_user`
   (`ErrRLSBypass`), and audits every tenant table for RLS, FORCE, a scoped read policy and a
@@ -80,27 +79,26 @@ Every other store method opens a tenant-scoped transaction and fails without a s
 
 ## Unit of work
 
-| Primitive                             | Does                                                                                          |
-| ------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `tenant.NewUnitOfWork(cfg, pool, pc)` | The `tenant.UnitOfWork` a service holds: `tenant.RunInTx` on Postgres, `db.RunInTx` on SQLite |
-| `db.RunInTx(ctx, pool, fn)`           | Plain transaction                                                                             |
-| `tenant.RunInTx(ctx, pc, tc, fn)`     | Tenant-scoped; calls `set_config` for the org                                                 |
-| `db.ContextWithTx` / `db.CurrentTx`   | Stores enroll in an outer transaction when one is on the context                              |
-| `db.ErrNestedUnitOfWork`              | Nesting is refused, not silently flattened                                                    |
-| `db.Pool{W, R}`                       | Non-tenant reads (`user`, `onboard`) use `R`; tenant reads use `W`                            |
+| Primitive                           | Does                                                               |
+| ----------------------------------- | ------------------------------------------------------------------ |
+| `tenant.NewUnitOfWork(pc)`          | The `tenant.UnitOfWork` a service holds: `tenant.RunInTx`          |
+| `db.RunInTx(ctx, pool, fn)`         | Plain transaction                                                  |
+| `tenant.RunInTx(ctx, pc, tc, fn)`   | Tenant-scoped; calls `set_config` for the org                      |
+| `db.ContextWithTx` / `db.CurrentTx` | Stores enroll in an outer transaction when one is on the context   |
+| `db.ErrNestedUnitOfWork`            | Nesting is refused, not silently flattened                         |
+| `db.Pool{W, R}`                     | Non-tenant reads (`user`, `onboard`) use `R`; tenant reads use `W` |
 
 Tenant reads need `set_config` inside the transaction, which is why they cannot use a replica.
 
 ## Modes
 
-|                         | `selfhosted`            | `cloud`                                          |
-| ----------------------- | ----------------------- | ------------------------------------------------ |
-| DB driver               | `sqlite` or `postgres`  | `postgres` only (enforced)                       |
-| OIDC                    | optional                | required (enforced)                              |
-| Local `/login` password | on by default           | off; `ALT_GENESIS_BREAK_GLASS=true` to re-enable |
-| Org creation from UI    | disabled                | enabled                                          |
-| Public OIDC signup      | disabled (invite-only)  | enabled                                          |
-| Invites                 | require OIDC configured | always available                                 |
+|                         | `selfhosted`            | `cloud`                                             |
+| ----------------------- | ----------------------- | --------------------------------------------------- |
+| OIDC                    | optional                | required (enforced)                                 |
+| Local `/login` password | on by default           | off; `OPENWA_GENESIS_BREAK_GLASS=true` to re-enable |
+| Org creation from UI    | disabled                | enabled                                             |
+| Public OIDC signup      | disabled (invite-only)  | enabled                                             |
+| Invites                 | require OIDC configured | always available                                    |
 
 Each row is a flag derived once in `internal/platform/capabilities/capabilities.go`
 (`LocalIdentity`, `OrgCreation`, `PublicSignup`, `InvitesEnabled`), so no page re-decides what
@@ -145,7 +143,7 @@ flowchart TD
   signed in, it matches the email and creates the membership.
 - **Selfhosted with no OIDC blocks invite creation** (`InvitesDisabledError`) — an invitee
   would have no way to authenticate.
-- **Terms gate** — `ALT_COMPLIANCE_REQUIRE_ACCEPTANCE=true` puts `WelcomeGate` in front of every
+- **Terms gate** — `OPENWA_COMPLIANCE_REQUIRE_ACCEPTANCE=true` puts `WelcomeGate` in front of every
   authenticated page until `users.terms_accepted_at` is stamped. Genesis admins auto-accept.
 
 ## Adding a tenant-scoped table
@@ -154,10 +152,8 @@ Steps, in order: [`howto/module.md`](../howto/module.md) for a table that comes 
 [`howto/store-method.md`](../howto/store-method.md) for a verb against one that already exists. What
 the table itself has to carry:
 
-- **Postgres** — `org_id UUID NOT NULL`, `ENABLE` **and** `FORCE ROW LEVEL SECURITY`, and a policy
+- `org_id UUID NOT NULL`, `ENABLE` **and** `FORCE ROW LEVEL SECURITY`, and a policy
   calling `{{.Schema}}.{{.TablePrefix}}current_org_id()` rather than the GUC inline.
-- **SQLite** — the same table without RLS, so there the explicit `org_id` predicate is the only
-  guard there is.
 
 ## Pitfalls
 

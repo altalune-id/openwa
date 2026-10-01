@@ -1,0 +1,106 @@
+package templates
+
+import (
+	"net/url"
+
+	"altalune.id/openwa/internal/web"
+)
+
+type ContactRowView struct {
+	ID       string
+	Name     string
+	Phone    string
+	JID      string
+	DeviceID string
+}
+
+type ContactsView struct {
+	ProjectSlug string
+	Devices     []InboxDevice
+	DeviceID    string
+	Query       string
+	Rows        []ContactRowView
+	NextCursor  string
+}
+
+func contactMessageHref(d web.LayoutData, slug string, c ContactRowView) string {
+	q := url.Values{"device": {c.DeviceID}, "phone": {c.Phone}}
+	return d.ProjectPath(slug, "/inbox/new?"+q.Encode())
+}
+
+func contactsRefreshHref(d web.LayoutData, v ContactsView) string {
+	q := url.Values{}
+	if v.DeviceID != "" {
+		q.Set("device", v.DeviceID)
+	}
+	if v.Query != "" {
+		q.Set("q", v.Query)
+	}
+	p := "/contacts"
+	if e := q.Encode(); e != "" {
+		p += "?" + e
+	}
+	return d.ProjectPath(v.ProjectSlug, p)
+}
+
+func contactsMoreHref(d web.LayoutData, v ContactsView) string {
+	q := url.Values{"cursor": {v.NextCursor}}
+	if v.DeviceID != "" {
+		q.Set("device", v.DeviceID)
+	}
+	if v.Query != "" {
+		q.Set("q", v.Query)
+	}
+	return d.ProjectPath(v.ProjectSlug, "/contacts?"+q.Encode())
+}
+
+templ ContactsLayout(d web.LayoutData, v ContactsView) {
+	@Layout(web.WithContent(d, ContactsPage(d, v)))
+}
+
+templ contactsActions(d web.LayoutData, v ContactsView) {
+	@Button(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("common.refresh"), Icon: "rotate-cw", Href: contactsRefreshHref(d, v)})
+}
+
+templ ContactsPage(d web.LayoutData, v ContactsView) {
+	<section class="space-y-6">
+		@PageHeader(d, PageHeaderProps{Title: d.Tr("contacts.title"), Subtitle: d.Tr("contacts.subtitle"), Actions: contactsActions(d, v)})
+		<form method="get" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/contacts")) } class="flex flex-wrap items-end gap-2">
+			<label for="contacts-device" class="sr-only">{ d.Tr("inbox.device_label") }</label>
+			<select id="contacts-device" name="device" class={ InputClass() + " w-auto" }>
+				<option value="">{ d.Tr("inbox.all_devices") }</option>
+				for _, dev := range v.Devices {
+					<option value={ dev.ID } selected?={ dev.Selected }>{ dev.Name }</option>
+				}
+			</select>
+			<label for="contacts-q" class="sr-only">{ d.Tr("contacts.search_label") }</label>
+			<input id="contacts-q" type="search" name="q" value={ v.Query } placeholder={ d.Tr("contacts.search_placeholder") } class={ InputClass() + " w-auto flex-1" }/>
+			@Button(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("contacts.filter")})
+		</form>
+		if len(v.Rows) == 0 {
+			@EmptyState(d, EmptyStateProps{Icon: "users", Title: d.Tr("contacts.empty_title"), Body: d.Tr("contacts.empty_body")})
+		} else {
+			@ListShell(d, "contact-list", nil) {
+				for _, c := range v.Rows {
+					@ListRow(d, templ.Attributes{"id": "contact-" + c.ID}) {
+						@Avatar(c.Name, "h-9 w-9 text-sm")
+						<div class="min-w-0 flex-1">
+							<p class="truncate text-sm font-medium text-foreground">{ c.Name }</p>
+							if c.Phone != "" {
+								@CopyValue(d, c.Phone)
+							} else {
+								<p class="text-xs text-muted-foreground">{ d.Tr("contacts.no_phone") }</p>
+							}
+						</div>
+						if c.Phone != "" && c.DeviceID != "" {
+							@Button(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("contacts.message"), Icon: "send", Href: contactMessageHref(d, v.ProjectSlug, c)})
+						}
+					}
+				}
+			}
+			if v.NextCursor != "" {
+				@Button(ButtonProps{Kind: ButtonGhost, Label: d.Tr("contacts.load_more"), Href: contactsMoreHref(d, v)})
+			}
+		}
+	</section>
+}

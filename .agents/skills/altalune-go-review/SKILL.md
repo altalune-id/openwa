@@ -1,12 +1,12 @@
 ---
 name: altalune-go-review
-description: Use when reviewing changes in altempl (altalune-template) or a downstream fork — a checkpoint during plan implementation, a re-review after fixing findings, or a final pass before committing a spec or plan. Also use when asked whether code follows the codebase convention, is reusable, extensible, scalable, future-proof or maintainable, or duplicates something that should live in one place.
+description: Use when reviewing changes in this codebase or a downstream fork — a checkpoint during plan implementation, a re-review after fixing findings, or a final pass before committing a spec or plan. Also use when asked whether code follows the codebase convention, is reusable, extensible, scalable, future-proof or maintainable, or duplicates something that should live in one place.
 license: Proprietary
 metadata:
   pairs-with: altalune-go-convention (how to write it) — this skill checks it
 ---
 
-# Reviewing altempl changes
+# Reviewing changes in this codebase
 
 A review answers two questions about every change: **does it follow the convention**, and
 **when it changes next time, is that one edit in one place?** The findings are reported and
@@ -65,7 +65,7 @@ Read each changed file in full, not only its hunks — duplication hides outside
    over reinvention, extension cost, scalability, and the counterweight against
    over-engineering.
 4. **Gates.** Run `.agents/skills/altalune-go-convention/scripts/verify.sh --check` — read-only,
-   it never writes a file. Add `--integration` if a `postgres.go` or migration changed. A red
+   it never writes a file. A red
    gate is a finding. Never run it without `--check` during a review: that mode regenerates
    and reformats files.
 

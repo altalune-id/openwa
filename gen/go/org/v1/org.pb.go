@@ -7,7 +7,7 @@
 package orgv1
 
 import (
-	_ "altalune.id/template/gen/go/mcp/v1"
+	_ "altalune.id/openwa/gen/go/mcp/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -196,9 +196,9 @@ const file_org_v1_org_proto_rawDesc = "" +
 	"\amembers\x18\x01 \x03(\v2\x0e.org.v1.MemberR\amembers2\x84\x02\n" +
 	"\rMemberService\x12\xf2\x01\n" +
 	"\vListMembers\x12\x1a.org.v1.ListMembersRequest\x1a\x1b.org.v1.ListMembersResponse\"\xa9\x01\xca\xf3\x18\xa4\x01\n" +
-	"\vmember_list\x12\x94\x01List the members of the calling credential's organization, with each member's name, email and role. Needs the organization-level members:read scope.By\n" +
+	"\vmember_list\x12\x94\x01List the members of the calling credential's organization, with each member's name, email and role. Needs the organization-level members:read scope.Bw\n" +
 	"\n" +
-	"com.org.v1B\bOrgProtoP\x01Z(altalune.id/template/gen/go/org/v1;orgv1\xa2\x02\x03OXX\xaa\x02\x06Org.V1\xca\x02\x06Org\\V1\xe2\x02\x12Org\\V1\\GPBMetadata\xea\x02\aOrg::V1b\x06proto3"
+	"com.org.v1B\bOrgProtoP\x01Z&altalune.id/openwa/gen/go/org/v1;orgv1\xa2\x02\x03OXX\xaa\x02\x06Org.V1\xca\x02\x06Org\\V1\xe2\x02\x12Org\\V1\\GPBMetadata\xea\x02\aOrg::V1b\x06proto3"
 
 var (
 	file_org_v1_org_proto_rawDescOnce sync.Once

@@ -14,8 +14,8 @@ func TestValidateRoleIdent(t *testing.T) {
 		in   string
 		ok   bool
 	}{
-		{"simple", "altempl_owner", true},
-		{"mixed case", "AltemplOwner", true},
+		{"simple", "openwa_owner", true},
+		{"mixed case", "OpenwaOwner", true},
 		{"leading underscore", "_owner", true},
 		{"empty", "", false},
 		{"nul byte", "own\x00er", false},
@@ -38,7 +38,7 @@ func TestValidateRoleIdent(t *testing.T) {
 
 func TestQuoteIdent(t *testing.T) {
 	cases := []struct{ in, want string }{
-		{"altempl_owner", `"altempl_owner"`},
+		{"openwa_owner", `"openwa_owner"`},
 		{"Weird Role", `"Weird Role"`},
 		{`has"quote`, `"has""quote"`},
 	}

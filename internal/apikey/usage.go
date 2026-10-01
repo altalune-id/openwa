@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/platform/tenant"
+	"altalune.id/openwa/internal/platform/tenant"
 )
 
 // UsageWorker batches TouchLastUsed writes on a ticker, so the authentication path never blocks on one.

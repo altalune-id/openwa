@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"altalune.id/template/internal/apikey"
-	orgpkg "altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/testutil/fakes"
+	"altalune.id/openwa/internal/apikey"
+	orgpkg "altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/testutil/fakes"
 )
 
 type personalFixture struct {

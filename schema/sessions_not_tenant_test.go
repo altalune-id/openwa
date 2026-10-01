@@ -21,7 +21,7 @@ func TestTenantTableSuffixes_OmitsSessions(t *testing.T) {
 		t.Fatalf("TenantTableSuffixes contains %q: %s. The list is generated from ALTER TABLE ... ENABLE ROW LEVEL SECURITY in schema/migrations/postgres/*.sql by schema/cmd/gen-tenant-tables, so remove the statement that added it rather than editing tenant_tables_gen.go", "sessions", sessionsRLSConsequence)
 	}
 
-	const prefix = "altempl_"
+	const prefix = "openwa_"
 	if names := TenantTableNames(prefix); slices.Contains(names, prefix+"sessions") {
 		t.Fatalf("TenantTableNames(%q) contains %q: %s", prefix, prefix+"sessions", sessionsRLSConsequence)
 	}

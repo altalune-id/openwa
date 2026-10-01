@@ -1,8 +1,8 @@
 package templates
 
 import (
-	"altalune.id/template/internal/legal"
-	"altalune.id/template/internal/web"
+	"altalune.id/openwa/internal/legal"
+	"altalune.id/openwa/internal/web"
 )
 
 // LegalView carries a parsed legal document to the layout.
@@ -12,19 +12,18 @@ type LegalView struct {
 
 templ LegalPage(d web.LayoutData, v LegalView) {
 	<section class="mx-auto max-w-2xl">
-		<header class="mb-6">
-			<p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">{ d.Tr("legal.eyebrow") }</p>
-			<h1 class="mt-1 text-2xl font-semibold text-foreground">{ v.Doc.Title }</h1>
-			if !v.Doc.UpdatedAt.IsZero() {
-				<p class="mt-1 text-xs text-muted-foreground">
-					{ d.Tr("legal.updated_at") } { v.Doc.UpdatedAt.Format("2006-01-02") }
-				</p>
-			}
-		</header>
-		<article class="rounded-lg border border-border bg-card p-6 shadow-sm prose">
+		@PageHeader(d, PageHeaderProps{Eyebrow: d.Tr("legal.eyebrow"), Title: v.Doc.Title, Subtitle: legalUpdated(d, v)})
+		<article class="surface prose p-6">
 			@templ.Raw(v.Doc.HTML)
 		</article>
 	</section>
+}
+
+func legalUpdated(d web.LayoutData, v LegalView) string {
+	if v.Doc.UpdatedAt.IsZero() {
+		return ""
+	}
+	return d.Tr("legal.updated_at") + " " + v.Doc.UpdatedAt.Format("2 Jan 2006")
 }
 
 templ LegalLayout(d web.LayoutData, v LegalView) {

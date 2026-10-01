@@ -2,11 +2,12 @@ package web
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 
-	"altalune.id/template/internal/i18n"
-	"altalune.id/template/internal/platform/capabilities"
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/i18n"
+	"altalune.id/openwa/internal/platform/capabilities"
+	"altalune.id/openwa/internal/platform/session"
 
 	"github.com/a-h/templ"
 )
@@ -42,6 +43,7 @@ type ActiveNav struct {
 	Scope       NavScope
 	OrgKey      string
 	ProjectKey  string
+	Parent      string
 	SettingsKey string
 }
 
@@ -66,6 +68,8 @@ type LayoutData struct {
 	BasePath      string
 	BaseURL       string
 	Version       string
+	BrandName     string
+	AssetVersion  string
 	Caps          capabilities.Capabilities
 	Principal     *session.Principal
 	Flash         *FlashMessage
@@ -75,6 +79,7 @@ type LayoutData struct {
 	ActiveProject *ActiveProject
 	OtherProjects []ActiveProject
 	ActiveNav     ActiveNav
+	Crumbs        []Crumb
 	Locale        i18n.Locale
 	Dir           string
 	Translator    *i18n.Translator
@@ -105,6 +110,8 @@ func (d LayoutData) Tr(key string, args ...any) string {
 	return d.Translator.T(key, args...)
 }
 
+//i18n:use dashboard.projects_count
+
 // TrN returns the pluralized translation with Count auto-injected, with extra args as key/value pairs.
 func (d LayoutData) TrN(key string, n int, args ...any) string {
 	if d.Translator == nil {
@@ -134,14 +141,63 @@ func (d LayoutData) LocaleOptions() []LocaleOption {
 	return out
 }
 
-// FlashMessage is the small "we saved that / that failed" banner rendered above content.
+// FlashKind is the tone of a flash or toast.
+type FlashKind string
+
+const (
+	FlashOK   FlashKind = "ok"
+	FlashWarn FlashKind = "warn"
+	FlashErr  FlashKind = "err"
+	FlashInfo FlashKind = "info"
+)
+
+// FlashMessage is the translated notice the layout renders as a toast.
 type FlashMessage struct {
-	Kind    string
+	Kind    FlashKind
 	Message string
 }
 
-// Static returns a basePath-aware URL for a vendored asset (e.g. static/htmx.min.js).
-func (d LayoutData) Static(sub string) string { return Path(d.BasePath, "static/"+sub) }
+// Crumb is one breadcrumb segment; an empty Href renders as the current page.
+type Crumb struct {
+	Label string
+	Href  string
+}
+
+// Static returns a basePath-aware, cache-busted URL for a vendored asset (e.g. static/htmx.min.js).
+func (d LayoutData) Static(sub string) string {
+	u := Path(d.BasePath, "static/"+sub)
+	if d.AssetVersion == "" {
+		return u
+	}
+	return u + "?v=" + url.QueryEscape(d.AssetVersion)
+}
+
+// DocumentTitle composes the <title> as page, then org or project, then brand.
+func (d LayoutData) DocumentTitle() string {
+	parts := make([]string, 0, 3)
+	if d.Title != "" {
+		parts = append(parts, d.Title)
+	}
+	switch d.ActiveNav.Scope {
+	case NavScopeProject:
+		if d.ActiveProject != nil {
+			parts = append(parts, d.ActiveProject.Name)
+		}
+	case NavScopeOrg:
+		if d.ActiveOrg != nil {
+			parts = append(parts, d.ActiveOrg.Name)
+		}
+	}
+	if d.BrandName != "" {
+		parts = append(parts, d.BrandName)
+	}
+	return strings.Join(parts, " · ")
+}
+
+// ProjectMenuActive reports whether key is the selected project nav item, directly or as the parent of a nested page.
+func (d LayoutData) ProjectMenuActive(key string) bool {
+	return d.ActiveNav.ProjectKey == key || d.ActiveNav.Parent == key
+}
 
 // Href joins BasePath with a subpath.
 func (d LayoutData) Href(sub string) string { return Path(d.BasePath, sub) }

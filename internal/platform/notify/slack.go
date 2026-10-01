@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"altalune.id/template/internal/apperror"
+	"altalune.id/openwa/internal/apperror"
 )
 
 // SlackSink posts incident notifications to a Slack incoming webhook.

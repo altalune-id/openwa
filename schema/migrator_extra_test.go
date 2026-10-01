@@ -8,10 +8,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	_ "modernc.org/sqlite"
 
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/db"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/testutil/pgtest"
 )
 
 func memMapFS() fstest.MapFS {
@@ -20,49 +19,24 @@ func memMapFS() fstest.MapFS {
 	}
 }
 
-func TestGooseDialect_Unknown(t *testing.T) {
-	t.Parallel()
-	_, _, err := gooseDialect(db.Driver("bogus"))
-	require.Error(t, err)
-}
-
-func TestGooseDialect_SQLite(t *testing.T) {
-	t.Parallel()
-	d, path, err := gooseDialect(db.DriverSQLite)
-	require.NoError(t, err)
-	assert.Equal(t, "migrations/sqlite", path)
-	assert.NotEmpty(t, string(d))
-}
-
-func TestGooseDialect_Postgres(t *testing.T) {
-	t.Parallel()
-	d, path, err := gooseDialect(db.DriverPostgres)
-	require.NoError(t, err)
-	assert.Equal(t, "migrations/postgres", path)
-	assert.NotEmpty(t, string(d))
-}
-
-func TestMigrationsBookkeepingTable_Sqlite(t *testing.T) {
-	t.Parallel()
-	cfg := config.Defaults()
-	assert.Equal(t, "altempl_goose_db_version", migrationsBookkeepingTable(cfg))
-}
-
 func TestMigrationsBookkeepingTable_Postgres(t *testing.T) {
 	t.Parallel()
 	cfg := config.Defaults()
-	cfg.DB.Driver = db.DriverPostgres
-	cfg.DB.TablePrefix = "altempl_"
-	assert.Equal(t, "altempl_goose_db_version", migrationsBookkeepingTable(cfg))
+	cfg.DB.TablePrefix = "openwa_"
+	assert.Equal(t, "openwa_goose_db_version", migrationsBookkeepingTable(cfg))
+}
+
+func TestMigrationsBookkeepingTable_CustomPrefix(t *testing.T) {
+	t.Parallel()
+	cfg := config.Defaults()
+	cfg.DB.TablePrefix = "acme_"
+	assert.Equal(t, "acme_goose_db_version", migrationsBookkeepingTable(cfg))
 }
 
 func TestMigrateStatus_ReportsPending(t *testing.T) {
 	t.Parallel()
-	sqldb, err := sql.Open("sqlite", ":memory:")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = sqldb.Close() })
+	sqldb, cfg := pgMigrationEnv(t)
 
-	cfg := config.Defaults()
 	rows, err := MigrateStatus(context.Background(), sqldb, cfg)
 	require.NoError(t, err)
 	assert.NotEmpty(t, rows)
@@ -74,11 +48,8 @@ func TestMigrateStatus_ReportsPending(t *testing.T) {
 
 func TestMigrateStatus_ReportsApplied(t *testing.T) {
 	t.Parallel()
-	sqldb, err := sql.Open("sqlite", ":memory:")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = sqldb.Close() })
+	sqldb, cfg := pgMigrationEnv(t)
 
-	cfg := config.Defaults()
 	require.NoError(t, MigrateUp(context.Background(), sqldb, cfg))
 	rows, err := MigrateStatus(context.Background(), sqldb, cfg)
 	require.NoError(t, err)
@@ -94,11 +65,8 @@ func TestMigrateStatus_ReportsApplied(t *testing.T) {
 
 func TestMigrateDownTo_RollsBackToZero(t *testing.T) {
 	t.Parallel()
-	sqldb, err := sql.Open("sqlite", ":memory:")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = sqldb.Close() })
+	sqldb, cfg := pgMigrationEnv(t)
 
-	cfg := config.Defaults()
 	require.NoError(t, MigrateUp(context.Background(), sqldb, cfg))
 	require.NoError(t, MigrateDownTo(context.Background(), sqldb, cfg, 0))
 
@@ -112,7 +80,7 @@ func TestMigrateDownTo_RollsBackToZero(t *testing.T) {
 func TestTemplatedFS_MemoryFileStatFields(t *testing.T) {
 	t.Parallel()
 	base := memMapFS()
-	tfs := newTemplatedFS(base, templateVars{TablePrefix: "altempl_"})
+	tfs := newTemplatedFS(base, templateVars{TablePrefix: "openwa_"})
 	f, err := tfs.Open("001.sql")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = f.Close() })
@@ -127,16 +95,13 @@ func TestTemplatedFS_MemoryFileStatFields(t *testing.T) {
 	assert.Nil(t, info.Sys())
 }
 
-func TestMigrateUp_UnknownDriverErrors(t *testing.T) {
-	t.Parallel()
-	sqldb, err := sql.Open("sqlite", ":memory:")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = sqldb.Close() })
-
+func pgMigrationEnv(t *testing.T) (*sql.DB, *config.Config) {
+	t.Helper()
+	h := pgtest.New(t)
+	sqldb := h.OpenDB(t)
 	cfg := config.Defaults()
-	cfg.DB.Driver = db.Driver("bogus")
-	require.Error(t, MigrateUp(context.Background(), sqldb, cfg))
-	_, err = MigrateStatus(context.Background(), sqldb, cfg)
-	require.Error(t, err)
-	require.Error(t, MigrateDownTo(context.Background(), sqldb, cfg, 0))
+	cfg.DB.DSN = h.DSN
+	cfg.DB.Schema = h.Schema
+	cfg.DB.AllowBypassRLS = true
+	return sqldb, cfg
 }

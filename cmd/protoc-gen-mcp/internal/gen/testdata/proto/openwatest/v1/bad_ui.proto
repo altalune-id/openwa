@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package openwatest.v1;
+
+import "mcp/v1/annotations.proto";
+
+option go_package = "altalune.id/openwa/cmd/protoc-gen-mcp/internal/gen/testdata/gen/openwatest/v1;openwatestv1";
+
+service BadUIService {
+  rpc BadUI(BadUIRequest) returns (BadUIResponse) {
+    option (mcp.v1.tool) = {
+      name: "bad_ui"
+      ui: "App_1"
+    };
+  }
+}
+
+message BadUIRequest {}
+
+message BadUIResponse {}

@@ -3,8 +3,8 @@ package tokens
 import (
 	"context"
 
-	"altalune.id/template/internal/platform/authn"
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/platform/authn"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 // Authenticator adapts a Verifier to authn.Authenticator, so JWT verification is one link in an authn.Chain.

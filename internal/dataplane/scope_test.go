@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/dataplane"
+	"altalune.id/openwa/internal/dataplane"
 )
 
 // TestUnresolvableScopeIsIndistinguishable is the anti-enumeration guard: every unresolvable scope is one answer.

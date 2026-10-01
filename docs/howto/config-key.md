@@ -27,7 +27,7 @@ Tenant TenantConfig `yaml:"tenant" mapstructure:"tenant" awareness:"bootstrap"`
 
 Automatic. `bindEnv` in `internal/platform/config/env.go` walks the struct and derives the variable
 from the dotted path: prefix `ALT`, `.` and `-` become `_`, upper-cased. `http.basePath` becomes
-`ALT_HTTP_BASE_PATH`. Nothing is registered by hand, and a name that does not fall out of that walk
+`OPENWA_HTTP_BASE_PATH`. Nothing is registered by hand, and a name that does not fall out of that walk
 is not reachable from the environment at all.
 
 ## Gotchas

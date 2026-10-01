@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package openwatest.v1;
+
+import "mcp/v1/annotations.proto";
+
+option go_package = "altalune.id/openwa/cmd/protoc-gen-mcp/internal/gen/testdata/gen/openwatest/v1;openwatestv1";
+
+service BadStreamService {
+  rpc WatchForever(BadStreamRequest) returns (stream BadStreamResponse) {
+    option (mcp.v1.tool) = {name: "watch_forever"};
+  }
+}
+
+message BadStreamRequest {}
+
+message BadStreamResponse {}

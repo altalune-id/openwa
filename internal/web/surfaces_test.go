@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"altalune.id/template/internal/web"
+	"altalune.id/openwa/internal/web"
 )
 
 func marker(name string, hit *[]string) web.Middleware {

@@ -12,30 +12,33 @@ import (
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/i18n"
-	"altalune.id/template/internal/org"
-	"altalune.id/template/internal/platform/capabilities"
-	"altalune.id/template/internal/platform/config"
-	"altalune.id/template/internal/platform/session"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/project"
-	"altalune.id/template/internal/web"
-	"altalune.id/template/internal/web/middleware"
-	"altalune.id/template/internal/web/templates"
-	"altalune.id/template/reqid"
-	"altalune.id/template/version"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/i18n"
+	"altalune.id/openwa/internal/org"
+	"altalune.id/openwa/internal/platform/capabilities"
+	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/middleware"
+	"altalune.id/openwa/internal/web/templates"
+	"altalune.id/openwa/reqid"
+	"altalune.id/openwa/version"
 )
 
 // Deps is the common bag of dependencies every handler in this package needs.
 type Deps struct {
-	Cfg      *config.Config
-	Caps     capabilities.Capabilities
-	Sessions session.Store
-	Logger   *log.Logger
-	Orgs     *org.Service
-	Projects *project.Service
-	I18n     *i18n.Bundle
+	Cfg            *config.Config
+	TermsUpdatedAt time.Time
+	Caps           capabilities.Capabilities
+	Sessions       session.Store
+	Logger         *log.Logger
+	Orgs           *org.Service
+	Projects       *project.Service
+	I18n           *i18n.Bundle
+
+	AssetVersion string
 }
 
 // Base builds a minimal LayoutData for chromeless pages (login, onboarding, error).
@@ -52,11 +55,13 @@ func (d Deps) Base(r *http.Request, title string) web.LayoutData {
 		dir = d.I18n.Dir(loc)
 		supported = d.I18n.All()
 	}
-	return web.LayoutData{
+	base := web.LayoutData{
 		Title:         title,
 		BasePath:      d.Cfg.HTTP.BasePath,
 		BaseURL:       d.Cfg.HTTP.BaseURL,
 		Version:       version.Default(),
+		BrandName:     cmp.Or(d.Cfg.Brand.Name, "OpenWA"),
+		AssetVersion:  d.AssetVersion,
 		Caps:          d.Caps,
 		Principal:     pp,
 		Locale:        loc,
@@ -70,6 +75,35 @@ func (d Deps) Base(r *http.Request, title string) web.LayoutData {
 		Nonce:         middleware.NonceFrom(r.Context()),
 		CSPEnforced:   d.Cfg.HTTP.CSP.Enabled && !d.Cfg.HTTP.CSP.ReportOnly,
 	}
+	if p, ok := middleware.FlashFrom(r.Context()); ok {
+		base.Flash = &web.FlashMessage{Kind: p.Kind, Message: base.Tr(p.Key, flashArgs(p.Args)...)}
+	}
+	return base
+}
+
+// SetFlash writes the signed one-shot flash cookie the next full-page render shows as a toast.
+func (d Deps) SetFlash(w http.ResponseWriter, _ *http.Request, kind web.FlashKind, key string, args ...string) {
+	//i18n:use flash.*
+	value, err := web.SignedFlashCookie(d.SecretBytes(), web.FlashPayload{Kind: kind, Key: key, Args: args})
+	if err != nil {
+		d.LogErr("flash: encode", err)
+		return
+	}
+	web.SetCookie(w, web.CookieOpts{
+		Name:         web.FlashCookieName,
+		Value:        value,
+		BasePath:     d.Cfg.HTTP.BasePath,
+		CookieSecure: d.Cfg.HTTP.CookieSecure,
+		MaxAge:       web.FlashMaxAge,
+	})
+}
+
+func flashArgs(args []string) []any {
+	out := make([]any, len(args))
+	for i, a := range args {
+		out[i] = a
+	}
+	return out
 }
 
 // Layout builds a LayoutData for a signed-in page and populates org/project switchers.
@@ -118,7 +152,11 @@ func (d Deps) layout(r *http.Request, title string, nav web.ActiveNav, pinnedOrg
 
 // LayoutForOrg tags a page as org-scoped and pins both switchers to the org named by the path.
 func (d Deps) LayoutForOrg(r *http.Request, title, slug, orgKey string) web.LayoutData {
-	return d.layout(r, title, web.ActiveNav{Scope: web.NavScopeOrg, OrgKey: orgKey}, d.orgIDForSlug(r, slug), uuid.Nil)
+	l := d.layout(r, title, web.ActiveNav{Scope: web.NavScopeOrg, OrgKey: orgKey}, d.orgIDForSlug(r, slug), uuid.Nil)
+	if l.ActiveOrg != nil {
+		l.Crumbs = []web.Crumb{{Label: l.ActiveOrg.Name, Href: l.Href("/orgs/" + l.ActiveOrg.Slug)}}
+	}
+	return l
 }
 
 func (d Deps) orgIDForSlug(r *http.Request, slug string) uuid.UUID {
@@ -158,6 +196,14 @@ func (d Deps) LayoutForProject(r *http.Request, title, orgSlug string, proj *pro
 	if l.ActiveProject == nil || l.ActiveProject.Slug != proj.Slug {
 		l.ActiveProject = &web.ActiveProject{ID: proj.ID.String(), Slug: proj.Slug, Name: proj.Name}
 	}
+	orgName := orgSlug
+	if l.ActiveOrg != nil {
+		orgName = l.ActiveOrg.Name
+	}
+	l.Crumbs = []web.Crumb{
+		{Label: orgName, Href: l.Href("/orgs/" + orgSlug)},
+		{Label: proj.Name, Href: l.ProjectPath(proj.Slug, "/overview")},
+	}
 	return l
 }
 
@@ -165,7 +211,7 @@ func (d Deps) LayoutForProject(r *http.Request, title, orgSlug string, proj *pro
 func (d Deps) ProjectScopeFor(w http.ResponseWriter, r *http.Request, orgID uuid.UUID, slug string) (*project.Project, *http.Request, bool) {
 	proj, err := d.Projects.BySlug(r.Context(), orgID, slug)
 	if err != nil {
-		d.ErrorPage(w, r, http.StatusNotFound, "Project not found", "No project with that slug in this organization.", err)
+		d.ErrorPageKey(w, r, http.StatusNotFound, "error.not_found", err)
 		return nil, nil, false
 	}
 	return proj, r.WithContext(tenant.WithProject(r.Context(), proj.ID)), true
@@ -269,6 +315,23 @@ func (d Deps) ErrorPage(w http.ResponseWriter, r *http.Request, status int, titl
 	RenderStatus(w, r, status, templates.ErrorLayout(base, view))
 }
 
+// ErrorPageKey renders the error page from the translated title and body pair stored under key.
+func (d Deps) ErrorPageKey(w http.ResponseWriter, r *http.Request, status int, key string, cause error) {
+	//i18n:use error.*
+	base := d.Base(r, "")
+	base.Title = base.Tr(key + "_title")
+	view := templates.ErrorView{
+		Status: status, Title: base.Title, Message: base.Tr(key + "_body"),
+		RequestID: reqid.FromContext(r.Context()),
+		Code:      ErrorRef(cause),
+	}
+	if web.IsHTMXRequest(r) {
+		RenderStatus(w, r, status, templates.ErrorFragment(base, view))
+		return
+	}
+	RenderStatus(w, r, status, templates.ErrorLayout(base, view))
+}
+
 // ErrorRef returns the code carried by the first of errs that is an AppError, or "" when none is.
 func ErrorRef(errs ...error) string {
 	for _, err := range errs {
@@ -283,12 +346,12 @@ func ErrorRef(errs ...error) string {
 func (d Deps) OrgScopeFor(w http.ResponseWriter, r *http.Request, p session.Principal, slug string) (*org.Org, *http.Request, bool) {
 	o, err := d.Orgs.BySlug(r.Context(), slug)
 	if err != nil {
-		d.ErrorPage(w, r, http.StatusNotFound, "Organization not found", "", err)
+		d.ErrorPageKey(w, r, http.StatusNotFound, "error.not_found", err)
 		return nil, nil, false
 	}
 	scoped := orgScopedRequest(r, p, o)
 	if _, err := d.Orgs.MembershipOf(scoped.Context(), o.ID, p.UserID); err != nil {
-		d.ErrorPage(w, r, http.StatusNotFound, "Organization not found", "", err)
+		d.ErrorPageKey(w, r, http.StatusNotFound, "error.not_found", err)
 		return nil, nil, false
 	}
 	return o, scoped, true

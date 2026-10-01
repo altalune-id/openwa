@@ -8,8 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/platform/session"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/session"
 )
 
 //go:embed all:static
@@ -22,6 +22,33 @@ func StaticFS() fs.FS {
 		panic("web: static sub-fs: " + err.Error())
 	}
 	return sub
+}
+
+// CacheImmutable marks successful static responses as immutable for a year; the URL carries the asset version.
+func CacheImmutable(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(&cachingWriter{ResponseWriter: w}, r)
+	})
+}
+
+type cachingWriter struct {
+	http.ResponseWriter
+	wrote bool
+}
+
+func (c *cachingWriter) WriteHeader(code int) {
+	if !c.wrote && code == http.StatusOK {
+		c.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	}
+	c.wrote = true
+	c.ResponseWriter.WriteHeader(code)
+}
+
+func (c *cachingWriter) Write(b []byte) (int, error) {
+	if !c.wrote {
+		c.WriteHeader(http.StatusOK)
+	}
+	return c.ResponseWriter.Write(b)
 }
 
 // Mux is the subset of *http.ServeMux a handler registers against.
@@ -103,7 +130,7 @@ func NewServerWithRoutes(o ServerOpts) (handler http.Handler, routes []string) {
 		h.Register(rec)
 	}
 	app := rec.mux
-	app.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(StaticFS()))))
+	app.Handle("GET /static/", http.StripPrefix("/static/", CacheImmutable(http.FileServer(http.FS(StaticFS())))))
 
 	outer := http.NewServeMux()
 

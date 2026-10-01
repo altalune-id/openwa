@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"altalune.id/template/internal/todo"
+	"altalune.id/openwa/internal/todo"
 )
 
 // Todo is an in-memory todo.Store.

@@ -2,7 +2,6 @@ package blog_test
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -14,12 +13,11 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 
-	apperrorv1 "altalune.id/template/gen/go/apperror/v1"
-	"altalune.id/template/internal/apperror"
-	"altalune.id/template/internal/blog"
-	"altalune.id/template/internal/platform/db"
-	"altalune.id/template/internal/platform/tenant"
-	"altalune.id/template/internal/testutil/fakes"
+	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/testutil/fakes"
 )
 
 func newTestPost(t *testing.T) *blog.Post {
@@ -301,18 +299,15 @@ func (s testService) BySlug(ctx context.Context, slug string) (*blog.Post, error
 
 func newTestService(t *testing.T) testService {
 	t.Helper()
-	store, sqlDB, tc, cat := newBlogStoreForTest(t)
+	tc := tenant.Context{OrgID: uuid.New(), ProjectID: uuid.New(), UserID: uuid.New()}
+	cat := uuid.New()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	unexpected := func(_ context.Context, _ string, err error, _ ...any) *apperror.AppError {
-		return apperror.New("altempl.unexpected", err.Error(), codes.Internal,
-			&apperrorv1.ErrorDetail{Code: "altempl.unexpected"}).WithCause(err)
+		return apperror.New("openwa.unexpected", err.Error(), codes.Internal,
+			&apperrorv1.ErrorDetail{Code: "openwa.unexpected"}).WithCause(err)
 	}
-	svc := blog.NewService(store, log, unexpected, sqliteUnitOfWork(sqlDB), &fakes.Webhooks{})
+	svc := blog.NewService(fakes.NewBlog(), log, unexpected, fakes.UnitOfWork, &fakes.Webhooks{})
 	return testService{Service: svc, tc: tc, cat: cat}
-}
-
-func sqliteUnitOfWork(sqlDB *sql.DB) tenant.UnitOfWork {
-	return tenant.NewUnitOfWork(db.DBConfig{Driver: db.DriverSQLite}, db.Pool{W: sqlDB, R: sqlDB}, nil)
 }
 
 // NOTE: int(1<<32)+1 is a constant-overflow compile error on a 32-bit GOARCH, where no int can exceed MaxInt32.
