@@ -34,6 +34,7 @@ templ Layout(d web.LayoutData) {
 				summary { list-style: none; cursor: pointer; }
 				details[open] > summary .chev { transform: rotate(180deg); }
 			</style>
+			<noscript><style>dialog[data-confirm] { display: block; position: static; margin-top: 0.5rem; }</style></noscript>
 		</head>
 		<body class="min-h-screen bg-background text-foreground antialiased">
 			<a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:text-foreground focus:shadow-sm">{ d.Tr("nav.skip_to_content") }</a>

@@ -8,6 +8,7 @@ import (
 
 type OverviewView struct {
 	OrgSlug          string
+	OrgID            string
 	ProjectID        string
 	ProjectSlug      string
 	ProjectName      string
@@ -21,6 +22,8 @@ templ OverviewPage(d web.LayoutData, v OverviewView) {
 		@PageHeader(d, PageHeaderProps{Eyebrow: d.Tr("nav.overview"), Title: v.ProjectName})
 		<div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
 			@CopyValue(d, v.OrgSlug)
+			<span aria-hidden="true" class="text-muted-foreground/70">·</span>
+			@CopyValue(d, v.OrgID)
 			<span aria-hidden="true" class="text-muted-foreground/70">/</span>
 			@CopyValue(d, v.ProjectSlug)
 			<span aria-hidden="true" class="text-muted-foreground/70">·</span>

@@ -740,7 +740,7 @@ func ConfirmDialog(d web.LayoutData, p ConfirmProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</button></div></form></dialog><noscript><style>dialog[data-confirm] { display: block; position: static; margin-top: 0.5rem; }</style></noscript>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</button></div></form></dialog>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -776,7 +776,7 @@ func confirmScript(nonce string) templ.Component {
 		var templ_7745c5c3_Var45 string
 		templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.ResolveAttributeValue(nonce)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/ui_feedback.templ`, Line: 119, Col: 22}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/ui_feedback.templ`, Line: 118, Col: 22}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var45)
 		if templ_7745c5c3_Err != nil {

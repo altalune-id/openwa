@@ -303,6 +303,10 @@ tokens:
   # env: OPENWA_TOKENS_SUPPORTED_ALGS
   supportedAlgs: RS256,ES256
 
+webhook:
+  # [mode:selfhosted] env: OPENWA_WEBHOOK_ALLOW_INSECURE
+  allowInsecure: false
+
 whatsapp:
   # env: OPENWA_WHATSAPP_CLIENT_NAME
   clientName: OpenWA

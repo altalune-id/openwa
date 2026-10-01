@@ -187,9 +187,11 @@ func TestWebhookHandler_EventPickerListsOnlySubscribableTypes(t *testing.T) {
 	rec := x.do(t, http.MethodGet, webhookBase+"/new", nil)
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
+	hidden := map[events.Type]bool{events.PostPublished: true, events.PostUnpublished: true, events.PostDeleted: true}
 	for _, s := range events.All() {
 		want := `name="event_types" value="` + string(s.Type) + `"`
-		assert.Equal(t, s.Subscribable, strings.Contains(body, want), "%s subscribable=%v", s.Type, s.Subscribable)
+		shown := s.Subscribable && !hidden[s.Type]
+		assert.Equal(t, shown, strings.Contains(body, want), "%s shown=%v", s.Type, shown)
 	}
 	assert.Contains(t, body, `maxlength="2048"`)
 	assert.Contains(t, body, `maxlength="200"`)

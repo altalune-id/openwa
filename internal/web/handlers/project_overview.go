@@ -37,6 +37,7 @@ func (h *ProjectOverviewHandler) GetOverview(w http.ResponseWriter, r *http.Requ
 	h.rememberProject(sc)
 	v := templates.OverviewView{
 		OrgSlug:     sc.org.Slug,
+		OrgID:       sc.org.ID.String(),
 		ProjectID:   sc.project.ID.String(),
 		ProjectSlug: sc.project.Slug,
 		ProjectName: sc.project.Name,

@@ -463,6 +463,19 @@ func endpointFields(r *http.Request) (rawURL, desc string, types []events.Type) 
 		selectedEventTypes(r.PostForm["event_types"])
 }
 
+// NOTE: pickerEvents drops the template-leftover blog.* events so the console webhook picker never offers them.
+func pickerEvents() []events.Spec {
+	hidden := map[events.Type]bool{events.PostPublished: true, events.PostUnpublished: true, events.PostDeleted: true}
+	subs := events.Subscribable()
+	out := make([]events.Spec, 0, len(subs))
+	for _, s := range subs {
+		if !hidden[s.Type] {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // SECURITY: a value that is not a subscribable catalog type, or a duplicate, is dropped rather than reaching the service.
 func selectedEventTypes(raw []string) []events.Type {
 	set := make(map[string]bool, len(raw))
@@ -479,7 +492,7 @@ func selectedEventTypes(raw []string) []events.Type {
 }
 
 func webhookForm(id, rawURL, desc string, active bool, selected []events.Type) templates.WebhookFormView {
-	subs := events.Subscribable()
+	subs := pickerEvents()
 	opts := make([]templates.WebhookEventOption, 0, len(subs))
 	for _, s := range subs {
 		opts = append(opts, templates.WebhookEventOption{

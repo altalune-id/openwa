@@ -55,6 +55,7 @@ type Config struct {
 	WhatsApp      WhatsAppConfig      `yaml:"whatsapp"      mapstructure:"whatsapp"`
 	Blog          BlogConfig          `yaml:"blog"          mapstructure:"blog"`
 	DataPlane     DataPlaneConfig     `yaml:"dataplane"     mapstructure:"dataplane"`
+	Webhook       WebhookConfig       `yaml:"webhook"       mapstructure:"webhook"`
 	Retention     RetentionConfig     `yaml:"retention"     mapstructure:"retention"`
 	Media         MediaConfig         `yaml:"media"         mapstructure:"media"`
 }
@@ -74,6 +75,12 @@ type MediaConfig struct {
 type BlogConfig struct {
 	// SECURITY: when true an anonymous caller may read PUBLISHED posts over S3; drafts stay 404.
 	PublicReads bool `yaml:"publicReads" mapstructure:"publicReads" awareness:"-"`
+}
+
+// WebhookConfig tunes outbound webhook delivery.
+type WebhookConfig struct {
+	// SECURITY: self-hosted dev only; allows http:// and loopback/private endpoints. Ignored in cloud mode.
+	AllowInsecure bool `yaml:"allowInsecure" mapstructure:"allowInsecure" awareness:"mode:selfhosted"`
 }
 
 // DataPlaneConfig gates S3, the REST data plane.

@@ -52,3 +52,6 @@ node_modules/
 # Track the dir via .gitkeep, ignore every child (pg, future subdirs).
 /docker/data/*
 !/docker/data/.gitkeep
+
+# compiled example binary (go build ./examples/webhook-pong from repo root)
+/webhook-pong

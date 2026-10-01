@@ -28,6 +28,21 @@ func contactMessageHref(d web.LayoutData, slug string, c ContactRowView) string 
 	return d.ProjectPath(slug, "/inbox/new?"+q.Encode())
 }
 
+func contactsRefreshHref(d web.LayoutData, v ContactsView) string {
+	q := url.Values{}
+	if v.DeviceID != "" {
+		q.Set("device", v.DeviceID)
+	}
+	if v.Query != "" {
+		q.Set("q", v.Query)
+	}
+	p := "/contacts"
+	if e := q.Encode(); e != "" {
+		p += "?" + e
+	}
+	return d.ProjectPath(v.ProjectSlug, p)
+}
+
 func contactsMoreHref(d web.LayoutData, v ContactsView) string {
 	q := url.Values{"cursor": {v.NextCursor}}
 	if v.DeviceID != "" {
@@ -43,9 +58,13 @@ templ ContactsLayout(d web.LayoutData, v ContactsView) {
 	@Layout(web.WithContent(d, ContactsPage(d, v)))
 }
 
+templ contactsActions(d web.LayoutData, v ContactsView) {
+	@Button(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("common.refresh"), Icon: "rotate-cw", Href: contactsRefreshHref(d, v)})
+}
+
 templ ContactsPage(d web.LayoutData, v ContactsView) {
 	<section class="space-y-6">
-		@PageHeader(d, PageHeaderProps{Title: d.Tr("contacts.title"), Subtitle: d.Tr("contacts.subtitle")})
+		@PageHeader(d, PageHeaderProps{Title: d.Tr("contacts.title"), Subtitle: d.Tr("contacts.subtitle"), Actions: contactsActions(d, v)})
 		<form method="get" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/contacts")) } class="flex flex-wrap items-end gap-2">
 			<label for="contacts-device" class="sr-only">{ d.Tr("inbox.device_label") }</label>
 			<select id="contacts-device" name="device" class={ InputClass() + " w-auto" }>

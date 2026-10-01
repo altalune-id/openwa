@@ -264,7 +264,7 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 	sup := worker.New(log)
 	sup.Register(health)
 	sup.Register(svcs.APIKeyUsage)
-	sup.Register(outbox.NewWorker(kernel.Outbox, dispatchDeliverer(o, kernel, svcs, log), orgEnumerator(cfg, kernel, log), log, o.dispatch))
+	sup.Register(outbox.NewWorker(kernel.Outbox, dispatchDeliverer(o, cfg, kernel, svcs, log), orgEnumerator(cfg, kernel, log), log, o.dispatch))
 	if !o.schedulerOnly && !o.consumerOnly {
 		sup.Register(svcs.Runtime)
 	}
@@ -425,20 +425,33 @@ func (s *Server) Close() error {
 	return errors.Join(errs...)
 }
 
-func dispatchDeliverer(o *options, k *platform.Kernel, svcs *Services, log *slog.Logger) outbox.Deliverer {
+func dispatchDeliverer(o *options, cfg *config.Config, k *platform.Kernel, svcs *Services, log *slog.Logger) outbox.Deliverer {
 	if o.deliverer != nil {
 		return o.deliverer
 	}
-	return webhook.NewDeliverer(svcs.WebhookStore, k.Sealer, webhookHTTPClient(), log)
+	return webhook.NewDeliverer(svcs.WebhookStore, k.Sealer, webhookHTTPClient(allowInsecureWebhooks(cfg)), log)
 }
 
 // SECURITY: otel stays off — otelhttp records url.full including the query string, and webhook.Deliver's own span is the only trace a delivery should leave.
-func webhookHTTPClient() *http.Client {
+func webhookHTTPClient(allowPrivateHosts bool) *http.Client {
 	return httpclient.New(
+		httpclient.WithAllowPrivateHosts(allowPrivateHosts),
 		httpclient.WithTimeout(webhookTimeout),
 		httpclient.WithResponseBodyLimit(webhookResponseLimit),
 		httpclient.WithOtel(false),
 	)
+}
+
+// SECURITY: cloud mode forces this false, whatever webhook.allowInsecure says.
+func allowInsecureWebhooks(cfg *config.Config) bool {
+	return cfg.Webhook.AllowInsecure && cfg.Mode == config.ModeSelfhosted
+}
+
+func webhookServiceOptions(cfg *config.Config) []webhook.ServiceOption {
+	if !allowInsecureWebhooks(cfg) {
+		return nil
+	}
+	return []webhook.ServiceOption{webhook.WithAllowInsecureURL()}
 }
 
 func setupToken(cfg *config.Config) (string, error) {

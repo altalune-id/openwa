@@ -95,7 +95,7 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 	onboards := onboard.NewService(onboardStore, log, reporter.Unexpected)
 	uow := tenant.NewUnitOfWork(pgConn)
 	webhookStore := webhook.NewStore(cfg.DB, pool, pgConn)
-	webhooks := webhook.NewService(webhookStore, log, reporter.Unexpected, k.Sealer, k.Outbox, projectSlugs{svc: projects})
+	webhooks := webhook.NewService(webhookStore, log, reporter.Unexpected, k.Sealer, k.Outbox, projectSlugs{svc: projects}, webhookServiceOptions(cfg)...)
 	posts := blog.NewService(blog.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected, uow, webhooks)
 	categories := category.NewService(category.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected)
 	tags := tag.NewService(tag.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected)

@@ -59,6 +59,7 @@ func TestLayout_RendersToastRegionWithFlash(t *testing.T) {
 func TestLayout_ShipsConfirmScriptOnce(t *testing.T) {
 	html := renderShell(t, projectShell())
 	require.Equal(t, 1, strings.Count(html, "window.openwaConfirmBound = true"))
+	require.Contains(t, html, "<noscript><style>dialog[data-confirm]", "the no-JS dialog fallback lives once in the layout head, not per dialog")
 }
 
 func TestLayout_ShellStructure(t *testing.T) {

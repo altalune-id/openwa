@@ -250,7 +250,6 @@ func TestConfirmDialog_StructureAndFormOrder(t *testing.T) {
 	require.Greater(t, b, a, "hidden fields keep their order")
 	assert.Contains(t, html, `id="revoke-k1-title"`)
 	assert.Contains(t, html, "bg-destructive")
-	assert.Contains(t, html, "<noscript><style>")
 
 	plain := render(t, ConfirmDialog(d, ConfirmProps{ID: "rm", Title: "t", ConfirmLabel: "Remove", Kind: ButtonDanger, Action: "/x", Trigger: ButtonProps{Kind: ButtonSecondary, Label: "Remove"}}))
 	assert.NotContains(t, plain, "hx-post", "a full-page confirm carries no htmx attributes")

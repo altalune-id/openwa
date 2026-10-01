@@ -84,10 +84,23 @@ templ InboxPage(d web.LayoutData, v InboxView) {
 		@PageHeader(d, PageHeaderProps{
 			Title:    d.Tr("inbox.title"),
 			Subtitle: d.Tr("inbox.subtitle"),
-			Actions:  Button(ButtonProps{Kind: ButtonPrimary, Label: d.Tr("inbox.new_chat"), Icon: "plus", Href: d.ProjectPath(v.ProjectSlug, "/inbox/new")}),
+			Actions:  inboxActions(d, v),
 		})
 		@SplitPane(SplitPaneProps{ID: "inbox", List: ChatListSidebar(d, v.Devices, v.List), Detail: InboxDetail(d, v)})
 	</section>
+}
+
+templ inboxActions(d web.LayoutData, v InboxView) {
+	<div class="flex items-center gap-2">
+		@Button(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("common.refresh"), Icon: "rotate-cw", Attrs: templ.Attributes{
+			"hx-get":     d.ProjectPath(v.ProjectSlug, "/inbox/chats"),
+			"hx-target":  "#chat-list-panel",
+			"hx-swap":    "outerHTML",
+			"hx-include": "#inbox-device, #inbox-search",
+			"hx-nonce":   d.Nonce,
+		}})
+		@Button(ButtonProps{Kind: ButtonPrimary, Label: d.Tr("inbox.new_chat"), Icon: "plus", Href: d.ProjectPath(v.ProjectSlug, "/inbox/new")})
+	</div>
 }
 
 templ InboxDetail(d web.LayoutData, v InboxView) {

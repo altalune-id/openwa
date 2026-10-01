@@ -73,9 +73,10 @@ func TestOverview_ShowsCopyableIdentifiers(t *testing.T) {
 	assert.Contains(t, body, `data-copy="`+x.project.String()+`"`, "project UUID needs a copy button")
 	assert.Contains(t, body, `data-copy="alpha"`, "project slug needs a copy button")
 	assert.Contains(t, body, `data-copy="acme"`, "org slug needs a copy button")
+	assert.Contains(t, body, `data-copy="`+x.org.String()+`"`, "org UUID needs a copy button")
 	assert.Contains(t, body, "font-mono", "the identifiers are rendered in a monospace face")
-	assert.Len(t, namedCopyControl.FindAllString(body, -1), 3,
-		"org slug, project slug and project id must each be a copy control with an accessible name")
+	assert.Len(t, namedCopyControl.FindAllString(body, -1), 4,
+		"org slug, org id, project slug and project id must each be a copy control with an accessible name")
 }
 
 var namedCopyControl = regexp.MustCompile(`<button[^>]*data-copy="[^"]*"[^>]*aria-label="[^"]+"`)

@@ -76,11 +76,26 @@ type Service struct {
 	sealer     sealer.Sealer
 	outbox     outbox.Store
 	projects   ProjectSlugs
+
+	allowInsecureURL bool
+}
+
+// ServiceOption tunes a Service at construction.
+type ServiceOption func(*Service)
+
+// WithAllowInsecureURL lets endpoints use http:// URLs; self-hosted dev only.
+func WithAllowInsecureURL() ServiceOption { return func(s *Service) { s.allowInsecureURL = true } }
+
+func (s *Service) validateOpts() []ValidateOption {
+	if s.allowInsecureURL {
+		return []ValidateOption{AllowInsecureURL()}
+	}
+	return nil
 }
 
 // NewService binds the service to its dependencies.
-func NewService(store Store, log *slog.Logger, unexpected apperror.UnexpectedFunc, sl sealer.Sealer, ob outbox.Store, projects ProjectSlugs) *Service {
-	return &Service{
+func NewService(store Store, log *slog.Logger, unexpected apperror.UnexpectedFunc, sl sealer.Sealer, ob outbox.Store, projects ProjectSlugs, opts ...ServiceOption) *Service {
+	svc := &Service{
 		store:      store,
 		log:        log.With("module", "webhook"),
 		unexpected: unexpected,
@@ -88,6 +103,10 @@ func NewService(store Store, log *slog.Logger, unexpected apperror.UnexpectedFun
 		outbox:     ob,
 		projects:   projects,
 	}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
 }
 
 // Enqueue fans t out to every active endpoint of the caller's project subscribed to it, inside the caller's unit of work.
@@ -134,7 +153,7 @@ func (s *Service) Create(ctx context.Context, rawURL, description string, types 
 	if err != nil {
 		return nil, "", record(span, err)
 	}
-	e, err := New(tc.OrgID, tc.ProjectID, rawURL, description, types)
+	e, err := New(tc.OrgID, tc.ProjectID, rawURL, description, types, s.validateOpts()...)
 	if err != nil {
 		return nil, "", record(span, err)
 	}
@@ -171,7 +190,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, rawURL, description 
 	if err != nil {
 		return nil, err
 	}
-	if err := e.Update(rawURL, description, types, active); err != nil {
+	if err := e.Update(rawURL, description, types, active, s.validateOpts()...); err != nil {
 		return nil, record(span, err)
 	}
 	if err := s.save(ctx, span, "webhook.Update", e); err != nil {

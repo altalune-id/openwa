@@ -210,6 +210,11 @@ After attempt 8 the delivery is `failed` and stays in the console. Source: `outb
 - If the server's encryption key changed, secrets cannot be opened:
   deliveries fail with `webhook: signing secret unavailable: rotate the endpoint secret to recover` until you rotate. See [`config`](../config/README.md#encryption-at-rest).
 
+## Local development
+
+On a self-hosted install, `OPENWA_WEBHOOK_ALLOWINSECURE=true` allows `http://` and loopback or private endpoints,
+so a receiver on `localhost` works. Off by default, ignored in cloud mode, never set it in production.
+
 ## Versioning
 
 - Within v1, changes are additive only: a new field you may ignore. Ignore unknown fields.

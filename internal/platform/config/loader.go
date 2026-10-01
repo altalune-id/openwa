@@ -122,6 +122,8 @@ func setDefaults(v *viper.Viper) {
 
 	v.SetDefault("dataplane.enabled", true)
 
+	v.SetDefault("webhook.allowInsecure", false)
+
 	v.SetDefault("session.path", filepath.Join(homeDir(), ".openwa", "session.json"))
 
 	v.SetDefault("log.level", "info")
