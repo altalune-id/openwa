@@ -173,9 +173,14 @@ func sendReply(o options, env envelope) error {
 func logDelivery(r *http.Request, body []byte) {
 	log.Printf("--- %s %s ---", r.Method, r.URL.Path) //nolint:gosec // G706: this example deliberately echoes the raw delivery for inspection
 	for _, h := range []string{"Content-Type", "User-Agent", "X-Openwa-Event-Type", "X-Openwa-Event-Id", "X-Openwa-Delivery-Id", "X-Openwa-Timestamp", "X-Openwa-Signature"} {
-		if v := r.Header.Get(h); v != "" {
-			log.Printf("  %s: %q", h, v) //nolint:gosec // G706: this example deliberately echoes the raw delivery for inspection
+		v := r.Header.Get(h)
+		if v == "" {
+			continue
 		}
+		if h == "X-Openwa-Signature" {
+			v = "(present)" // do not log the signature value
+		}
+		log.Printf("  %s: %q", h, v) //nolint:gosec // G706: this example deliberately echoes the raw delivery for inspection
 	}
 	if len(body) > 0 {
 		log.Printf("  body: %s", body) //nolint:gosec // G706: this example deliberately echoes the raw delivery body for inspection

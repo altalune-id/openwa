@@ -7,3 +7,6 @@ lint:
 breaking:
   use:
     - FILE
+  except:
+    # openwa is a fork: go_package legitimately differs from the upstream template (altalune.id/template -> altalune.id/openwa).
+    - FILE_SAME_GO_PACKAGE
