@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/message"
 	"altalune.id/openwa/internal/platform/db"
 	"altalune.id/openwa/internal/platform/events"
 	"altalune.id/openwa/internal/whatsapp"
@@ -14,6 +15,8 @@ import (
 var _ blog.Webhooks = (*Webhooks)(nil)
 
 var _ whatsapp.Webhooks = (*Webhooks)(nil)
+
+var _ message.Webhooks = (*Webhooks)(nil)
 
 // WebhookCall is one recorded Webhooks.Enqueue.
 type WebhookCall struct {

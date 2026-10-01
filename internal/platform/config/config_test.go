@@ -52,6 +52,7 @@ genesis:
 	path := writeTempYAML(t, "cfg.yaml", yaml)
 
 	t.Setenv("OPENWA_HTTP_ADDR", ":8080")
+	t.Setenv("OPENWA_HTTP_BASE_URL", "")
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -92,11 +93,13 @@ log:
 func TestValidate_ModeInvariants(t *testing.T) {
 	base := func() *Config {
 		c := &Config{
-			Mode:     ModeSelfhosted,
-			DB:       validDB(),
-			Genesis:  GenesisConfig{Email: "root@example.com", Password: "x"},
-			Security: validSecurity(),
-			WhatsApp: validWhatsApp(),
+			Mode:      ModeSelfhosted,
+			DB:        validDB(),
+			Genesis:   GenesisConfig{Email: "root@example.com", Password: "x"},
+			Security:  validSecurity(),
+			WhatsApp:  validWhatsApp(),
+			Retention: Defaults().Retention,
+			Media:     Defaults().Media,
 		}
 		c.Tenant.SingletonOrg.Slug = "default"
 		c.Tenant.SingletonOrg.Name = "Default Organization"
@@ -407,6 +410,7 @@ func withRequiredEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("OPENWA_DB_DSN", validDB().DSN)
 	t.Setenv("OPENWA_SECURITY_ENCRYPTION_KEY", validSecurity().EncryptionKey)
+	t.Setenv("OPENWA_HTTP_BASE_URL", "http://127.0.0.1:5150")
 }
 
 func TestSchedulerConfig_Locations(t *testing.T) {
@@ -506,11 +510,13 @@ func TestLoad_FirstRunSlugsHonourEnv(t *testing.T) {
 
 func validSelfhosted() *Config {
 	c := &Config{
-		Mode:     ModeSelfhosted,
-		DB:       validDB(),
-		Genesis:  GenesisConfig{Email: "root@example.com", Password: "x"},
-		Security: validSecurity(),
-		WhatsApp: validWhatsApp(),
+		Mode:      ModeSelfhosted,
+		DB:        validDB(),
+		Genesis:   GenesisConfig{Email: "root@example.com", Password: "x"},
+		Security:  validSecurity(),
+		WhatsApp:  validWhatsApp(),
+		Retention: Defaults().Retention,
+		Media:     Defaults().Media,
 	}
 	c.Tenant.SingletonOrg.Slug = "default"
 	c.Tenant.SingletonOrg.Name = "Default Organization"

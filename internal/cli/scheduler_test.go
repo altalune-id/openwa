@@ -21,6 +21,7 @@ func schedulerBootStub(t *testing.T) cli.ServerBootFn {
 	t.Helper()
 	t.Setenv("OPENWA_DB_DSN", "postgres://openwa:openwa@localhost:5432/openwa?sslmode=disable")
 	t.Setenv("OPENWA_SECURITY_ENCRYPTION_KEY", strings.Repeat("ab", 32))
+	t.Setenv("OPENWA_HTTP_BASE_URL", "http://127.0.0.1")
 	runner, err := scheduler.New(scheduler.Options{Logger: slog.Default()})
 	require.NoError(t, err)
 	require.NoError(t, runner.Register(scheduler.Job{

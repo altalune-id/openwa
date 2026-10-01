@@ -1,6 +1,10 @@
 package whatsapp
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 // MediaMeta is the metadata and decryption material of an inbound media message.
 type MediaMeta struct {
@@ -13,12 +17,17 @@ type MediaMeta struct {
 	MediaKey      []byte
 	FileSHA256    []byte
 	FileEncSHA256 []byte
+	Width         int
+	Height        int
+	Seconds       int
+	Voice         bool
 }
 
 // InboundMessage is an engine-neutral inbound message.
 type InboundMessage struct {
 	ID           string
 	ChatJID      string
+	ChatAlt      string
 	SenderJID    string
 	SenderAltJID string
 	SenderPhone  string
@@ -30,7 +39,9 @@ type InboundMessage struct {
 	Body         string
 	Caption      string
 	Media        *MediaMeta
+	Location     *Location
 	QuotedID     string
+	QuotedSender string
 	Mentions     []string
 	Raw          []byte
 }
@@ -88,4 +99,86 @@ type LinkState struct {
 	ExpiresAt   time.Time
 	StartedAt   time.Time
 	Err         error
+}
+
+// Location is a shared map pin.
+type Location struct {
+	Lat     float64
+	Lng     float64
+	Name    string
+	Address string
+}
+
+// MediaKeys is the decryption material the engine needs to download a file.
+type MediaKeys struct {
+	URL           string
+	DirectPath    string
+	MediaKey      []byte
+	FileSHA256    []byte
+	FileEncSHA256 []byte
+	Length        uint64
+}
+
+// Outbound message kinds.
+const (
+	KindText     = "text"
+	KindImage    = "image"
+	KindVideo    = "video"
+	KindAudio    = "audio"
+	KindDocument = "document"
+	KindLocation = "location"
+	KindReaction = "reaction"
+	KindRevoke   = "revoke"
+	KindEdit     = "edit"
+)
+
+// OutboundMedia is an attachment to upload and send.
+type OutboundMedia struct {
+	Bytes    []byte
+	Mime     string
+	Filename string
+	Caption  string
+	Voice    bool
+}
+
+// OutboundMessage is one send; WAID is fixed by the queue so a resend is idempotent for recipients.
+type OutboundMessage struct {
+	WAID         string
+	Kind         string
+	To           string
+	Text         string
+	Media        *OutboundMedia
+	Location     *Location
+	QuotedWAID   string
+	QuotedSender string
+	QuotedBody   string
+	QuotedRaw    []byte
+	Mentions     []string
+	TargetWAID   string
+	TargetSender string
+	TargetFromMe bool
+}
+
+// OutboundRow is a claimed queue row.
+type OutboundRow struct {
+	ID      uuid.UUID
+	Message OutboundMessage
+}
+
+// SendResult is the engine's acknowledgement of a send; Media carries the upload keys of an attachment so it can be downloaded again.
+type SendResult struct {
+	At      time.Time
+	ChatJID string
+	Media   *MediaKeys
+}
+
+// GroupInfo is what the engine reports about a group.
+type GroupInfo struct {
+	JID          string
+	Name         string
+	Topic        string
+	Participants int
+	Announce     bool
+	Locked       bool
+	InviteLink   string
 }

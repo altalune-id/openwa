@@ -126,6 +126,7 @@ func TestHealthzProbeTarget(t *testing.T) {
 			other, otherHits := healthzRecorder(t)
 
 			sessPath := setSelfhostedEnv(t)
+			t.Setenv("OPENWA_DATAPLANE_ENABLED", "false")
 			_, port, err := net.SplitHostPort(strings.TrimPrefix(local.URL, "http://"))
 			if err != nil {
 				t.Fatalf("split local addr: %v", err)

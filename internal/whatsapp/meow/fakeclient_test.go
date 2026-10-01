@@ -30,6 +30,7 @@ type fakeClient struct {
 	qr          chan whatsmeow.QRChannelItem
 	pn          map[string]string
 	qrCtx       context.Context
+	raw         *whatsmeow.Client
 }
 
 func newFakeClient() *fakeClient {
@@ -148,3 +149,5 @@ func qrCode(code string) whatsmeow.QRChannelItem {
 }
 
 func qrSuccess() whatsmeow.QRChannelItem { return whatsmeow.QRChannelSuccess }
+
+func (f *fakeClient) Raw() *whatsmeow.Client { return f.raw }

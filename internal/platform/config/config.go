@@ -55,6 +55,19 @@ type Config struct {
 	WhatsApp      WhatsAppConfig      `yaml:"whatsapp"      mapstructure:"whatsapp"`
 	Blog          BlogConfig          `yaml:"blog"          mapstructure:"blog"`
 	DataPlane     DataPlaneConfig     `yaml:"dataplane"     mapstructure:"dataplane"`
+	Retention     RetentionConfig     `yaml:"retention"     mapstructure:"retention"`
+	Media         MediaConfig         `yaml:"media"         mapstructure:"media"`
+}
+
+// RetentionConfig sets how long messages are kept when a project has no setting of its own.
+type RetentionConfig struct {
+	MessageDays int `yaml:"messageDays" mapstructure:"messageDays" awareness:"-" validate:"gte=1,lte=365"`
+}
+
+// MediaConfig selects where message media is read from.
+type MediaConfig struct {
+	// NOTE: "wa" fetches from WhatsApp on demand; an object store is a later value.
+	Store string `yaml:"store" mapstructure:"store" awareness:"bootstrap" validate:"oneof=wa"`
 }
 
 // BlogConfig gates the blog data plane's uncredentialed reads.
@@ -120,6 +133,11 @@ type WhatsAppConfig struct {
 	LinkTimeout      time.Duration `yaml:"linkTimeout"      mapstructure:"linkTimeout"      awareness:"-"         validate:"gte=0"`
 	ParkFor          time.Duration `yaml:"parkFor"          mapstructure:"parkFor"          awareness:"-"         validate:"gte=0"`
 	InboundQueueSize int           `yaml:"inboundQueueSize" mapstructure:"inboundQueueSize" awareness:"-"         validate:"gte=0"`
+
+	SendSpacingMin   time.Duration `yaml:"sendSpacingMin"   mapstructure:"sendSpacingMin"   awareness:"-" validate:"gte=0"`
+	SendSpacingMax   time.Duration `yaml:"sendSpacingMax"   mapstructure:"sendSpacingMax"   awareness:"-" validate:"gte=0"`
+	MediaMaxBytes    int64         `yaml:"mediaMaxBytes"    mapstructure:"mediaMaxBytes"    awareness:"-" validate:"gt=0"`
+	TypingBeforeText bool          `yaml:"typingBeforeText" mapstructure:"typingBeforeText" awareness:"-"`
 }
 
 // GenesisConfig configures the built-in admin account.
@@ -319,6 +337,12 @@ func validateInvariants(c *Config) error {
 	if err := validateQueueNeedsURL(c); err != nil {
 		return err
 	}
+	if err := validateSendSpacing(c); err != nil {
+		return err
+	}
+	if err := validateBaseURLNeeded(c); err != nil {
+		return err
+	}
 	switch c.Mode {
 	case ModeSelfhosted:
 		if err := validateSelfhosted(c); err != nil {
@@ -387,6 +411,33 @@ func validateCloudGenesisEmail(c *Config) error {
 func validateQueueNeedsURL(c *Config) error {
 	if c.Queue.Enabled && c.Queue.URL == "" {
 		return errors.New("config: queue.enabled=true requires queue.url (set OPENWA_QUEUE_URL)")
+	}
+	return nil
+}
+
+func validateSendSpacing(c *Config) error {
+	if c.WhatsApp.SendSpacingMax < c.WhatsApp.SendSpacingMin {
+		return fmt.Errorf("config: whatsapp.sendSpacingMax (%s) is below whatsapp.sendSpacingMin (%s) (set %s)", c.WhatsApp.SendSpacingMax, c.WhatsApp.SendSpacingMin, EnvVar("whatsapp.sendSpacingMax"))
+	}
+	return nil
+}
+
+// DataPlaneBaseURLRequiredError reports dataplane.enabled with no http.baseURL for webhook media URLs to point at.
+type DataPlaneBaseURLRequiredError struct{}
+
+func (*DataPlaneBaseURLRequiredError) Error() string {
+	return "config: dataplane.enabled requires http.baseURL: message.received webhooks carry media URLs on the data plane (set OPENWA_HTTP_BASE_URL, or set OPENWA_DATAPLANE_ENABLED=false)"
+}
+
+// IsDataPlaneBaseURLRequiredError reports whether err is a *DataPlaneBaseURLRequiredError.
+func IsDataPlaneBaseURLRequiredError(err error) bool {
+	var target *DataPlaneBaseURLRequiredError
+	return errors.As(err, &target)
+}
+
+func validateBaseURLNeeded(c *Config) error {
+	if c.DataPlane.Enabled && c.HTTP.BaseURL == "" {
+		return &DataPlaneBaseURLRequiredError{}
 	}
 	return nil
 }

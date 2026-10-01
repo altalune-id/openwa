@@ -4,7 +4,10 @@ import (
 	apikeyv1connect "altalune.id/openwa/gen/go/apikey/v1/apikeyv1connect"
 	authv1connect "altalune.id/openwa/gen/go/auth/v1/authv1connect"
 	blogv1connect "altalune.id/openwa/gen/go/blog/v1/blogv1connect"
+	chatv1connect "altalune.id/openwa/gen/go/chat/v1/chatv1connect"
+	contactv1connect "altalune.id/openwa/gen/go/contact/v1/contactv1connect"
 	devicev1connect "altalune.id/openwa/gen/go/device/v1/devicev1connect"
+	messagev1connect "altalune.id/openwa/gen/go/message/v1/messagev1connect"
 	orgv1connect "altalune.id/openwa/gen/go/org/v1/orgv1connect"
 	projectv1connect "altalune.id/openwa/gen/go/project/v1/projectv1connect"
 	todov1connect "altalune.id/openwa/gen/go/todo/v1/todov1connect"
@@ -39,6 +42,22 @@ func ScopeTable() authn.ScopeTable {
 		devicev1connect.DeviceServiceStartLinkProcedure:      authn.ScopeDevicesWrite,
 		devicev1connect.DeviceServiceLinkWithPhoneProcedure:  authn.ScopeDevicesWrite,
 		devicev1connect.DeviceServiceUnlinkProcedure:         authn.ScopeDevicesWrite,
+		messagev1connect.MessageServiceSendProcedure:         authn.ScopeMessagesWrite,
+		messagev1connect.MessageServiceGetProcedure:          authn.ScopeMessagesRead,
+		messagev1connect.MessageServiceListProcedure:         authn.ScopeMessagesRead,
+		messagev1connect.MessageServiceReactProcedure:        authn.ScopeMessagesWrite,
+		messagev1connect.MessageServiceRevokeProcedure:       authn.ScopeMessagesWrite,
+		messagev1connect.MessageServiceEditProcedure:         authn.ScopeMessagesWrite,
+		messagev1connect.MessageServiceMarkReadProcedure:     authn.ScopeMessagesWrite,
+		chatv1connect.ChatServiceListProcedure:               authn.ScopeChatsRead,
+		chatv1connect.ChatServiceGetProcedure:                authn.ScopeChatsRead,
+		chatv1connect.ChatServiceMarkReadProcedure:           authn.ScopeChatsWrite,
+		chatv1connect.ChatServiceListGroupsProcedure:         authn.ScopeChatsRead,
+		chatv1connect.ChatServiceGroupInfoProcedure:          authn.ScopeChatsRead,
+		chatv1connect.ChatServiceJoinGroupProcedure:          authn.ScopeChatsWrite,
+		chatv1connect.ChatServiceLeaveGroupProcedure:         authn.ScopeChatsWrite,
+		contactv1connect.ContactServiceListProcedure:         authn.ScopeContactsRead,
+		contactv1connect.ContactServiceGetProcedure:          authn.ScopeContactsRead,
 		authv1connect.AuthServiceWhoamiProcedure:             authn.ScopeAPIKeysRead,
 	}
 }

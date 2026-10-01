@@ -84,7 +84,7 @@ templ deviceCard(d web.LayoutData, projectSlug string, c DeviceCard) {
 				<dt class="text-xs text-muted-foreground">{ d.Tr("devices.phone") }</dt>
 				<dd>
 					if c.Phone != "" {
-						@CopyButton(d, "+"+c.Phone, d.Tr("common.copy")+": +"+c.Phone)
+						@CopyValue(d, "+"+c.Phone)
 					} else {
 						<span class="text-muted-foreground">—</span>
 					}

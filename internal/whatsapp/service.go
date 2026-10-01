@@ -26,6 +26,7 @@ type SessionRuntime interface {
 	Unlink(ctx context.Context, deviceID uuid.UUID) error
 	Forget(ctx context.Context, ref SessionRef) error
 	Live(deviceID uuid.UUID) bool
+	Held(deviceID uuid.UUID) (SessionRef, EngineSession, bool)
 }
 
 // Webhooks is the port a transition enqueues its outbound event through, inside the transition's unit of work.
@@ -75,8 +76,14 @@ func NewService(store Store, log *slog.Logger, unexpected apperror.UnexpectedFun
 	}
 }
 
-// SetInbound attaches the messaging ports; it is called once, before the runtime runs.
-func (s *Service) SetInbound(in Inbound) { s.inbound = in }
+// SetInbound attaches the messaging ports; it is set once, before the runtime runs.
+func (s *Service) SetInbound(in Inbound) error {
+	if s.inbound != nil {
+		return &SetupError{Reason: "SetInbound called twice"}
+	}
+	s.inbound = in
+	return nil
+}
 
 // StatusByDevices returns one Status per id; a device with no session row reads as unlinked.
 func (s *Service) StatusByDevices(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]Status, error) {

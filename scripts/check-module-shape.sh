@@ -19,7 +19,7 @@ fail=0
 declare -a missing_notes
 
 # List of modules that follow the full store-backed shape.
-STORE_BACKED=(todo user org project invite apikey blog onboard webhook)
+STORE_BACKED=(todo user org project invite apikey blog onboard webhook device chat contact message)
 
 # Modules exempt from store-backed conventions.
 STATELESS=(auth)

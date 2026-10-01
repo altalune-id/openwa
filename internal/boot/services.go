@@ -13,8 +13,11 @@ import (
 	"altalune.id/openwa/internal/blog"
 	"altalune.id/openwa/internal/blog/category"
 	"altalune.id/openwa/internal/blog/tag"
+	"altalune.id/openwa/internal/chat"
+	"altalune.id/openwa/internal/contact"
 	"altalune.id/openwa/internal/device"
 	"altalune.id/openwa/internal/invite"
+	"altalune.id/openwa/internal/message"
 	"altalune.id/openwa/internal/onboard"
 	"altalune.id/openwa/internal/org"
 	"altalune.id/openwa/internal/password"
@@ -60,6 +63,9 @@ type Services struct {
 	Devices    *device.Service
 	WhatsApp   *whatsapp.Service
 	Runtime    *whatsapp.Runtime
+	Chats      *chat.Service
+	Contacts   *contact.Service
+	Messages   *message.Service
 
 	Onboard *user.OnboardWorkflow
 
@@ -108,13 +114,46 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 			LeaseInterval: cfg.WhatsApp.LeaseInterval,
 			LinkTimeout:   cfg.WhatsApp.LinkTimeout,
 			ParkFor:       cfg.WhatsApp.ParkFor,
+			Sender: whatsapp.SenderConfig{
+				SpacingMin:       cfg.WhatsApp.SendSpacingMin,
+				SpacingMax:       cfg.WhatsApp.SendSpacingMax,
+				TypingBeforeText: cfg.WhatsApp.TypingBeforeText,
+			},
 		},
 		log,
 	)
-	whatsappSvc := whatsapp.NewService(whatsapp.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected, uow,
+	waStore := whatsapp.NewStore(cfg.DB, pool, pgConn)
+	whatsappSvc := whatsapp.NewService(waStore, log, reporter.Unexpected, uow,
 		runtime, webhooks, deviceDescriber{store: deviceStore}, time.Now)
 	runtime.Subscribe(whatsappSvc)
 	devices := device.NewService(deviceStore, log, reporter.Unexpected, uow, deviceSessions{svc: whatsappSvc})
+
+	chats := chat.NewService(chat.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected, uow, groupsForChat{wa: whatsappSvc, devices: deviceStore})
+	contacts := contact.NewService(contact.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected)
+	transport := transportForMessage{wa: whatsappSvc}
+	messages := message.NewService(message.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected, uow, message.Deps{
+		Devices:   devicesForMessage{devices: deviceStore, sessions: waStore},
+		Chats:     chatsForMessage{svc: chats},
+		Contacts:  contactsForMessage{svc: contacts},
+		Transport: transport,
+		Media:     message.NewWAMedia(transport, message.DefaultMediaConcurrency, cfg.WhatsApp.MediaMaxBytes),
+		Fetcher:   newMediaFetcher(cfg.WhatsApp.MediaMaxBytes),
+		Waker:     runtime,
+		Webhooks:  webhooks,
+		Tenants:   tenantsForMessage{orgs: orgStore, projects: projectStore},
+	}, message.Options{
+		BaseURL:       strings.TrimRight(cfg.HTTP.BaseURL, "/") + cfg.HTTP.BasePath,
+		MaxMediaBytes: cfg.WhatsApp.MediaMaxBytes,
+		RetentionDays: cfg.Retention.MessageDays,
+		StaleAfter:    whatsapp.StaleAfter(cfg.WhatsApp.SendSpacingMax),
+	})
+	// NOTE: both setters are set-once and run before Runtime.Run and sup.Register, so the fields they write are never raced.
+	if err := runtime.SetOutbound(outboundForRuntime{svc: messages}); err != nil {
+		return nil, fmt.Errorf("boot: whatsapp outbound: %w", err)
+	}
+	if err := whatsappSvc.SetInbound(inboundForWhatsApp{recorder: messages.Recorder(), messages: messages, contacts: contacts}); err != nil {
+		return nil, fmt.Errorf("boot: whatsapp inbound: %w", err)
+	}
 
 	invitesEnabled := cfg.Mode == config.ModeCloud || cfg.OIDC.Issuer != ""
 
@@ -238,6 +277,9 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 		Devices:      devices,
 		WhatsApp:     whatsappSvc,
 		Runtime:      runtime,
+		Chats:        chats,
+		Contacts:     contacts,
+		Messages:     messages,
 		Onboard:      onboardWorkflow,
 		Authn:        chain,
 		KeyAuthn:     keyAuthn,

@@ -1,0 +1,23 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": true
+  },
+  "description": "List the WhatsApp groups a device has joined, with participant counts, plus groups it has left. Omit deviceId when the project has exactly one device.",
+  "inputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "deviceId": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "name": "group_list",
+  "title": "Group list"
+}

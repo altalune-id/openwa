@@ -829,20 +829,41 @@ func copyControl(d web.LayoutData, value, text, label string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "\" class=\"rounded-md font-mono text-xs text-muted-foreground hover:text-foreground\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "\" title=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var42 string
-		templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(text)
+		templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/ui_controls.templ`, Line: 155, Col: 8}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/ui_controls.templ`, Line: 154, Col: 15}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "</button>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "\" class=\"group inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground\"><span data-copy-shown class=\"truncate\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var43 string
+		templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(text)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/ui_controls.templ`, Line: 157, Col: 47}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "</span>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icons.Icon("copy", "h-3.5 w-3.5 shrink-0 opacity-60 transition-opacity group-hover:opacity-100").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "</button>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -866,25 +887,25 @@ func copyScript(nonce string) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var43 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var43 == nil {
-			templ_7745c5c3_Var43 = templ.NopComponent
+		templ_7745c5c3_Var44 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var44 == nil {
+			templ_7745c5c3_Var44 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "<script nonce=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "<script nonce=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var44 string
-		templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.ResolveAttributeValue(nonce)
+		var templ_7745c5c3_Var45 string
+		templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.ResolveAttributeValue(nonce)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/ui_controls.templ`, Line: 159, Col: 22}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/ui_controls.templ`, Line: 163, Col: 22}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var44)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var45)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "\">\n\tif (!window.openwaCopyBound) {\n\twindow.openwaCopyBound = true;\n\tdocument.addEventListener('click', function(e) {\n\t\tif (!e.target || !e.target.closest) return;\n\t\tvar btn = e.target.closest('[data-copy]');\n\t\tif (!btn) return;\n\t\tvar text = btn.getAttribute('data-copy');\n\t\tvar shown = btn.getAttribute('data-copy-text') || text;\n\t\tvar done = function() {\n\t\t\tbtn.textContent = btn.getAttribute('data-copied-label');\n\t\t\tbtn.setAttribute('aria-label', btn.getAttribute('data-copied-label'));\n\t\t\tsetTimeout(function() {\n\t\t\t\tbtn.textContent = shown;\n\t\t\t\tbtn.setAttribute('aria-label', btn.getAttribute('data-copy-label'));\n\t\t\t}, 1500);\n\t\t};\n\t\tif (navigator.clipboard && navigator.clipboard.writeText) {\n\t\t\tnavigator.clipboard.writeText(text).then(done, function() {});\n\t\t\treturn;\n\t\t}\n\t\tvar ta = document.createElement('textarea');\n\t\tta.value = text;\n\t\tta.setAttribute('readonly', '');\n\t\tta.style.position = 'fixed';\n\t\tta.style.opacity = '0';\n\t\tdocument.body.appendChild(ta);\n\t\tta.select();\n\t\ttry { document.execCommand('copy'); done(); } catch (err) {}\n\t\tdocument.body.removeChild(ta);\n\t});\n\t}\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "\">\n\tif (!window.openwaCopyBound) {\n\twindow.openwaCopyBound = true;\n\tdocument.addEventListener('click', function(e) {\n\t\tif (!e.target || !e.target.closest) return;\n\t\tvar btn = e.target.closest('[data-copy]');\n\t\tif (!btn) return;\n\t\tvar text = btn.getAttribute('data-copy');\n\t\tvar shown = btn.getAttribute('data-copy-text') || text;\n\t\tvar shownEl = btn.querySelector('[data-copy-shown]') || btn;\n\t\tvar done = function() {\n\t\t\tshownEl.textContent = btn.getAttribute('data-copied-label');\n\t\t\tbtn.setAttribute('aria-label', btn.getAttribute('data-copied-label'));\n\t\t\tsetTimeout(function() {\n\t\t\t\tshownEl.textContent = shown;\n\t\t\t\tbtn.setAttribute('aria-label', btn.getAttribute('data-copy-label'));\n\t\t\t}, 1500);\n\t\t};\n\t\tif (navigator.clipboard && navigator.clipboard.writeText) {\n\t\t\tnavigator.clipboard.writeText(text).then(done, function() {});\n\t\t\treturn;\n\t\t}\n\t\tvar ta = document.createElement('textarea');\n\t\tta.value = text;\n\t\tta.setAttribute('readonly', '');\n\t\tta.style.position = 'fixed';\n\t\tta.style.opacity = '0';\n\t\tdocument.body.appendChild(ta);\n\t\tta.select();\n\t\ttry { document.execCommand('copy'); done(); } catch (err) {}\n\t\tdocument.body.removeChild(ta);\n\t});\n\t}\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -107,13 +107,22 @@ so its authorization is the RPC's. A device-bound key reaches only its device: a
 that device is served, a project-wide tool (`device_list`, `device_pair` with no `deviceId`) is refused —
 the same `Principal.ReachesResource`/`ReachesWholeProject` rule the RPCs apply.
 
-| Tool            | RPC                           | Scope           | App tool (`_meta`) | Mutation | Destructive |
-| --------------- | ----------------------------- | --------------- | ------------------ | -------- | ----------- |
-| `project_list`  | `ProjectService.ListProjects` | `projects:read` | yes                | no       | no          |
-| `device_list`   | `DeviceService.ListDevices`   | `devices:read`  | yes                | no       | no          |
-| `device_get`    | `DeviceService.GetDevice`     | `devices:read`  | no                 | no       | no          |
-| `device_pair`   | `DeviceService.StartLink`     | `devices:write` | yes                | yes      | no          |
-| `device_logout` | `DeviceService.Unlink`        | `devices:write` | no                 | yes      | yes         |
+| Tool            | RPC                           | Scope            | App tool (`_meta`) | Mutation | Destructive |
+| --------------- | ----------------------------- | ---------------- | ------------------ | -------- | ----------- |
+| `project_list`  | `ProjectService.ListProjects` | `projects:read`  | yes                | no       | no          |
+| `device_list`   | `DeviceService.ListDevices`   | `devices:read`   | yes                | no       | no          |
+| `device_get`    | `DeviceService.GetDevice`     | `devices:read`   | no                 | no       | no          |
+| `device_pair`   | `DeviceService.StartLink`     | `devices:write`  | yes                | yes      | no          |
+| `device_logout` | `DeviceService.Unlink`        | `devices:write`  | no                 | yes      | yes         |
+| `message_send`  | `MessageService.Send`         | `messages:write` | yes                | yes      | no          |
+| `message_list`  | `MessageService.List`         | `messages:read`  | no                 | no       | no          |
+| `chat_list`     | `ChatService.List`            | `chats:read`     | yes                | no       | no          |
+| `contact_list`  | `ContactService.List`         | `contacts:read`  | no                 | no       | no          |
+| `group_list`    | `ChatService.ListGroups`      | `chats:read`     | no                 | no       | no          |
+| `group_join`    | `ChatService.JoinGroup`       | `chats:write`    | no                 | yes      | no          |
+
+A device-bound API key is refused on the messaging tools (`PermissionDenied`), because they enter through the
+project scope, whose reach check a bound key never satisfies; it reaches its device only over the per-device REST verbs (S3).
 
 The Apps UI (`ui://openwa/app`) renders three views: `project_list`, `device_list` and `device_pair`
 (`internal/mcp/ui/src/views/`). `device_get` and `device_logout` are plain tools with no view.

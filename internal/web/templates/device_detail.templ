@@ -71,14 +71,14 @@ templ DeviceDetailPage(d web.LayoutData, v DeviceDetailView) {
 						<div class="col-span-2">
 							<dt class="text-xs text-muted-foreground">{ d.Tr("devices.device_id") }</dt>
 							<dd class="font-mono text-xs">
-								@CopyButton(d, v.ID, d.Tr("common.copy")+": "+v.ID)
+								@CopyValue(d, v.ID)
 							</dd>
 						</div>
 						<div>
 							<dt class="text-xs text-muted-foreground">{ d.Tr("devices.phone") }</dt>
 							<dd>
 								if v.Phone != "" {
-									@CopyButton(d, "+"+v.Phone, d.Tr("common.copy")+": +"+v.Phone)
+									@CopyValue(d, "+"+v.Phone)
 								} else {
 									<span class="text-muted-foreground">—</span>
 								}
@@ -124,7 +124,7 @@ templ DevicePairing(d web.LayoutData, v DevicePairingView) {
 			<div class="space-y-3 text-center">
 				<p class="text-sm text-muted-foreground">{ d.Tr("devices.code_instructions") }</p>
 				<p data-pairing-code class="font-mono text-3xl font-semibold tracking-widest text-foreground">{ v.PairingCode }</p>
-				@CopyButton(d, v.PairingCode, d.Tr("common.copy")+": "+v.PairingCode)
+				@CopyValue(d, v.PairingCode)
 			</div>
 		} else if v.pending() && v.PNGBase64 != "" {
 			<div class="space-y-3 text-center">
@@ -177,6 +177,7 @@ templ deviceRulesCard(d web.LayoutData, v DeviceDetailView) {
 			<input type="hidden" name="version" value={ strconv.Itoa(v.Version) }/>
 			<fieldset aria-describedby="group_mode-error">
 				<legend class="text-sm font-medium text-foreground">{ d.Tr("devices.group_mode") }</legend>
+				<p class="mt-1 text-sm text-muted-foreground">{ d.Tr("devices.group_mode_help") }</p>
 				<div class="mt-2 flex flex-wrap gap-2">
 					@groupModeOption(v.Rules.GroupMode, "ignore", d.Tr("devices.group_mode_ignore"))
 					@groupModeOption(v.Rules.GroupMode, "mention", d.Tr("devices.group_mode_mention"))
@@ -187,18 +188,21 @@ templ deviceRulesCard(d web.LayoutData, v DeviceDetailView) {
 				}
 			</fieldset>
 			@Field(d, FieldProps{ID: "allowed_senders", Label: d.Tr("devices.allowed_senders"), Help: d.Tr("devices.allowed_senders_help"), Error: v.Rules.Errors["allowed_senders"]}) {
-				<textarea name="allowed_senders" rows="3" class={ InputClass() } { InputAttrs(FieldProps{ID: "allowed_senders", Help: d.Tr("devices.allowed_senders_help"), Error: v.Rules.Errors["allowed_senders"]})... }>{ v.Rules.AllowedSenders }</textarea>
+				<textarea name="allowed_senders" rows="3" placeholder={ d.Tr("devices.allowed_senders_ph") } class={ InputClass() } { InputAttrs(FieldProps{ID: "allowed_senders", Help: d.Tr("devices.allowed_senders_help"), Error: v.Rules.Errors["allowed_senders"]})... }>{ v.Rules.AllowedSenders }</textarea>
 			}
 			@Field(d, FieldProps{ID: "allowed_groups", Label: d.Tr("devices.allowed_groups"), Help: d.Tr("devices.allowed_groups_help"), Error: v.Rules.Errors["allowed_groups"]}) {
-				<textarea name="allowed_groups" rows="3" class={ InputClass() } { InputAttrs(FieldProps{ID: "allowed_groups", Help: d.Tr("devices.allowed_groups_help"), Error: v.Rules.Errors["allowed_groups"]})... }>{ v.Rules.AllowedGroups }</textarea>
+				<textarea name="allowed_groups" rows="3" placeholder={ d.Tr("devices.allowed_groups_ph") } class={ InputClass() } { InputAttrs(FieldProps{ID: "allowed_groups", Help: d.Tr("devices.allowed_groups_help"), Error: v.Rules.Errors["allowed_groups"]})... }>{ v.Rules.AllowedGroups }</textarea>
 			}
 			@Field(d, FieldProps{ID: "trigger_prefix", Label: d.Tr("devices.trigger_prefix"), Help: d.Tr("devices.trigger_prefix_help"), Error: v.Rules.Errors["trigger_prefix"]}) {
 				<input type="text" name="trigger_prefix" value={ v.Rules.TriggerPrefix } maxlength="16" class={ InputClass() } { InputAttrs(FieldProps{ID: "trigger_prefix", Help: d.Tr("devices.trigger_prefix_help"), Error: v.Rules.Errors["trigger_prefix"]})... }/>
 			}
-			<label class="flex items-center gap-2 text-sm text-foreground">
-				<input type="checkbox" name="ignore_from_me" value="1" checked?={ v.Rules.IgnoreFromMe }/>
-				<span>{ d.Tr("devices.ignore_from_me") }</span>
-			</label>
+			<div>
+				<label class="flex items-center gap-2 text-sm text-foreground">
+					<input type="checkbox" name="ignore_from_me" value="1" checked?={ v.Rules.IgnoreFromMe }/>
+					<span>{ d.Tr("devices.ignore_from_me") }</span>
+				</label>
+				<p class="mt-1 text-sm text-muted-foreground">{ d.Tr("devices.ignore_from_me_help") }</p>
+			</div>
 			@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.save_rules")})
 		</form>
 	}

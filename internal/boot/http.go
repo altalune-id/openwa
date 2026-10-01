@@ -15,6 +15,8 @@ import (
 	"altalune.id/openwa/internal/apikey"
 	"altalune.id/openwa/internal/apperror"
 	"altalune.id/openwa/internal/auth"
+	"altalune.id/openwa/internal/chat"
+	"altalune.id/openwa/internal/contact"
 	"altalune.id/openwa/internal/controlplane"
 	"altalune.id/openwa/internal/dataplane"
 	"altalune.id/openwa/internal/device"
@@ -22,6 +24,7 @@ import (
 	"altalune.id/openwa/internal/ingest"
 	"altalune.id/openwa/internal/invite"
 	"altalune.id/openwa/internal/legal"
+	"altalune.id/openwa/internal/message"
 	"altalune.id/openwa/internal/onboard"
 	"altalune.id/openwa/internal/org"
 	"altalune.id/openwa/internal/platform"
@@ -42,6 +45,7 @@ func buildAPIHandler(cfg *config.Config, k *platform.Kernel, s *Services) (*cont
 	srv.Authn = s.Authn
 	srv.KeyPrefix = s.KeyAuthn.Scheme().Prefix()
 	srv.APIKeys = s.APIKeys
+	srv.Messages, srv.Chats, srv.Contacts = s.Messages, s.Chats, s.Contacts
 	if !cfg.API.Enabled {
 		return srv, nil
 	}
@@ -59,9 +63,14 @@ func buildDataHandler(cfg *config.Config, caps capabilities.Capabilities, slogge
 		Projects: projectServiceForDataplane{svc: s.Projects},
 		Posts:    blogServiceForDataplane{svc: s.Posts},
 		Devices:  deviceServiceForDataplane{svc: s.Devices},
-		Authz:    s.KeyAuthn,
-		Caps:     caps,
-		Log:      slogger,
+		Messages: messagesForDataplane{svc: s.Messages, chats: s.Chats, devices: s.Devices},
+		Chats:    chatsForDataplane{svc: s.Chats, devices: s.Devices},
+		Contacts: contactsForDataplane{svc: s.Contacts, devices: s.Devices},
+
+		MaxMediaBytes: cfg.WhatsApp.MediaMaxBytes,
+		Authz:         s.KeyAuthn,
+		Caps:          caps,
+		Log:           slogger,
 	})
 }
 
@@ -89,6 +98,9 @@ func buildWebHandler(
 	apiKeys *apikey.Service,
 	webhooks *webhook.Service,
 	devices *device.Service,
+	chats *chat.Service,
+	messages *message.Service,
+	contacts *contact.Service,
 	required *atomic.Bool,
 	onComplete func(ctx context.Context),
 	setupToken string,
@@ -111,8 +123,11 @@ func buildWebHandler(
 	homeHandler := webhandlers.NewHomeHandler(deps, orgs, projects)
 	orgHandler := webhandlers.NewOrgHandler(deps, orgs)
 	projectHandler := webhandlers.NewProjectHandler(deps, projects)
-	overviewHandler := webhandlers.NewProjectOverviewHandler(deps, projects, devices)
+	overviewHandler := webhandlers.NewProjectOverviewHandler(deps, projects, devices, messages)
 	deviceHandler := webhandlers.NewDeviceHandler(deps, projects, devices)
+	inboxHandler := webhandlers.NewInboxHandler(deps, projects, chats, messages, devices, cfg.WhatsApp.MediaMaxBytes)
+	contactsHandler := webhandlers.NewContactsHandler(deps, projects, contacts, devices)
+	settingsHandler := webhandlers.NewSettingsHandler(deps, projects, messages)
 	apiKeyHandler := webhandlers.NewAPIKeyHandler(deps, projects, apiKeys)
 	webhookHandler := webhandlers.NewWebhookHandler(deps, projects, webhooks)
 	inviteHandler := webhandlers.NewInviteHandler(deps, orgs, invites)
@@ -127,7 +142,7 @@ func buildWebHandler(
 		BasePath: cfg.HTTP.BasePath,
 		HealthOK: healthOK,
 		AppHandlers: []web.Register{
-			authHandler, onboardingHandler, onboardHandler, homeHandler, orgHandler, projectHandler, overviewHandler, deviceHandler, apiKeyHandler, webhookHandler, inviteHandler, localeHandler, welcomeHandler, signupHandler, legalHandler,
+			authHandler, onboardingHandler, onboardHandler, homeHandler, orgHandler, projectHandler, overviewHandler, deviceHandler, inboxHandler, contactsHandler, settingsHandler, apiKeyHandler, webhookHandler, inviteHandler, localeHandler, welcomeHandler, signupHandler, legalHandler,
 		},
 		APIHandler:         apiHandler,
 		DataHandler:        dataHandler,

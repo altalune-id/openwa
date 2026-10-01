@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"altalune.id/openwa/internal/device"
+	"altalune.id/openwa/internal/message"
 	"altalune.id/openwa/internal/project"
 	"altalune.id/openwa/internal/web"
 	"altalune.id/openwa/internal/web/templates"
@@ -12,13 +13,14 @@ import (
 // ProjectOverviewHandler serves the project landing page.
 type ProjectOverviewHandler struct {
 	Deps
-	Devices *device.Service
+	Devices  *device.Service
+	Messages *message.Service
 }
 
-// NewProjectOverviewHandler wires the project overview page; devices may be nil.
-func NewProjectOverviewHandler(d Deps, projects *project.Service, devices *device.Service) *ProjectOverviewHandler {
+// NewProjectOverviewHandler wires the project overview page; devices and messages may be nil.
+func NewProjectOverviewHandler(d Deps, projects *project.Service, devices *device.Service, messages *message.Service) *ProjectOverviewHandler {
 	d.Projects = projects
-	return &ProjectOverviewHandler{Deps: d, Devices: devices}
+	return &ProjectOverviewHandler{Deps: d, Devices: devices, Messages: messages}
 }
 
 // Register mounts the overview route.
@@ -50,6 +52,13 @@ func (h *ProjectOverviewHandler) GetOverview(w http.ResponseWriter, r *http.Requ
 				v.DevicesConnected++
 			}
 		}
+	}
+	if h.Messages != nil {
+		n, err := h.Messages.CountToday(sc.req.Context())
+		if err != nil {
+			h.LogErr("web overview: messages today", err)
+		}
+		v.MessagesToday = int(n)
 	}
 	Render(w, sc.req, templates.OverviewLayout(
 		h.LayoutForProject(sc.req, "Overview", sc.org.Slug, sc.project, "overview"),

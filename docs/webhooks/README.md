@@ -72,6 +72,9 @@ Source of truth: `internal/platform/events` (`catalog.go`, `payloads.go`, golden
 | `device.connected`      | yes              | a device's session becomes connected (not on keepalive blips or reconnects that never left connected) | `DeviceConnectedV1`    |
 | `device.disconnected`   | yes              | a connected session loses its connection                                                              | `DeviceDisconnectedV1` |
 | `device.logged_out`     | yes              | the account is logged out from the phone or through Logout                                            | `DeviceLoggedOutV1`    |
+| `message.received`      | yes              | a device receives a message from someone else                                                         | `MessageEventV1`       |
+| `message.matched`       | yes              | a received message also passes the device's inbound rules                                             | `MessageEventV1`       |
+| `message.status`        | yes              | an outbound message is sent, delivered, read, played or fails                                         | `MessageStatusV1`      |
 | `webhook.ping`          | no — "Send test" | the console sends a test to one endpoint                                                              | `WebhookPingV1`        |
 
 - A no-op publish or unpublish sends nothing. An edit sends nothing: v1 has no `updated` event.
@@ -86,6 +89,17 @@ Source of truth: `internal/platform/events` (`catalog.go`, `payloads.go`, golden
 
 - `device.id` is the device's public id (`dev_` + 16 characters), the same id every API and the console use; the internal UUID never appears.
 - Device events fire only on real transitions; reasons are `network`, `stream_replaced`, `temp_ban_<code>`, `client_outdated`, `connect_failure_<code>`, `lease_lost`, `open_failed: …`, `logged_out_by_phone`, `unlinked`, `device_missing`.
+- `message.received` fires for every inbound message; `message.matched` fires in addition, with
+  `matched.reasons`, when the device's inbound rules pass. Subscribe an AI agent to `matched` only.
+- A message the account sends from its phone is stored but emits neither event.
+- `message.status` fires once per transition: `sent` when WhatsApp acknowledges, `delivered`,
+  `read` and `played` from receipts (monotonic; an earlier receipt is ignored), `failed` only
+  when the send is not retryable or its three attempts ran out.
+- `sender.phone` is digits without `+`, empty when WhatsApp hides the number (a LID-only sender).
+  `message.media.url` (host: `http.baseURL`) requires an API key with `messages:read` on the device;
+  sent and received media both answer `410 gone` once WhatsApp's CDN drops the file.
+- Integrator walk-through, with every payload: [integration guide](../integration/README.md#events).
+- Payloads: `internal/platform/events/testdata/message_{received,matched,status}_v1.golden.json`.
 
 ## Headers
 

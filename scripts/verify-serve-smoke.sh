@@ -57,6 +57,7 @@ export OPENWA_DB_AUTO_MIGRATE=true
 export OPENWA_DB_ALLOW_BYPASS_RLS=true
 export OPENWA_SECURITY_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 export OPENWA_HTTP_ADDR="$ADDR"
+export OPENWA_HTTP_BASE_URL="http://${ADDR}"
 export OPENWA_SESSION_PATH="${tmpdir}/session.json"
 export OPENWA_MAIL_DRIVER=console
 export OPENWA_GENESIS_EMAIL="admin@openwa.local"

@@ -2,6 +2,7 @@ package whatsapp
 
 import (
 	"context"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -61,6 +62,34 @@ type EngineSession interface {
 	Unlink(ctx context.Context) error
 	Close(ctx context.Context) error
 	Connected() bool
+}
+
+// MessagingSession is the messaging half of an open session; the runtime type-asserts it from EngineSession.
+type MessagingSession interface {
+	Send(ctx context.Context, out OutboundMessage) (SendResult, error)
+	MarkRead(ctx context.Context, chat, sender string, waIDs []string, played bool) error
+	SendTyping(ctx context.Context, chat string, on bool) error
+	FetchMedia(ctx context.Context, keys MediaKeys, kind string) (*os.File, error)
+	IsOnWhatsApp(ctx context.Context, phones []string) (map[string]string, error)
+	GroupList(ctx context.Context) ([]GroupInfo, error)
+	GroupInfo(ctx context.Context, jid string) (GroupInfo, error)
+	GroupJoin(ctx context.Context, link string) (string, error)
+	GroupLeave(ctx context.Context, jid string) error
+}
+
+// Outbound is the durable queue the sender drains; the message module implements it.
+type Outbound interface {
+	// ClaimNext returns the device's next row, or nil when the queue is empty.
+	ClaimNext(ctx context.Context, deviceID uuid.UUID) (*OutboundRow, error)
+	MarkSent(ctx context.Context, id uuid.UUID, at time.Time, media *MediaKeys) error
+	MarkFailed(ctx context.Context, id uuid.UUID, err error, retryable bool) error
+	// Requeue returns a claimed row that never reached the engine, without using an attempt.
+	Requeue(ctx context.Context, id uuid.UUID) error
+}
+
+// Waker nudges one device's sender.
+type Waker interface {
+	Wake(deviceID uuid.UUID)
 }
 
 // EventSink receives engine-neutral events, called from a session's own engine goroutine (never concurrently for one session); implementations must return promptly and never block the engine.

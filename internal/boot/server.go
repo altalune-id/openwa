@@ -21,9 +21,12 @@ import (
 	"altalune.id/openwa/internal/blog"
 	"altalune.id/openwa/internal/blog/category"
 	"altalune.id/openwa/internal/blog/tag"
+	"altalune.id/openwa/internal/chat"
+	"altalune.id/openwa/internal/contact"
 	"altalune.id/openwa/internal/controlplane"
 	"altalune.id/openwa/internal/device"
 	"altalune.id/openwa/internal/invite"
+	"altalune.id/openwa/internal/message"
 	"altalune.id/openwa/internal/onboard"
 	"altalune.id/openwa/internal/org"
 	"altalune.id/openwa/internal/platform"
@@ -80,6 +83,9 @@ type Server struct {
 	Devices    *device.Service
 	WhatsApp   *whatsapp.Service
 	Runtime    *whatsapp.Runtime
+	Chats      *chat.Service
+	Contacts   *contact.Service
+	Messages   *message.Service
 
 	Onboard *user.OnboardWorkflow
 
@@ -349,7 +355,7 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 
 	webHandler, webRoutes := buildWebHandler(cfg, kernel, caps, log, reporter, healthOK,
 		svcs.Auth, svcs.Users, svcs.Orgs, svcs.Projects, svcs.Invites, svcs.Onboards,
-		svcs.APIKeys, svcs.Webhooks, svcs.Devices, required, gate.Complete, setup, apiHandler, dataHandler, mcpSurf, bundle, defaultLoc)
+		svcs.APIKeys, svcs.Webhooks, svcs.Devices, svcs.Chats, svcs.Messages, svcs.Contacts, required, gate.Complete, setup, apiHandler, dataHandler, mcpSurf, bundle, defaultLoc)
 
 	httpHandler := webHandler
 	if o.schedulerOnly || o.consumerOnly {
@@ -377,6 +383,9 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 		Devices:            svcs.Devices,
 		WhatsApp:           svcs.WhatsApp,
 		Runtime:            svcs.Runtime,
+		Chats:              svcs.Chats,
+		Contacts:           svcs.Contacts,
+		Messages:           svcs.Messages,
 		Onboarded:          onboarded,
 		Routes:             webRoutes,
 		SetupToken:         setup,

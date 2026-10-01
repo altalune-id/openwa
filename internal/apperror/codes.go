@@ -117,4 +117,23 @@ const (
 	CodeWhatsAppInvalidPhone    = "WAS007"
 	CodeWhatsAppSessionGone     = "WAS008"
 	CodeWhatsAppEngine          = "WAS009"
+
+	CodeMessageNotFound         = "MSG001"
+	CodeMessageInvalidInput     = "MSG002"
+	CodeMessageDeviceNotLinked  = "MSG003"
+	CodeMessageMediaTooLarge    = "MSG004"
+	CodeMessageUnsupportedMime  = "MSG005"
+	CodeMessageEditWindowClosed = "MSG006"
+	CodeMessageNotOwn           = "MSG007"
+	CodeMessageVersionMismatch  = "MSG008"
+	CodeMessageMediaUnavailable = "MSG009"
+	CodeMessageInvalidRetention = "MSG010"
+	CodeMessageMediaFetch       = "MSG011"
+
+	CodeChatNotFound        = "CHT001"
+	CodeChatVersionMismatch = "CHT002"
+	CodeChatInvalidJID      = "CHT003"
+	CodeChatNotAGroup       = "CHT004"
+
+	CodeContactNotFound = "CNT001"
 )

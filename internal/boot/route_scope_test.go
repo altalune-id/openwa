@@ -42,6 +42,8 @@ func probeRoutes() []probeRoute {
 	)
 	id := uuid.NewString()
 	devID := "dev_ProbeDevice00001"
+	probeChatID := "cht_ProbeChat0000001"
+	probeMessageID := "msg_ProbeMessage0001"
 	return []probeRoute{
 		{http.MethodGet, "/", nil},
 		{http.MethodGet, "/login", nil},
@@ -65,6 +67,14 @@ func probeRoutes() []probeRoute {
 		{http.MethodGet, pbase + "/devices/new", nil},
 		{http.MethodGet, pbase + "/devices/" + devID, nil},
 		{http.MethodGet, pbase + "/devices/" + devID + "/links/current", nil},
+		{http.MethodGet, pbase + "/inbox", nil},
+		{http.MethodGet, pbase + "/inbox/chats", nil},
+		{http.MethodGet, pbase + "/inbox/chats/" + probeChatID, nil},
+		{http.MethodGet, pbase + "/inbox/chats/" + probeChatID + "/messages", nil},
+		{http.MethodGet, pbase + "/inbox/messages/" + probeMessageID + "/media", nil},
+		{http.MethodGet, pbase + "/inbox/new", nil},
+		{http.MethodGet, pbase + "/contacts", nil},
+		{http.MethodGet, pbase + "/settings", nil},
 		{http.MethodGet, pbase + "/apikeys", nil},
 		{http.MethodGet, pbase + "/webhooks", nil},
 		{http.MethodGet, pbase + "/webhooks/new", nil},
@@ -100,6 +110,12 @@ func probeRoutes() []probeRoute {
 		{http.MethodPost, pbase + "/devices/" + devID + "/rules", url.Values{"version": {"1"}, "group_mode": {"mention"}}},
 		{http.MethodPost, pbase + "/devices/" + devID + "/rename", url.Values{"version": {"1"}, "name": {"Renamed"}}},
 		{http.MethodPost, pbase + "/devices/" + devID + "/delete", url.Values{}},
+		{http.MethodPost, pbase + "/inbox/chats/" + probeChatID + "/messages", url.Values{"text": {"probe"}}},
+		{http.MethodPost, pbase + "/inbox/chats/" + probeChatID + "/read", url.Values{}},
+		{http.MethodPost, pbase + "/inbox/messages/" + probeMessageID + "/reactions", url.Values{"emoji": {"👍"}}},
+		{http.MethodPost, pbase + "/inbox/messages/" + probeMessageID + "/revoke", url.Values{}},
+		{http.MethodPost, pbase + "/settings/retention", url.Values{"days": {"30"}}},
+		{http.MethodPost, pbase + "/inbox/new", url.Values{"device": {"dev_ProbeDevice00001"}, "phone": {"628111"}, "text": {"probe"}}},
 		{http.MethodPost, pbase + "/apikeys", url.Values{"name": {"Probe Key"}, "scopes": {"posts:read"}}},
 		{http.MethodPost, pbase + "/apikeys/" + id + "/revoke", url.Values{}},
 		{http.MethodPost, pbase + "/webhooks", url.Values{
@@ -275,6 +291,8 @@ func templatize(path string) string {
 	}
 	path = strings.Replace(path, "/deliveries/{id}", "/deliveries/{did}", 1)
 	path = strings.Replace(path, "/devices/dev_ProbeDevice00001", "/devices/{device}", 1)
+	path = strings.Replace(path, "/inbox/chats/cht_ProbeChat0000001", "/inbox/chats/{chat}", 1)
+	path = strings.Replace(path, "/inbox/messages/msg_ProbeMessage0001", "/inbox/messages/{message}", 1)
 	if path == "/" {
 		return "/{$}"
 	}

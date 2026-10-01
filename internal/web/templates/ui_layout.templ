@@ -128,3 +128,22 @@ templ Poll(d web.LayoutData, p PollProps) {
 		</div>
 	}
 }
+
+// SplitPaneProps configures SplitPane.
+type SplitPaneProps struct {
+	ID     string
+	List   templ.Component
+	Detail templ.Component
+}
+
+// SplitPane renders a list column beside a detail section that stacks below the lg breakpoint.
+templ SplitPane(p SplitPaneProps) {
+	<div id={ p.ID } class="flex flex-col gap-4 lg:flex-row lg:items-start">
+		<aside class="w-full shrink-0 lg:w-80">
+			@p.List
+		</aside>
+		<section id={ p.ID + "-detail" } aria-live="polite" class="min-w-0 flex-1">
+			@p.Detail
+		</section>
+	</div>
+}

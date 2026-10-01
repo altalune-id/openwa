@@ -16,6 +16,10 @@ const (
 	DeviceConnected    Type = "device.connected"
 	DeviceDisconnected Type = "device.disconnected"
 	DeviceLoggedOut    Type = "device.logged_out"
+
+	MessageReceived Type = "message.received"
+	MessageMatched  Type = "message.matched"
+	MessageStatus   Type = "message.status"
 )
 
 // Spec is one catalog entry.
@@ -37,6 +41,9 @@ func All() []Spec {
 		{Type: DeviceConnected, Version: 1, Subscribable: true},
 		{Type: DeviceDisconnected, Version: 1, Subscribable: true},
 		{Type: DeviceLoggedOut, Version: 1, Subscribable: true},
+		{Type: MessageReceived, Version: 1, Subscribable: true},
+		{Type: MessageMatched, Version: 1, Subscribable: true},
+		{Type: MessageStatus, Version: 1, Subscribable: true},
 		{Type: WebhookPing, Version: 1},
 	}
 }
@@ -92,6 +99,14 @@ func CheckPayload(t Type, data any) error {
 		}
 	case DeviceLoggedOut:
 		if _, ok := data.(DeviceLoggedOutV1); !ok {
+			return &PayloadMismatchError{Type: t, Data: data}
+		}
+	case MessageReceived, MessageMatched:
+		if _, ok := data.(MessageEventV1); !ok {
+			return &PayloadMismatchError{Type: t, Data: data}
+		}
+	case MessageStatus:
+		if _, ok := data.(MessageStatusV1); !ok {
 			return &PayloadMismatchError{Type: t, Data: data}
 		}
 	default:

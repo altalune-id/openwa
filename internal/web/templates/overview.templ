@@ -26,7 +26,6 @@ templ OverviewPage(d web.LayoutData, v OverviewView) {
 			<span aria-hidden="true" class="text-muted-foreground/70">·</span>
 			@CopyValue(d, v.ProjectID)
 		</div>
-		@copyScript(d.Nonce)
 		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 			@StatCard(d.Tr("overview.devices"), d.Tr("overview.devices_value", "Total", v.Devices, "Connected", v.DevicesConnected))
 			@StatCard(d.Tr("overview.messages_today"), strconv.Itoa(v.MessagesToday))

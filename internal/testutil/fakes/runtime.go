@@ -25,6 +25,8 @@ type Runtime struct {
 	Phones  []string
 	Unlinks []uuid.UUID
 	Forgets []whatsapp.SessionRef
+
+	held map[uuid.UUID]heldSession
 }
 
 // NewRuntime returns a Runtime whose Link answers a pending QR attempt.
@@ -93,4 +95,26 @@ func (f *Runtime) Live(deviceID uuid.UUID) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.LiveSet[deviceID]
+}
+
+// Hold makes the fake report sess as held under ref.
+func (f *Runtime) Hold(ref whatsapp.SessionRef, sess whatsapp.EngineSession) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.held == nil {
+		f.held = map[uuid.UUID]heldSession{}
+	}
+	f.held[ref.DeviceID] = heldSession{ref: ref, sess: sess}
+}
+
+func (f *Runtime) Held(deviceID uuid.UUID) (whatsapp.SessionRef, whatsapp.EngineSession, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	h, ok := f.held[deviceID]
+	return h.ref, h.sess, ok
+}
+
+type heldSession struct {
+	ref  whatsapp.SessionRef
+	sess whatsapp.EngineSession
 }

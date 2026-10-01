@@ -1,0 +1,8 @@
+{
+  "chats": [
+    { "id": "cht_Bd7Kq2Wm9Xp4Lz3a", "deviceId": "dev_SalesDevice00001", "jid": "628111222333@s.whatsapp.net", "kind": "dm", "name": "Budi", "lastMessageAt": "2026-09-28T09:00:00Z", "lastMessagePreview": "Terima kasih!", "unreadCount": 2 },
+    { "id": "cht_Gr5Tn8Vc1Hs6Jq0b", "deviceId": "dev_SalesDevice00001", "jid": "120363000000000001@g.us", "kind": "group", "name": "Ops", "lastMessageAt": "2026-09-27T18:30:00Z", "lastMessagePreview": "Shift report" },
+    { "id": "cht_Wx2Yn6Pq8Rt1Uv4c", "deviceId": "dev_SalesDevice00001", "jid": "120363000000000002@g.us", "kind": "group", "name": "Old group", "archived": true }
+  ],
+  "nextCursor": "AAAA"
+}

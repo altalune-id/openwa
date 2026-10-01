@@ -1,0 +1,101 @@
+{
+  "_meta": {
+    "ui": {
+      "resourceUri": "ui://openwa/app"
+    }
+  },
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false
+  },
+  "description": "Send a WhatsApp message: text, media (by url, or base64 data up to 4 MiB) or a location. to is a phone number with its country code (digits) or a JID. Omit deviceId when the project has exactly one device. The message is queued; its status moves to sent, delivered and read.",
+  "inputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "deviceId": {
+        "description": "Device public id (dev_...); omit when the project has exactly one device",
+        "type": "string"
+      },
+      "location": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "lat": {
+            "type": "number"
+          },
+          "lng": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "markReadFirst": {
+        "description": "Mark the chat read before sending",
+        "type": "boolean"
+      },
+      "media": {
+        "additionalProperties": false,
+        "properties": {
+          "caption": {
+            "type": "string"
+          },
+          "data": {
+            "description": "File content; up to whatsapp.mediaMaxBytes on the RPC and 4 MiB through MCP; use url for larger files",
+            "format": "byte",
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "url": {
+            "description": "Public http(s) URL the server downloads",
+            "type": "string"
+          },
+          "voice": {
+            "description": "Send audio/ogg as a voice note",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "mentions": {
+        "description": "Phone numbers (digits) mentioned in the text as @\u003cdigits\u003e",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "projectId": {
+        "description": "UUID of the project; omit to use the credential's active project",
+        "type": "string"
+      },
+      "replyTo": {
+        "description": "A message public id (msg_...) or a WhatsApp message id to quote",
+        "type": "string"
+      },
+      "text": {
+        "type": "string"
+      },
+      "to": {
+        "description": "Recipient: phone number with country code (e.g. 628123456789) or a JID",
+        "type": "string"
+      }
+    },
+    "required": [
+      "to"
+    ],
+    "type": "object"
+  },
+  "name": "message_send",
+  "title": "Message send"
+}

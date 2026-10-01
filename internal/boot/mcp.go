@@ -93,7 +93,7 @@ func buildMCPSurface(ctx context.Context, cfg *config.Config, log *slog.Logger, 
 
 	guard := mcpinternal.Authenticate(chain, s.KeyAuthn.Scheme().Authn(), surface.MetadataURL, log)
 	return mcpSurface{
-		Handler:         guard(srv.Handler()),
+		Handler:         http.MaxBytesHandler(guard(srv.Handler()), rootmcp.MaxRequestBodyBytes),
 		Metadata:        mcpinternal.MetadataHandler(surface.Resource, []string{cfg.Tokens.Issuer}, registeredScopes(registry)),
 		MetadataPath:    surface.MetadataPath,
 		ChallengeRoutes: challenge,

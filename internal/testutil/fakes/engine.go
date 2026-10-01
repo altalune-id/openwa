@@ -19,7 +19,9 @@ type Engine struct {
 	purgeErr   error
 	calls      []whatsapp.SessionRef
 	opened     []*EngineSession
-	purged     []whatsapp.SessionRef
+	// OpenFn, when set, replaces the default scripted session for Open.
+	OpenFn func(ctx context.Context, ref whatsapp.SessionRef, sink whatsapp.EventSink) (whatsapp.EngineSession, error)
+	purged []whatsapp.SessionRef
 }
 
 // NewEngine returns an Engine that opens every session successfully.
@@ -70,6 +72,12 @@ func (e *Engine) Open(ctx context.Context, ref whatsapp.SessionRef, sink whatsap
 		if err := hook(ctx, ref); err != nil {
 			return nil, err
 		}
+	}
+	e.mu.Lock()
+	openFn := e.OpenFn
+	e.mu.Unlock()
+	if openFn != nil {
+		return openFn(ctx, ref, sink)
 	}
 	s := &EngineSession{Ref: ref, Sink: sink, LinkCh: make(chan whatsapp.LinkEvent, 16), PhoneCode: "ABCD-EFGH", phoneGate: gate}
 	if ref.JID == "" {

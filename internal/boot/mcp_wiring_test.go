@@ -39,9 +39,9 @@ func TestEveryAnnotatedProtoToolIsRegistered(t *testing.T) {
 	}
 }
 
-func TestMCPToolDomains_AreDeviceOrgAndProject(t *testing.T) {
+func TestMCPToolDomains_AreTheSixDomains(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, []string{"device.v1", "org.v1", "project.v1"}, mcpToolDomains())
+	require.Equal(t, []string{"chat.v1", "contact.v1", "device.v1", "message.v1", "org.v1", "project.v1"}, mcpToolDomains())
 }
 
 func TestAssertMCPWiringFailsOnAMissingOrUndeclaredSlot(t *testing.T) {

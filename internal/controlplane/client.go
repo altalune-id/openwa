@@ -10,7 +10,10 @@ import (
 
 	authv1connect "altalune.id/openwa/gen/go/auth/v1/authv1connect"
 	blogv1connect "altalune.id/openwa/gen/go/blog/v1/blogv1connect"
+	chatv1connect "altalune.id/openwa/gen/go/chat/v1/chatv1connect"
+	contactv1connect "altalune.id/openwa/gen/go/contact/v1/contactv1connect"
 	devicev1connect "altalune.id/openwa/gen/go/device/v1/devicev1connect"
+	messagev1connect "altalune.id/openwa/gen/go/message/v1/messagev1connect"
 	todov1connect "altalune.id/openwa/gen/go/todo/v1/todov1connect"
 )
 
@@ -23,6 +26,10 @@ type Client struct {
 	Todo   todov1connect.TodoServiceClient
 	Blog   blogv1connect.BlogServiceClient
 	Device devicev1connect.DeviceServiceClient
+
+	Message messagev1connect.MessageServiceClient
+	Chat    chatv1connect.ChatServiceClient
+	Contact contactv1connect.ContactServiceClient
 }
 
 // NewClient builds a Client pointing at baseURL; a non-empty token becomes the Bearer header.
@@ -37,6 +44,10 @@ func NewClient(baseURL, token string) *Client {
 		Todo:   todov1connect.NewTodoServiceClient(httpClient, base, opts...),
 		Blog:   blogv1connect.NewBlogServiceClient(httpClient, base, opts...),
 		Device: devicev1connect.NewDeviceServiceClient(httpClient, base, opts...),
+
+		Message: messagev1connect.NewMessageServiceClient(httpClient, base, opts...),
+		Chat:    chatv1connect.NewChatServiceClient(httpClient, base, opts...),
+		Contact: contactv1connect.NewContactServiceClient(httpClient, base, opts...),
 	}
 }
 

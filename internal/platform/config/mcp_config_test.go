@@ -8,11 +8,13 @@ import (
 
 func mcpTestConfig() *Config {
 	c := &Config{
-		Mode:     ModeSelfhosted,
-		DB:       validDB(),
-		Genesis:  GenesisConfig{Email: "root@example.com", Password: "x"},
-		Security: validSecurity(),
-		WhatsApp: validWhatsApp(),
+		Mode:      ModeSelfhosted,
+		DB:        validDB(),
+		Genesis:   GenesisConfig{Email: "root@example.com", Password: "x"},
+		Security:  validSecurity(),
+		WhatsApp:  validWhatsApp(),
+		Retention: Defaults().Retention,
+		Media:     Defaults().Media,
 	}
 	c.Tenant.SingletonOrg.Slug = "default"
 	c.Tenant.SingletonOrg.Name = "Default Organization"

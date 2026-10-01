@@ -113,6 +113,7 @@ type mcpFixture struct {
 	readKey   string
 	noneKey   string
 	deviceKey string
+	msgKey    string
 }
 
 func newMCPFixture(t *testing.T, opts mcpOpts) *mcpFixture {
@@ -165,6 +166,11 @@ func newMCPFixture(t *testing.T, opts mcpOpts) *mcpFixture {
 	require.NoError(t, err)
 	_, deviceKey, err := srv.APIKeys.Mint(projCtx, "mcp-devices", []string{authn.ScopeDevicesRead, authn.ScopeDevicesWrite, authn.ScopeProjectsRead}, nil, soon())
 	require.NoError(t, err)
+	_, msgKey, err := srv.APIKeys.Mint(projCtx, "mcp-messaging", []string{
+		authn.ScopeMessagesRead, authn.ScopeMessagesWrite, authn.ScopeChatsRead, authn.ScopeChatsWrite,
+		authn.ScopeContactsRead, authn.ScopeProjectsRead,
+	}, nil, soon())
+	require.NoError(t, err)
 	_, noneKey, err := srv.APIKeys.Mint(projCtx, "mcp-keys-only", []string{authn.ScopeAPIKeysRead}, nil, soon())
 	require.NoError(t, err)
 
@@ -176,6 +182,7 @@ func newMCPFixture(t *testing.T, opts mcpOpts) *mcpFixture {
 		readKey:   readKey,
 		noneKey:   noneKey,
 		deviceKey: deviceKey,
+		msgKey:    msgKey,
 	}
 }
 
@@ -488,6 +495,12 @@ func TestMCP_ToolsCarryAScopeAndTheSharedInstances(t *testing.T) {
 		"device_get":    f.srv.API.DeviceSvc,
 		"device_pair":   f.srv.API.DeviceSvc,
 		"device_logout": f.srv.API.DeviceSvc,
+		"message_send":  f.srv.API.MessageSvc,
+		"message_list":  f.srv.API.MessageSvc,
+		"chat_list":     f.srv.API.ChatSvc,
+		"group_list":    f.srv.API.ChatSvc,
+		"group_join":    f.srv.API.ChatSvc,
+		"contact_list":  f.srv.API.ContactSvc,
 	}
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {
@@ -524,6 +537,12 @@ func TestMCP_ToolsShareTheConnectHandlerInstance(t *testing.T) {
 		{mcpinternal.ToolDeviceGet, f.srv.API.DeviceSvc},
 		{mcpinternal.ToolDevicePair, f.srv.API.DeviceSvc},
 		{mcpinternal.ToolDeviceLogout, f.srv.API.DeviceSvc},
+		{mcpinternal.ToolMessageSend, f.srv.API.MessageSvc},
+		{mcpinternal.ToolMessageList, f.srv.API.MessageSvc},
+		{mcpinternal.ToolChatList, f.srv.API.ChatSvc},
+		{mcpinternal.ToolGroupList, f.srv.API.ChatSvc},
+		{mcpinternal.ToolGroupJoin, f.srv.API.ChatSvc},
+		{mcpinternal.ToolContactList, f.srv.API.ContactSvc},
 	}
 
 	covered := make([]string, 0, len(tests))
@@ -567,5 +586,5 @@ func TestMCP_PublishesMemberAndProjectTools(t *testing.T) {
 		names = append(names, tool.Name)
 	}
 	slices.Sort(names)
-	require.Equal(t, []string{"device_get", "device_list", "device_logout", "device_pair", "member_list", "project_list"}, names)
+	require.Equal(t, []string{"chat_list", "contact_list", "device_get", "device_list", "device_logout", "device_pair", "group_join", "group_list", "member_list", "message_list", "message_send", "project_list"}, names)
 }

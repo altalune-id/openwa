@@ -75,6 +75,7 @@ templ Layout(d web.LayoutData) {
 			}
 			@ToastRegion(d)
 			@confirmScript(d.Nonce)
+			@copyScript(d.Nonce)
 			<script nonce={ d.Nonce }>
 				document.addEventListener('click', function(e) {
 					document.querySelectorAll('details[data-switcher][open]').forEach(function(d) {
@@ -479,16 +480,24 @@ templ navGroup(d web.LayoutData, heading string) {
 
 templ projectMenu(d web.LayoutData, slug string) {
 	<nav aria-label={ d.Tr("common.project") }>
+		@navGroup(d, d.Tr("nav.group_project")) {
+			<a href={ templ.SafeURL(d.ProjectPath(slug, "/overview")) } class={ orgItemClass(d.ProjectMenuActive("overview")) }>
+				@icons.Icon("layout-dashboard", "h-4 w-4 shrink-0")
+				<span>{ d.Tr("nav.overview") }</span>
+			</a>
+		}
 		@navGroup(d, d.Tr("nav.group_messaging")) {
 			<a href={ templ.SafeURL(d.ProjectPath(slug, "/devices")) } class={ orgItemClass(d.ProjectMenuActive("devices")) }>
 				@icons.Icon("smartphone", "h-4 w-4 shrink-0")
 				<span>{ d.Tr("nav.devices") }</span>
 			</a>
-		}
-		@navGroup(d, d.Tr("nav.group_project")) {
-			<a href={ templ.SafeURL(d.ProjectPath(slug, "/overview")) } class={ orgItemClass(d.ProjectMenuActive("overview")) }>
-				@icons.Icon("layout-dashboard", "h-4 w-4 shrink-0")
-				<span>{ d.Tr("nav.overview") }</span>
+			<a href={ templ.SafeURL(d.ProjectPath(slug, "/inbox")) } class={ orgItemClass(d.ProjectMenuActive("inbox")) }>
+				@icons.Icon("mail", "h-4 w-4 shrink-0")
+				<span>{ d.Tr("nav.inbox") }</span>
+			</a>
+			<a href={ templ.SafeURL(d.ProjectPath(slug, "/contacts")) } class={ orgItemClass(d.ProjectMenuActive("contacts")) }>
+				@icons.Icon("users", "h-4 w-4 shrink-0")
+				<span>{ d.Tr("nav.contacts") }</span>
 			</a>
 		}
 		@navGroup(d, d.Tr("nav.group_developer")) {
@@ -499,6 +508,12 @@ templ projectMenu(d web.LayoutData, slug string) {
 			<a href={ templ.SafeURL(d.ProjectPath(slug, "/webhooks")) } class={ orgItemClass(d.ProjectMenuActive("webhooks")) }>
 				@icons.Icon("send", "h-4 w-4 shrink-0")
 				<span>{ d.Tr("nav.webhooks") }</span>
+			</a>
+		}
+		@navGroup(d, d.Tr("nav.group_settings")) {
+			<a href={ templ.SafeURL(d.ProjectPath(slug, "/settings")) } class={ orgItemClass(d.ProjectMenuActive("settings")) }>
+				@icons.Icon("settings", "h-4 w-4 shrink-0")
+				<span>{ d.Tr("nav.project_settings") }</span>
 			</a>
 		}
 	</nav>

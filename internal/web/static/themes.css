@@ -83,6 +83,12 @@ dialog {
 	width: calc(100% - 2rem);
 }
 dialog::backdrop { background: hsl(var(--foreground) / 0.4); }
+/* Tailwind's *{margin:0} reset strips the UA margin:auto that centers a modal dialog. */
+dialog[data-confirm] {
+	margin: auto;
+	max-height: calc(100dvh - 2rem);
+	overflow-y: auto;
+}
 
 .legal-callout {
 	border: 1px solid hsl(var(--warning) / 0.3);

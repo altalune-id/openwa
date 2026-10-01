@@ -90,7 +90,6 @@ templ webhookSecretBanner(d web.LayoutData, secret string) {
 		<div class="mt-2 break-all rounded border border-border bg-card px-3 py-2">
 			@CopyValue(d, secret)
 		</div>
-		@copyScript(d.Nonce)
 	</div>
 }
 
@@ -421,7 +420,6 @@ templ WebhookDetailPage(d web.LayoutData, v WebhookDetailView) {
 		<div class="mt-6">
 			@WebhookDeliveries(d, v.Deliveries)
 		</div>
-		@copyScript(d.Nonce)
 		<div class="mt-6">
 			@Card(CardProps{Title: d.Tr("webhooks.delete"), Description: d.Tr("webhooks.delete_warning")}) {
 				@ConfirmDialog(d, ConfirmProps{

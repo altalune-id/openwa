@@ -42,7 +42,7 @@ get wrong:
 
 S3 and S4 answer `{"code","message"}` where `code` is an opaque outcome word — `not_found`,
 `unauthorized`, `bad_request`, `conflict`, `in_progress`, `precondition_failed`,
-`precondition_required`, `method_not_allowed`, `payload_too_large`, `internal`. Each surface picks
+`precondition_required`, `method_not_allowed`, `payload_too_large`, `gone`, `internal`. Each surface picks
 it in its own `statusFor`: `internal/dataplane/errors.go` for S3, `internal/ingest/ingest.go` for
 S4. A domain error reaches that body only if `statusFor` has a case for it — anything unrecognized
 becomes `500 internal`. Exposing a new domain failure mode on S3 means adding a case there as well

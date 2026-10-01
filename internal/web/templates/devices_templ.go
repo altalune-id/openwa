@@ -262,7 +262,7 @@ func deviceCard(d web.LayoutData, projectSlug string, c DeviceCard) templ.Compon
 				return templ_7745c5c3_Err
 			}
 			if c.Phone != "" {
-				templ_7745c5c3_Err = CopyButton(d, "+"+c.Phone, d.Tr("common.copy")+": +"+c.Phone).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = CopyValue(d, "+"+c.Phone).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

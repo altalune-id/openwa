@@ -14,7 +14,7 @@ const ResourceURI = "ui://openwa/app"
 
 //go:embed shell.html app.css assets/ext-apps-2.0.0.js assets/lit-3.3.3.js
 //go:embed src/lit.js src/styles.js src/format.js src/color.js src/registry.js
-//go:embed src/views/project_list_model.js src/views/project_list.js src/views/device_list_model.js src/views/device_list.js src/views/device_pair_model.js src/views/device_pair.js src/app.js src/bridge.js src/boot.js
+//go:embed src/views/project_list_model.js src/views/project_list.js src/views/device_list_model.js src/views/device_list.js src/views/device_pair_model.js src/views/device_pair.js src/views/message_send_model.js src/views/message_send.js src/views/chat_list_model.js src/views/chat_list.js src/app.js src/bridge.js src/boot.js
 var files embed.FS
 
 type vendorPart struct {
@@ -45,6 +45,10 @@ var scriptParts = []string{
 	"src/views/device_list.js",
 	"src/views/device_pair_model.js",
 	"src/views/device_pair.js",
+	"src/views/message_send_model.js",
+	"src/views/message_send.js",
+	"src/views/chat_list_model.js",
+	"src/views/chat_list.js",
 	"src/app.js",
 	"src/bridge.js",
 	"src/boot.js",

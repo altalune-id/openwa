@@ -267,3 +267,13 @@ func TestConfirmDialog_FallsBackToCommonConfirm(t *testing.T) {
 	assert.Contains(t, html, ">common.confirm<")
 	assert.Contains(t, render(t, CopyButton(uiData(), "v", "Copy")), `data-copied-label="common.copy_done"`)
 }
+
+func TestSplitPane_StacksBelowLgAndNamesTheDetail(t *testing.T) {
+	html := render(t, SplitPane(SplitPaneProps{ID: "inbox", List: templ.Raw("<p>list</p>"), Detail: templ.Raw("<p>detail</p>")}))
+	assert.Contains(t, html, `id="inbox"`)
+	assert.Contains(t, html, `lg:flex-row`)
+	assert.Contains(t, html, `lg:w-80`)
+	assert.Contains(t, html, `id="inbox-detail"`)
+	assert.Contains(t, html, "<p>list</p>")
+	assert.Contains(t, html, "<p>detail</p>")
+}

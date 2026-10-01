@@ -1,0 +1,42 @@
+{
+  "_meta": {
+    "ui": {
+      "resourceUri": "ui://openwa/app"
+    }
+  },
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": true
+  },
+  "description": "List the project's WhatsApp chats, most recent activity first. Filter by deviceId, kind (dm or group) or a name prefix q; pass nextCursor back as cursor for the next page.",
+  "inputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "cursor": {
+        "type": "string"
+      },
+      "deviceId": {
+        "type": "string"
+      },
+      "kind": {
+        "description": "\"dm\" or \"group\"",
+        "type": "string"
+      },
+      "limit": {
+        "type": "integer"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "q": {
+        "description": "Case-insensitive name prefix",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "name": "chat_list",
+  "title": "Chat list"
+}

@@ -90,22 +90,55 @@ are refused with `PRJ005` (exit `7`); pass `--device` or use a project key.
   `connected`, `1` on `timeout` or `failed` (in every output format), and on Ctrl-C stops with exit `1` (never `0`) so `pair && next` does not proceed unlinked.
   The QR and the pairing code always go to stderr, so `--output json` keeps stdout one envelope.
 
+### send, chat, message, contact, group — control plane (S2)
+
+Every command takes `--device <name|id>`; without it the server uses the project's only
+device and refuses (exit `4`, `GEN004`) when there are several, naming them.
+
+| Command         | Args            | Flags                                                                            | Prints                                            |
+| --------------- | --------------- | -------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `send text`     | none            | `--to` (required), `--text` (required), `--reply-to`, `--mention`, `--mark-read` | `Queued message <msg_id> to <to> (status queued)` |
+| `send image`    | none            | `--to`, `--file` or `--url`, `--caption`, and the `send text` extras             | same                                              |
+| `send document` | none            | `--to`, `--file` or `--url`, `--filename`, `--caption`, `--mime`                 | same                                              |
+| `send location` | none            | `--to`, `--lat`, `--lng` (required), `--name`, `--address`                       | same                                              |
+| `chat list`     | none            | `--kind dm\|group`, `--q`, `--cursor`, `--limit`, `--all`                        | table `NAME KIND UNREAD LAST PREVIEW ID`          |
+| `chat show`     | `<chat-id>`     | `--limit` (20)                                                                   | the chat, then table `WHEN FROM BODY STATUS ID`   |
+| `message list`  | none            | `--chat` or `--device`, `--since`, `--cursor`, `--limit`, `--all`                | table `WHEN FROM BODY STATUS ID`                  |
+| `contact list`  | none            | `--q`, `--cursor`, `--limit`, `--all`                                            | table `NAME PHONE JID DEVICE`                     |
+| `group list`    | none            | none                                                                             | table `NAME MEMBERS JOINED JID CHAT ID`           |
+| `group join`    | `<invite-link>` | none                                                                             | `Joined group <name> (<cht_id>)`                  |
+| `group leave`   | `<chat-id>`     | none                                                                             | `Left group <jid>`                                |
+
+- `--file` takes files up to the server's `whatsapp.mediaMaxBytes` (32 MiB by default); larger
+  files go by `--url`. The 4 MiB inline cap applies only to MCP tool calls.
+- List commands: `--output text` prints `more: --cursor <c>` on stderr when a next page
+  exists; `--output json` prints `{"data":{"items":[…],"next_cursor":"…"}}`; `--output ndjson`
+  prints one object per line. Single-record commands (`send`, `chat show`, `group join`,
+  `group leave`) print json for both json and ndjson. `--all` follows the cursor to the last page
+  and cannot be combined with `--cursor`.
+- `send` returns once the message is queued. Delivery is asynchronous; watch
+  `message.status` webhooks or `openwa message list --chat <cht_id>`.
+
 ## Payload fields
 
-| Command                          | Fields under `data`                                                    |
-| -------------------------------- | ---------------------------------------------------------------------- |
-| `scheduler list`                 | `name`, `scope`, `schedule`, `timeout`, `singleton`                    |
-| `auth whoami`                    | `user_id`, `email`, `name`, `source`, `session_path`                   |
-| `org list`                       | `id`, `slug`, `name`, `owner_id`, `created_at`                         |
-| `project list`                   | `id`, `org_id`, `slug`, `name`, `created_at`                           |
-| `invite list`                    | `id`, `org_id`, `email`, `role`, `status`, `expires_at`, `created_at`  |
-| `todo list`                      | `id`, `project_id`, `title`, `done`, `created_at`                      |
-| `device list` / `get` / `create` | `id`, `name`, `state`, `phone`, `push_name`, `version`, `last_seen_at` |
-| `device pair`                    | `device_id`, `outcome`                                                 |
-| `device logout`                  | `device_id`, `logged_out`                                              |
-| `device delete`                  | `device_id`, `deleted`                                                 |
-| `version`                        | `version`, `commit`, `buildTime`                                       |
-| `healthz`                        | `url`, `status`, `ok`, `took`, `error`                                 |
+| Command                                       | Fields under `data`                                                                                                                                               |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scheduler list`                              | `name`, `scope`, `schedule`, `timeout`, `singleton`                                                                                                               |
+| `auth whoami`                                 | `user_id`, `email`, `name`, `source`, `session_path`                                                                                                              |
+| `org list`                                    | `id`, `slug`, `name`, `owner_id`, `created_at`                                                                                                                    |
+| `project list`                                | `id`, `org_id`, `slug`, `name`, `created_at`                                                                                                                      |
+| `invite list`                                 | `id`, `org_id`, `email`, `role`, `status`, `expires_at`, `created_at`                                                                                             |
+| `todo list`                                   | `id`, `project_id`, `title`, `done`, `created_at`                                                                                                                 |
+| `device list` / `get` / `create`              | `id`, `name`, `state`, `phone`, `push_name`, `version`, `last_seen_at`                                                                                            |
+| `device pair`                                 | `device_id`, `outcome`                                                                                                                                            |
+| `device logout`                               | `device_id`, `logged_out`                                                                                                                                         |
+| `device delete`                               | `device_id`, `deleted`                                                                                                                                            |
+| `send *`, `message list`                      | `id`, `device_id`, `chat_id`, `direction`, `wa_id`, `type`, `status`, `body`, `sender_phone`, `sender_name`, `from_me`, `error`, `timestamp`, `media`, `location` |
+| `chat list` / `show` / `group join` / `leave` | `id`, `device_id`, `jid`, `kind`, `name`, `last_message_preview`, `unread_count`, `archived`, `last_message_at`                                                   |
+| `contact list`                                | `device_id`, `jid`, `phone`, `name`, `push_name`, `business_name`, `display_name`, `updated_at`                                                                   |
+| `group list`                                  | `jid`, `name`, `topic`, `participants`, `announce`, `locked`, `invite_link`, `chat_id`, `joined`                                                                  |
+| `version`                                     | `version`, `commit`, `buildTime`                                                                                                                                  |
+| `healthz`                                     | `url`, `status`, `ok`, `took`, `error`                                                                                                                            |
 
 Timestamps are RFC 3339. `role` is `owner\|admin\|member`; `status` is `pending\|accepted` for an
 invite.

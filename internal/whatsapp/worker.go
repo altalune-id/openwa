@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -36,12 +37,19 @@ type RuntimeConfig struct {
 	LeaseInterval time.Duration
 	LinkTimeout   time.Duration
 	ParkFor       time.Duration
+	Sender        SenderConfig
 }
 
 type held struct {
 	ref    SessionRef
 	sess   EngineSession
 	cancel context.CancelFunc
+}
+
+type senderRun struct {
+	wake chan struct{}
+	stop context.CancelFunc
+	done chan struct{}
 }
 
 type doomedDevice struct {
@@ -71,6 +79,8 @@ type Runtime struct {
 	log       *slog.Logger
 	sink      EventSink
 	openSlots chan struct{}
+	outbound  Outbound
+	running   atomic.Bool
 
 	mu        sync.Mutex
 	base      context.Context
@@ -85,6 +95,7 @@ type Runtime struct {
 	openErr   map[uuid.UUID]string
 	doomed    map[uuid.UUID]doomedDevice
 	settling  bool
+	senders   map[EngineSession]*senderRun
 	wg        sync.WaitGroup
 }
 
@@ -109,6 +120,7 @@ func NewRuntime(engine Engine, leases LeaseStore, cfg RuntimeConfig, log *slog.L
 		parked:    map[uuid.UUID]time.Time{},
 		openErr:   map[uuid.UUID]string{},
 		doomed:    map[uuid.UUID]doomedDevice{},
+		senders:   map[EngineSession]*senderRun{},
 	}
 }
 
@@ -120,6 +132,7 @@ func (r *Runtime) Name() string { return "whatsapp.runtime" }
 
 // Run claims and renews leases every LeaseInterval until ctx is done, then closes every session and releases every lease; it returns nil on cancel.
 func (r *Runtime) Run(ctx context.Context) error {
+	r.running.Store(true)
 	r.mu.Lock()
 	r.base = ctx
 	r.verified = time.Now()
@@ -137,6 +150,97 @@ func (r *Runtime) Run(ctx context.Context) error {
 			r.tick(ctx)
 		}
 	}
+}
+
+// SetOutbound wires the queue the per-device senders drain; it is set once, before Run.
+func (r *Runtime) SetOutbound(out Outbound) error {
+	if r.running.Load() {
+		return &SetupError{Reason: "SetOutbound after Run"}
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.outbound != nil {
+		return &SetupError{Reason: "SetOutbound called twice"}
+	}
+	r.outbound = out
+	return nil
+}
+
+// Wake nudges the sender of a held device; it never blocks and is a no-op for a device this process does not hold.
+func (r *Runtime) Wake(deviceID uuid.UUID) {
+	r.mu.Lock()
+	var ch chan struct{}
+	if h, ok := r.held[deviceID]; ok && h.sess != nil {
+		if run := r.senders[h.sess]; run != nil {
+			ch = run.wake
+		}
+	}
+	r.mu.Unlock()
+	if ch == nil {
+		return
+	}
+	select {
+	case ch <- struct{}{}:
+	default:
+	}
+}
+
+// NOTE: called with r.mu held, where a held entry receives its live session, so each session gets at most one sender.
+func (r *Runtime) startSenderLocked(h *held) {
+	if r.outbound == nil || r.base == nil || h.sess == nil {
+		return
+	}
+	if _, ok := r.senders[h.sess]; ok {
+		return
+	}
+	ctx, cancel := context.WithCancel(r.base)
+	run := &senderRun{wake: make(chan struct{}, 1), stop: cancel, done: make(chan struct{})}
+	s := &sender{ref: h.ref, sess: h.sess, out: r.outbound, wake: run.wake, cfg: r.cfg.Sender, log: r.log}
+	if !r.spawnLocked(func() {
+		defer close(run.done)
+		s.run(ctx)
+	}) {
+		cancel()
+		return
+	}
+	r.senders[h.sess] = run
+}
+
+// SECURITY: called with r.mu held wherever a held entry leaves r.held, so a fenced or lost lease stops sending at once, before its session is closed.
+func (r *Runtime) cancelSenderLocked(h *held) {
+	if h == nil || h.sess == nil {
+		return
+	}
+	if run := r.senders[h.sess]; run != nil {
+		run.stop()
+	}
+}
+
+// NOTE: cancels the sender driving sess and waits for it; call it without r.mu, before sess.Close.
+func (r *Runtime) stopSender(sess EngineSession) {
+	if sess == nil {
+		return
+	}
+	r.mu.Lock()
+	run := r.senders[sess]
+	delete(r.senders, sess)
+	r.mu.Unlock()
+	if run == nil {
+		return
+	}
+	run.stop()
+	<-run.done
+}
+
+// Held returns the lease ref and open session of a device this process holds.
+func (r *Runtime) Held(deviceID uuid.UUID) (SessionRef, EngineSession, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	h, ok := r.held[deviceID]
+	if !ok || h.sess == nil {
+		return SessionRef{}, nil, false
+	}
+	return h.ref, h.sess, true
 }
 
 // Link starts a QR link attempt and waits briefly for its first code.
@@ -234,9 +338,11 @@ func (r *Runtime) Unlink(ctx context.Context, deviceID uuid.UUID) error {
 		return &NotOwnedError{ID: deviceID.String()}
 	}
 	delete(r.held, deviceID)
+	r.cancelSenderLocked(h)
 	r.unlinking[deviceID] = h
 	r.mu.Unlock()
 	defer r.doneUnlinking(deviceID)
+	r.stopSender(h.sess)
 
 	if err := h.sess.Unlink(ctx); err != nil && !IsSessionGoneError(err) {
 		r.restoreHeld(h)
@@ -319,6 +425,7 @@ func (r *Runtime) restoreHeld(h *held) {
 	keep := !r.closing && !r.fenced && !taken
 	if keep {
 		r.held[id] = h
+		r.startSenderLocked(h)
 	}
 	r.mu.Unlock()
 	if !keep {
@@ -333,6 +440,7 @@ func (r *Runtime) Forget(ctx context.Context, ref SessionRef) error {
 	h := r.held[id]
 	a := r.linking[id]
 	delete(r.held, id)
+	r.cancelSenderLocked(h)
 	delete(r.linking, id)
 	r.forgetLocked(id)
 	r.unlinking[id] = &held{ref: ref}
@@ -401,7 +509,13 @@ func (r *Runtime) tick(ctx context.Context) {
 	}
 	if len(lost) > 0 && r.spawnLocked(func() { r.closeAll(context.Background(), lost, ReasonLeaseLost) }) {
 		for _, h := range lost {
+			r.cancelSenderLocked(h)
 			r.dropHeldLocked(h.ref.DeviceID)
+		}
+	}
+	for id, h := range r.unlinking {
+		if !keep[id] {
+			r.cancelSenderLocked(h)
 		}
 	}
 	for id := range r.owned {
@@ -456,11 +570,15 @@ func (r *Runtime) fence(ctx context.Context, now time.Time) {
 	r.fenced = true
 	var live []*held
 	for id, h := range r.held {
+		r.cancelSenderLocked(h)
 		r.dropHeldLocked(id)
 		r.owned[id] = Lease{DeviceID: id, OrgID: h.ref.OrgID, ProjectID: h.ref.ProjectID, JID: h.ref.JID}
 		if h.sess != nil {
 			live = append(live, h)
 		}
+	}
+	for _, h := range r.unlinking {
+		r.cancelSenderLocked(h)
 	}
 	r.spawnLocked(func() { r.closeAll(context.Background(), live, ReasonLeaseUnverified) })
 	r.mu.Unlock()
@@ -525,6 +643,7 @@ func (r *Runtime) openOne(ctx context.Context, cancelOpen context.CancelFunc, pl
 	}
 	if current {
 		placeholder.sess = sess
+		r.startSenderLocked(placeholder)
 		delete(r.owned, id)
 		delete(r.openErr, id)
 		r.mu.Unlock()
@@ -797,7 +916,9 @@ func (r *Runtime) promote(a *attempt, sess EngineSession, linked SessionRef, ide
 	hold := !r.closing && !r.fenced
 	switch {
 	case hold:
-		r.held[id] = &held{ref: linked, sess: sess}
+		h := &held{ref: linked, sess: sess}
+		r.held[id] = h
+		r.startSenderLocked(h)
 	case !r.closing:
 		r.owned[id] = Lease{DeviceID: id, OrgID: linked.OrgID, ProjectID: linked.ProjectID, JID: ident.JID}
 	}
@@ -828,6 +949,7 @@ func (r *Runtime) onEngineState(id uuid.UUID, ref SessionRef, st State, reason s
 	h := r.held[id]
 	if st == StateLoggedOut && h != nil {
 		if r.spawnLocked(func() { r.loggedOut(h, reason) }) {
+			r.cancelSenderLocked(h)
 			r.dropHeldLocked(id)
 			r.forgetLocked(id)
 		}
@@ -840,6 +962,7 @@ func (r *Runtime) onEngineState(id uuid.UUID, ref SessionRef, st State, reason s
 				r.closeSession(h.sess)
 				r.emit(h.ref, StateDisconnected, reason)
 			}) {
+				r.cancelSenderLocked(h)
 				r.dropHeldLocked(id)
 				r.owned[id] = Lease{DeviceID: id, OrgID: h.ref.OrgID, ProjectID: h.ref.ProjectID, JID: h.ref.JID}
 				r.parked[id] = until
@@ -947,6 +1070,12 @@ func (r *Runtime) shutdown(ctx context.Context) {
 	r.mu.Lock()
 	r.closing = true
 	hs := slices.Collect(maps.Values(r.held))
+	for _, h := range hs {
+		r.cancelSenderLocked(h)
+	}
+	for _, h := range r.unlinking {
+		r.cancelSenderLocked(h)
+	}
 	clear(r.held)
 	attempts := slices.Collect(maps.Values(r.linking))
 	r.mu.Unlock()
@@ -983,6 +1112,7 @@ func (r *Runtime) closeAll(ctx context.Context, hs []*held, reason string) {
 			continue
 		}
 		g.Go(func() error {
+			r.stopSender(h.sess)
 			cctx, cancel := context.WithTimeout(ctx, closeBudget)
 			defer cancel()
 			if err := h.sess.Close(cctx); err != nil {
@@ -1006,6 +1136,7 @@ func (r *Runtime) closeSession(s EngineSession) {
 	if s == nil {
 		return
 	}
+	r.stopSender(s)
 	ctx, cancel := context.WithTimeout(context.Background(), closeBudget)
 	defer cancel()
 	if err := s.Close(ctx); err != nil {

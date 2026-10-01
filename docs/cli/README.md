@@ -23,7 +23,7 @@ R11: the CLI owns no verbs. What a command calls decides which credential it nee
 | Reaches                              | Commands                                                                    | Credential          |
 | ------------------------------------ | --------------------------------------------------------------------------- | ------------------- |
 | in-process services (`ServerBootFn`) | `init`, `serve`, `migrate`, `scheduler`, `auth`, `org`, `project`, `invite` | session file, or DB |
-| control plane (Connect client)       | `device`                                                                    | bearer token        |
+| control plane (Connect client)       | `device`, `send`, `chat`, `message`, `contact`, `group`                     | bearer token        |
 | nothing but `config.Load`            | `version`, `healthz`, `completion`                                          | none                |
 
 `org`, `project` and `invite` resolve a principal before doing anything, so they fail with
@@ -39,6 +39,11 @@ openwa
 ├─ Auth      auth {login,logout,whoami,token mint}
 ├─ Tenancy   org {list,create} · project {list,create} · invite {list,send,revoke}
 ├─ Domain    device {list,get,create,pair,logout,delete}                    control plane S2
+│            send {text,image,document,location}                   control plane S2
+│            chat {list,show}                                      control plane S2
+│            message list                                          control plane S2
+│            contact list                                          control plane S2
+│            group {list,join,leave}                               control plane S2
 └─ Meta      version · healthz · completion
 ```
 
@@ -70,11 +75,13 @@ Error code strings (`GEN005`, `TDO001`, …): [`error codes`](../errors/README.m
 `--output` picks the format; `render.Detect` falls back to `OPENWA_OUTPUT`, then to text on a TTY and
 json otherwise. An unrecognised value falls back to text.
 
-| Format   | Envelope                                                       |
-| -------- | -------------------------------------------------------------- |
-| `text`   | aligned table for lists, `key: value` lines for single records |
-| `json`   | `{"data": <shape>}` — indented, HTML escaping off, no `meta`   |
-| `ndjson` | accepted; every listed command treats it as `json`             |
+| Format   | Envelope                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------------ |
+| `text`   | aligned table for lists, `key: value` lines for single records                                   |
+| `json`   | `{"data": <shape>}` — indented, HTML escaping off, no `meta`                                     |
+| `ndjson` | one compact JSON object per line, no envelope — list commands of blog, chat, message and contact |
+
+List commands (`blog list`, `chat list`, `message list`, `contact list`) stream `ndjson` through `render.NDJSON`; every other command, single-record messaging commands included, treats `ndjson` as `json` and emits the `data` envelope. List `json` is `{"data":{"items":[…],"next_cursor":"…"}}`; list `text` prints a table and, when a next page exists, `more: --cursor <c>` on stderr. `--all` follows `next_cursor` to the last page and is refused together with `--cursor`.
 
 Per-command fields under `data`: [`commands`](commands.md#payload-fields).
 

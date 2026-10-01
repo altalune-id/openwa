@@ -58,7 +58,8 @@ A device-bound key reaches only its device, on every surface. PR #36 puts `Resou
 enforce the binding with no extra DB read: a verb that names the bound device is served
 (`ReachesResource`), and a project-wide verb — list, create, or pair with no device — is
 refused (`ReachesWholeProject`) with `PermissionDenied`. Project-wide keys and JWTs are
-unaffected.
+unaffected. The messaging RPCs (`message.v1`, `chat.v1`, `contact.v1`) and their MCP tools apply the same
+reach rule: entering through the project scope, they refuse a device-bound key (`session.Principal.ReachesWholeProject`).
 
 The device verbs span S1 (console pages), S2 (`DeviceService`), S3 (`/devices` REST), S6 (`openwa device`)
 and S7 (`device_*` tools); S6 and S7 call the S2 handler, so they inherit its checks.

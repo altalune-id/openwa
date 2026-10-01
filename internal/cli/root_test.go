@@ -90,6 +90,7 @@ func TestRoot_KnownSubcommandsRegistered(t *testing.T) {
 		"version": false, "serve": false, "init": false, "migrate": false, "auth": false,
 		"org": false, "project": false, "invite": false,
 		"completion": false,
+		"send":       false, "chat": false, "message": false, "contact": false, "group": false,
 	}
 	for _, c := range root.Commands() {
 		if _, ok := want[c.Name()]; ok {

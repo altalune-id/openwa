@@ -1009,3 +1009,260 @@ func TestRuntime_ALogoutRacingShutdownIsHandledExactlyOnce(t *testing.T) {
 		}
 	})
 }
+
+func runtimeWithOutbound(t *testing.T, out whatsapp.Outbound) (*whatsapp.Runtime, *fakes.MessagingSession, whatsapp.SessionRef) {
+	t.Helper()
+	sess := fakes.NewMessagingSession()
+	engine := fakes.NewEngine()
+	engine.OpenFn = func(context.Context, whatsapp.SessionRef, whatsapp.EventSink) (whatsapp.EngineSession, error) {
+		return sess, nil
+	}
+	leases := fakes.NewLeaseStore()
+	ref := whatsapp.SessionRef{DeviceID: uuid.New(), OrgID: uuid.New(), ProjectID: uuid.New(), JID: "628123456789:1@s.whatsapp.net"}
+	require.NoError(t, leases.Upsert(t.Context(), whatsapp.Lease{DeviceID: ref.DeviceID, OrgID: ref.OrgID, ProjectID: ref.ProjectID, JID: ref.JID}))
+	rt := whatsapp.NewRuntime(engine, leases, whatsapp.RuntimeConfig{
+		Owner: "test/1", LeaseTTL: 45 * time.Second, LeaseInterval: 15 * time.Second, LinkTimeout: time.Minute,
+		Sender: whatsapp.SenderConfig{SpacingMin: time.Second, SpacingMax: time.Second},
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	rt.Subscribe(&fakes.Sink{})
+	if out != nil {
+		require.NoError(t, rt.SetOutbound(out))
+	}
+	return rt, sess, ref
+}
+
+func TestRuntime_HeldDeviceGetsOneSenderAndWakeReachesIt(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		out := &fakes.Outbound{}
+		rt, sess, ref := runtimeWithOutbound(t, out)
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan error, 1)
+		go func() { done <- rt.Run(ctx) }()
+		time.Sleep(16 * time.Second)
+		synctest.Wait()
+		require.True(t, rt.Live(ref.DeviceID))
+
+		out.Push(&whatsapp.OutboundRow{ID: uuid.New(), Message: whatsapp.OutboundMessage{WAID: "A", Kind: whatsapp.KindText, To: "628111@s.whatsapp.net"}})
+		rt.Wake(ref.DeviceID)
+		synctest.Wait()
+		sent, _, _ := out.Snapshot()
+		require.Len(t, sent, 1)
+
+		rt.Wake(uuid.New())
+		cancel()
+		require.NoError(t, <-done)
+		require.True(t, sess.Closed(), "Run returns after the sender stopped and the session closed")
+		calls := sess.Recorded()
+		require.Equal(t, "close", calls[len(calls)-1], "nothing is sent after close")
+	})
+}
+
+func TestRuntime_SenderIsWaitedForBeforeTheSessionCloses(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		out := &fakes.Outbound{}
+		rt, sess, ref := runtimeWithOutbound(t, out)
+		var closedWhenSendReturned atomic.Bool
+		sess.SendFn = func(ctx context.Context, _ whatsapp.OutboundMessage) (whatsapp.SendResult, error) {
+			<-ctx.Done()
+			time.Sleep(3 * time.Second)
+			closedWhenSendReturned.Store(sess.Closed())
+			return whatsapp.SendResult{}, ctx.Err()
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan error, 1)
+		go func() { done <- rt.Run(ctx) }()
+		time.Sleep(16 * time.Second)
+		synctest.Wait()
+		out.Push(&whatsapp.OutboundRow{ID: uuid.New(), Message: whatsapp.OutboundMessage{WAID: "A", Kind: whatsapp.KindText, To: "628111@s.whatsapp.net"}})
+		rt.Wake(ref.DeviceID)
+		synctest.Wait()
+		cancel()
+		require.NoError(t, <-done)
+		require.True(t, sess.Closed())
+		require.False(t, closedWhenSendReturned.Load(), "the in-flight send finished before the session closed")
+		sent, failed, _ := out.Snapshot()
+		require.Empty(t, sent)
+		require.Empty(t, failed, "an invoked send stays sending for stale reclaim")
+	})
+}
+
+func TestRuntime_NoOutboundNoSender(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		rt, sess, ref := runtimeWithOutbound(t, nil)
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan error, 1)
+		go func() { done <- rt.Run(ctx) }()
+		time.Sleep(16 * time.Second)
+		synctest.Wait()
+		rt.Wake(ref.DeviceID)
+		cancel()
+		require.NoError(t, <-done)
+		for _, c := range sess.Recorded() {
+			require.NotContains(t, c, "send:")
+		}
+	})
+}
+
+// NOTE: closeAll closes at most eight sessions at once, so the ninth sender is stopped only by the tick cancel point.
+func TestRuntime_LeaseLossStopsEverySenderAtOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		gate := make(chan struct{})
+		engine := fakes.NewEngine()
+		engine.OpenFn = func(context.Context, whatsapp.SessionRef, whatsapp.EventSink) (whatsapp.EngineSession, error) {
+			sess := fakes.NewMessagingSession()
+			sess.CloseGate = gate
+			return sess, nil
+		}
+		leases := fakes.NewLeaseStore()
+		var ids []uuid.UUID
+		for range 9 {
+			ref := whatsapp.SessionRef{DeviceID: uuid.New(), OrgID: uuid.New(), ProjectID: uuid.New(), JID: "628123456789:1@s.whatsapp.net"}
+			require.NoError(t, leases.Upsert(t.Context(), whatsapp.Lease{DeviceID: ref.DeviceID, OrgID: ref.OrgID, ProjectID: ref.ProjectID, JID: ref.JID}))
+			ids = append(ids, ref.DeviceID)
+		}
+		rt := whatsapp.NewRuntime(engine, leases, whatsapp.RuntimeConfig{
+			Owner: "test/1", LeaseTTL: 45 * time.Second, LeaseInterval: 15 * time.Second, LinkTimeout: time.Minute,
+			Sender: whatsapp.SenderConfig{SpacingMin: time.Second, SpacingMax: time.Second},
+		}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		rt.Subscribe(&fakes.Sink{})
+		out := &fakes.Outbound{}
+		require.NoError(t, rt.SetOutbound(out))
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan error, 1)
+		go func() { done <- rt.Run(ctx) }()
+		time.Sleep(16 * time.Second)
+		synctest.Wait()
+		for _, id := range ids {
+			require.True(t, rt.Live(id))
+			leases.Steal(id, "other/1")
+		}
+
+		time.Sleep(15 * time.Second)
+		synctest.Wait()
+		out.Push(&whatsapp.OutboundRow{ID: uuid.New(), Message: whatsapp.OutboundMessage{WAID: "C", Kind: whatsapp.KindText, To: "628111@s.whatsapp.net"}})
+		time.Sleep(3 * time.Second)
+		synctest.Wait()
+		sent, _, _ := out.Snapshot()
+		require.Empty(t, sent, "no sender may send once its lease is lost; without the tick cancel point the ninth one would")
+
+		close(gate)
+		cancel()
+		require.NoError(t, <-done)
+	})
+}
+
+func TestRuntime_FenceStopsTheSenderBeforeAnotherReplicaCanClaim(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		sess := fakes.NewMessagingSession()
+		engine := fakes.NewEngine()
+		engine.OpenFn = func(context.Context, whatsapp.SessionRef, whatsapp.EventSink) (whatsapp.EngineSession, error) {
+			return sess, nil
+		}
+		leases := fakes.NewLeaseStore()
+		ref := whatsapp.SessionRef{DeviceID: uuid.New(), OrgID: uuid.New(), ProjectID: uuid.New(), JID: "628123456789:1@s.whatsapp.net"}
+		require.NoError(t, leases.Upsert(t.Context(), whatsapp.Lease{DeviceID: ref.DeviceID, OrgID: ref.OrgID, ProjectID: ref.ProjectID, JID: ref.JID}))
+		rt := whatsapp.NewRuntime(engine, leases, whatsapp.RuntimeConfig{
+			Owner: "test/1", LeaseTTL: 45 * time.Second, LeaseInterval: 15 * time.Second, LinkTimeout: time.Minute,
+			Sender: whatsapp.SenderConfig{SpacingMin: time.Second, SpacingMax: time.Second},
+		}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		rt.Subscribe(&fakes.Sink{})
+		out := &fakes.Outbound{}
+		require.NoError(t, rt.SetOutbound(out))
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan error, 1)
+		go func() { done <- rt.Run(ctx) }()
+		time.Sleep(16 * time.Second)
+		synctest.Wait()
+		require.True(t, rt.Live(ref.DeviceID))
+
+		leases.SetRenewErr(errors.New("database unreachable"))
+		time.Sleep(45 * time.Second)
+		synctest.Wait()
+		require.True(t, sess.Closed(), "the fence closed the session")
+
+		out.Push(&whatsapp.OutboundRow{ID: uuid.New(), Message: whatsapp.OutboundMessage{WAID: "B", Kind: whatsapp.KindText, To: "628111@s.whatsapp.net"}})
+		rt.Wake(ref.DeviceID)
+		synctest.Wait()
+		sent, _, _ := out.Snapshot()
+		require.Empty(t, sent, "no send starts once ownership is unproven")
+		cancel()
+		require.NoError(t, <-done)
+	})
+}
+
+func TestRuntime_SetOutboundIsSetOnceBeforeRun(t *testing.T) {
+	out := &fakes.Outbound{}
+	rt, _, _ := runtimeWithOutbound(t, out)
+	require.True(t, whatsapp.IsSetupError(rt.SetOutbound(out)), "twice")
+
+	late, _, _ := runtimeWithOutbound(t, nil)
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan error, 1)
+		go func() { done <- late.Run(ctx) }()
+		synctest.Wait()
+		require.True(t, whatsapp.IsSetupError(late.SetOutbound(out)), "after Run")
+		cancel()
+		require.NoError(t, <-done)
+	})
+}
+
+func TestRuntime_UnlinkStopsTheSenderBeforeLogoutBegins(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		out := &fakes.Outbound{}
+		rt, sess, ref := runtimeWithOutbound(t, out)
+		gate := make(chan struct{})
+		sess.UnlinkGate = gate
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan error, 1)
+		go func() { done <- rt.Run(ctx) }()
+		time.Sleep(16 * time.Second)
+		synctest.Wait()
+		push := func(waid string) {
+			out.Push(&whatsapp.OutboundRow{ID: uuid.New(), Message: whatsapp.OutboundMessage{WAID: waid, Kind: whatsapp.KindText, To: "628111@s.whatsapp.net"}})
+			rt.Wake(ref.DeviceID)
+		}
+		push("A")
+		synctest.Wait()
+		sent, _, _ := out.Snapshot()
+		require.Len(t, sent, 1)
+
+		unlinked := make(chan error, 1)
+		go func() { unlinked <- rt.Unlink(t.Context(), ref.DeviceID) }()
+		synctest.Wait()
+		require.Contains(t, sess.Recorded(), "unlink:start")
+
+		push("B")
+		time.Sleep(5 * time.Second)
+		synctest.Wait()
+		require.NotContains(t, sess.Recorded(), "send:B", "a device whose logout is in flight sends nothing more")
+
+		close(gate)
+		require.NoError(t, <-unlinked)
+		cancel()
+		require.NoError(t, <-done)
+	})
+}
+
+func TestRuntime_FailedUnlinkRestoresTheSender(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		out := &fakes.Outbound{}
+		rt, sess, ref := runtimeWithOutbound(t, out)
+		sess.UnlinkErr = errors.New("phone unreachable")
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan error, 1)
+		go func() { done <- rt.Run(ctx) }()
+		time.Sleep(16 * time.Second)
+		synctest.Wait()
+
+		require.Error(t, rt.Unlink(t.Context(), ref.DeviceID))
+		require.True(t, rt.Live(ref.DeviceID), "the session is held again")
+		out.Push(&whatsapp.OutboundRow{ID: uuid.New(), Message: whatsapp.OutboundMessage{WAID: "C", Kind: whatsapp.KindText, To: "628111@s.whatsapp.net"}})
+		rt.Wake(ref.DeviceID)
+		synctest.Wait()
+		sent, _, _ := out.Snapshot()
+		require.Len(t, sent, 1, "the restored session gets a fresh sender")
+		cancel()
+		require.NoError(t, <-done)
+	})
+}

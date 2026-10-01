@@ -60,6 +60,7 @@ services:
     environment:
       OPENWA_MODE: selfhosted
       OPENWA_HTTP_ADDR: "0.0.0.0:5150"
+      OPENWA_HTTP_BASE_URL: "http://localhost:5150"
 
       OPENWA_DB_DSN: "postgres://openwa:openwa@postgres:5432/openwa?sslmode=disable"
       OPENWA_DB_ALLOW_BYPASS_RLS: "true"

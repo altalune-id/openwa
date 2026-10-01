@@ -36,9 +36,13 @@ type waClient interface {
 	ParseWebMessage(chat types.JID, msg *waWeb.WebMessageInfo) (*events.Message, error)
 	DeleteStore(ctx context.Context) error
 	PNForLID(ctx context.Context, lid string) string
+	// Raw exposes the whatsmeow client for the messaging calls; nil in tests.
+	Raw() *whatsmeow.Client
 }
 
 type clientAdapter struct{ *whatsmeow.Client }
+
+func (c clientAdapter) Raw() *whatsmeow.Client { return c.Client }
 
 func (c clientAdapter) DeleteStore(ctx context.Context) error { return c.Store.Delete(ctx) }
 

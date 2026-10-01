@@ -275,7 +275,7 @@ func TestSink_InboundIsANoOpUntilWired(t *testing.T) {
 	f.svc.OnHistory(f.ref, []whatsapp.InboundMessage{{ID: "B"}})
 
 	in := &recordingInbound{}
-	f.svc.SetInbound(in)
+	require.NoError(t, f.svc.SetInbound(in))
 	f.svc.OnMessage(f.ref, whatsapp.InboundMessage{ID: "C"})
 	require.Len(t, in.messages, 1)
 	require.Equal(t, "C", in.messages[0].ID)

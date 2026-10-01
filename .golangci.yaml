@@ -92,6 +92,10 @@ linters:
             - "**/internal/onboard/onboard.go"
             - "**/internal/*/blog.go"
             - "**/internal/*/webhook.go"
+            - "**/internal/*/message.go"
+            - "**/internal/*/chat.go"
+            - "**/internal/*/contact.go"
+            - "**/internal/message/retention.go"
             - "**/internal/*/whatsapp.go"
             - "**/internal/*/device.go"
             - "**/internal/device/rules.go"
@@ -142,6 +146,7 @@ linters:
             - "**/internal/*/onboard.go"
             - "**/internal/*/accept.go"
             - "**/internal/*/send.go"
+            - "**/internal/message/inbound.go"
             - "**/internal/whatsapp/sink.go"
           deny:
             - pkg: "database/sql"

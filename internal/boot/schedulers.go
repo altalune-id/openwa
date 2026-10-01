@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/message"
 	"altalune.id/openwa/internal/platform"
 	"altalune.id/openwa/internal/platform/config"
 	"altalune.id/openwa/internal/platform/db"
@@ -16,12 +17,13 @@ import (
 )
 
 //nolint:gochecknoglobals // Immutable wiring manifest; not runtime state.
-var schedulerDomains = []string{"todo", "session"}
+var schedulerDomains = []string{"todo", "session", "message"}
 
 func schedulerProviders(s *Services, sessions session.Store, loc scheduler.LocationFunc, log *slog.Logger) []scheduler.Provider {
 	return []scheduler.Provider{
 		todo.NewScheduler(s.Todos, log, loc),
 		session.NewScheduler(sessions, log),
+		message.NewScheduler(s.Messages, log, loc),
 	}
 }
 
@@ -108,12 +110,12 @@ type reporterAdapter struct {
 	log    *slog.Logger
 }
 
-func (a reporterAdapter) Report(ctx context.Context, message string, cause error, attrs ...any) {
+func (a reporterAdapter) Report(ctx context.Context, msg string, cause error, attrs ...any) {
 	if alreadyReported(cause) {
-		a.log.ErrorContext(ctx, message, append([]any{slog.Any("error", cause)}, attrs...)...)
+		a.log.ErrorContext(ctx, msg, append([]any{slog.Any("error", cause)}, attrs...)...)
 		return
 	}
-	_ = a.report(ctx, message, cause, attrs...)
+	_ = a.report(ctx, msg, cause, attrs...)
 }
 
 func alreadyReported(err error) bool {

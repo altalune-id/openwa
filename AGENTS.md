@@ -23,6 +23,7 @@ depguard rule: stdlib and the MCP Go SDK only.
 | [`scopes`](docs/scopes/README.md)                               | the scope catalog. Wire contract; additive only                                         |
 | [`mcp`](docs/mcp/README.md)                                     | the MCP surface — mount, auth, adding a tool, the Apps UI                               |
 | [`cli`](docs/cli/README.md)                                     | command tree, exit codes, output envelopes                                              |
+| [`integration`](docs/integration/README.md)                     | the integrator's guide; its json fences are checked against the event goldens           |
 | [`GLOSSARY.md`](GLOSSARY.md)                                    | canonical terms — check here before inventing a synonym                                 |
 | [`README.md`](README.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md) | layout, config, docker, releasing · TDD, commits, signing                               |
 

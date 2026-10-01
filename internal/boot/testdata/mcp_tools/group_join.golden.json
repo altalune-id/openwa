@@ -1,0 +1,29 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false
+  },
+  "description": "Join a WhatsApp group by its invite link (https://chat.whatsapp.com/...). Omit deviceId when the project has exactly one device.",
+  "inputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "deviceId": {
+        "type": "string"
+      },
+      "inviteLink": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "inviteLink"
+    ],
+    "type": "object"
+  },
+  "name": "group_join",
+  "title": "Group join"
+}

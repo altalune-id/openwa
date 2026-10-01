@@ -151,8 +151,12 @@ templ copyControl(d web.LayoutData, value, text, label string) {
 		data-copy-label={ label }
 		data-copied-label={ d.Tr("common.copy_done") }
 		aria-label={ label }
-		class="rounded-md font-mono text-xs text-muted-foreground hover:text-foreground"
-	>{ text }</button>
+		title={ label }
+		class="group inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+	>
+		<span data-copy-shown class="truncate">{ text }</span>
+		@icons.Icon("copy", "h-3.5 w-3.5 shrink-0 opacity-60 transition-opacity group-hover:opacity-100")
+	</button>
 }
 
 templ copyScript(nonce string) {
@@ -165,11 +169,12 @@ templ copyScript(nonce string) {
 		if (!btn) return;
 		var text = btn.getAttribute('data-copy');
 		var shown = btn.getAttribute('data-copy-text') || text;
+		var shownEl = btn.querySelector('[data-copy-shown]') || btn;
 		var done = function() {
-			btn.textContent = btn.getAttribute('data-copied-label');
+			shownEl.textContent = btn.getAttribute('data-copied-label');
 			btn.setAttribute('aria-label', btn.getAttribute('data-copied-label'));
 			setTimeout(function() {
-				btn.textContent = shown;
+				shownEl.textContent = shown;
 				btn.setAttribute('aria-label', btn.getAttribute('data-copy-label'));
 			}, 1500);
 		};

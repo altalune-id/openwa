@@ -4,8 +4,10 @@ package controlplane
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -16,8 +18,14 @@ import (
 	authv1connect "altalune.id/openwa/gen/go/auth/v1/authv1connect"
 	blogv1 "altalune.id/openwa/gen/go/blog/v1"
 	blogv1connect "altalune.id/openwa/gen/go/blog/v1/blogv1connect"
+	chatv1 "altalune.id/openwa/gen/go/chat/v1"
+	chatv1connect "altalune.id/openwa/gen/go/chat/v1/chatv1connect"
+	contactv1 "altalune.id/openwa/gen/go/contact/v1"
+	contactv1connect "altalune.id/openwa/gen/go/contact/v1/contactv1connect"
 	devicev1 "altalune.id/openwa/gen/go/device/v1"
 	devicev1connect "altalune.id/openwa/gen/go/device/v1/devicev1connect"
+	messagev1 "altalune.id/openwa/gen/go/message/v1"
+	messagev1connect "altalune.id/openwa/gen/go/message/v1/messagev1connect"
 	orgv1 "altalune.id/openwa/gen/go/org/v1"
 	orgv1connect "altalune.id/openwa/gen/go/org/v1/orgv1connect"
 	projectv1 "altalune.id/openwa/gen/go/project/v1"
@@ -30,9 +38,12 @@ import (
 	"altalune.id/openwa/internal/blog"
 	"altalune.id/openwa/internal/blog/category"
 	"altalune.id/openwa/internal/blog/tag"
+	"altalune.id/openwa/internal/chat"
+	"altalune.id/openwa/internal/contact"
 	"altalune.id/openwa/internal/controlplane/interceptor"
 	"altalune.id/openwa/internal/device"
 	"altalune.id/openwa/internal/invite"
+	"altalune.id/openwa/internal/message"
 	"altalune.id/openwa/internal/org"
 	"altalune.id/openwa/internal/platform"
 	"altalune.id/openwa/internal/platform/authn"
@@ -62,6 +73,11 @@ type Server struct {
 	// APIKeys is set by boot after New returns, mirroring Authn/KeyPrefix below.
 	APIKeys *apikey.Service
 
+	// Messages, Chats and Contacts are set by boot after New returns, like APIKeys.
+	Messages *message.Service
+	Chats    *chat.Service
+	Contacts *contact.Service
+
 	AuthSvc    *AuthService
 	TodoSvc    *TodoService
 	BlogSvc    *BlogService
@@ -69,6 +85,10 @@ type Server struct {
 	DeviceSvc  *DeviceService
 	MemberSvc  *MemberService
 	APIKeySvc  *APIKeyService
+
+	MessageSvc *MessageService
+	ChatSvc    *ChatService
+	ContactSvc *ContactService
 
 	Authn     authn.Chain
 	KeyPrefix string
@@ -135,6 +155,9 @@ var (
 	_ orgv1connect.MemberServiceHandler      = (*MemberService)(nil)
 	_ apikeyv1connect.APIKeyServiceHandler   = (*APIKeyService)(nil)
 	_ devicev1connect.DeviceServiceHandler   = (*DeviceService)(nil)
+	_ messagev1connect.MessageServiceHandler = (*MessageService)(nil)
+	_ chatv1connect.ChatServiceHandler       = (*ChatService)(nil)
+	_ contactv1connect.ContactServiceHandler = (*ContactService)(nil)
 )
 
 // Handler mounts the Connect handlers plus OpenAPI endpoints under basePath+"/api".
@@ -142,6 +165,13 @@ func (s *Server) Handler(basePath string) http.Handler {
 	opts := s.handlerOptions()
 	// NOTE: built here, not in New, since s.APIKeys isn't set until after New returns.
 	s.APIKeySvc = NewAPIKeyService(s.APIKeys, s.Projects)
+	baseURL := ""
+	if s.Cfg != nil {
+		baseURL = strings.TrimRight(s.Cfg.HTTP.BaseURL, "/") + s.Cfg.HTTP.BasePath
+	}
+	s.MessageSvc = NewMessageService(s.Messages, s.Chats, s.Devices, s.Projects, s.Orgs, baseURL, s.logger())
+	s.ChatSvc = NewChatService(s.Chats, s.Messages, s.Devices, s.Projects)
+	s.ContactSvc = NewContactService(s.Contacts, s.Devices, s.Projects)
 
 	inner := http.NewServeMux()
 	todoPath, todoHandler := todov1connect.NewTodoServiceHandler(s.TodoSvc, opts...)
@@ -158,6 +188,12 @@ func (s *Server) Handler(basePath string) http.Handler {
 	inner.Handle(memberPath, memberHandler)
 	apikeyPath, apikeyHandler := apikeyv1connect.NewAPIKeyServiceHandler(s.APIKeySvc, opts...)
 	inner.Handle(apikeyPath, apikeyHandler)
+	messagePath, messageHandler := messagev1connect.NewMessageServiceHandler(s.MessageSvc, opts...)
+	inner.Handle(messagePath, messageHandler)
+	chatPath, chatHandler := chatv1connect.NewChatServiceHandler(s.ChatSvc, opts...)
+	inner.Handle(chatPath, chatHandler)
+	contactPath, contactHandler := contactv1connect.NewContactServiceHandler(s.ContactSvc, opts...)
+	inner.Handle(contactPath, contactHandler)
 
 	if s.OpenAPIEnabled {
 		yamlBody, jsonBody := openAPI()
@@ -185,6 +221,9 @@ func (s *Server) MountedProcedures() []string {
 		serviceProcedures(devicev1.File_device_v1_device_proto, "DeviceService"),
 		serviceProcedures(orgv1.File_org_v1_org_proto, "MemberService"),
 		serviceProcedures(apikeyv1.File_apikey_v1_apikey_proto, "APIKeyService"),
+		serviceProcedures(messagev1.File_message_v1_message_proto, "MessageService"),
+		serviceProcedures(chatv1.File_chat_v1_chat_proto, "ChatService"),
+		serviceProcedures(contactv1.File_contact_v1_contact_proto, "ContactService"),
 	)
 }
 
@@ -214,7 +253,23 @@ func (s *Server) handlerOptions() []connect.HandlerOption {
 	return []connect.HandlerOption{
 		connect.WithRecover(s.recoverPanic),
 		connect.WithInterceptors(ics...),
+		connect.WithReadMaxBytes(int(s.RPCMaxBytes())), //nolint:gosec // G115: the limit is far below MaxInt on every supported platform.
 	}
+}
+
+// NOTE: mediaMaxBytes as base64 plus 1 MiB of envelope; 8 MiB without a config.
+func (s *Server) RPCMaxBytes() int64 {
+	if s.Cfg == nil || s.Cfg.WhatsApp.MediaMaxBytes <= 0 {
+		return 8 << 20
+	}
+	return s.Cfg.WhatsApp.MediaMaxBytes*4/3 + 1<<20
+}
+
+func (s *Server) logger() *slog.Logger {
+	if s.Kernel == nil || s.Kernel.Log == nil {
+		return slog.New(slog.DiscardHandler)
+	}
+	return s.Kernel.Log
 }
 
 func (s *Server) recoverPanic(ctx context.Context, _ connect.Spec, _ http.Header, p any) error {

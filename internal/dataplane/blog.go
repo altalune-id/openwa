@@ -28,9 +28,11 @@ type listView struct {
 }
 
 type request struct {
-	ctx   context.Context
-	scope scope
-	raw   string
+	ctx         context.Context
+	scope       scope
+	raw         string
+	orgSlug     string
+	projectSlug string
 }
 
 // SECURITY: the credential is verified before the path is resolved, so a bad key cannot enumerate slugs.
@@ -51,7 +53,7 @@ func (h *Handler) begin(w http.ResponseWriter, r *http.Request) (request, bool) 
 		h.fail(w, r, err)
 		return request{}, false
 	}
-	return request{ctx: ctx, scope: sc, raw: raw}, true
+	return request{ctx: ctx, scope: sc, raw: raw, orgSlug: r.PathValue("org"), projectSlug: r.PathValue("project")}, true
 }
 
 // SECURITY: a write demands a credential before the path is resolved, so writes cannot enumerate {org, project} pairs.

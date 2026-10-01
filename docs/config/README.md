@@ -121,6 +121,19 @@ one account once and never overwrite it. Boot writes nothing — it reconciles t
   exists is itself a disclosure — and every write route requires a key regardless of the flag.
   Scope strings a key or token can carry: [`scopes`](../scopes/README.md).
 
+## Messaging
+
+| Key                         | Default    | Awareness   | Notes                                                                    |
+| --------------------------- | ---------- | ----------- | ------------------------------------------------------------------------ |
+| `retention.messageDays`     | `30`       | `-`         | Days a project keeps messages when it has no setting of its own (1-365). |
+| `media.store`               | `wa`       | `bootstrap` | `wa` fetches media from WhatsApp on demand; nothing is stored.           |
+| `whatsapp.sendSpacingMin`   | `1s`       | `-`         | Shortest pause between two sends of one device.                          |
+| `whatsapp.sendSpacingMax`   | `3s`       | `-`         | Longest pause; each pause is uniform in [min, max]. Not below min.       |
+| `whatsapp.mediaMaxBytes`    | `33554432` | `-`         | Largest attachment accepted for sending (32 MiB).                        |
+| `whatsapp.typingBeforeText` | `true`     | `-`         | Show "typing..." for up to 2 s before each text.                         |
+
+`http.baseURL` is required whenever `dataplane.enabled` is true: webhook media URLs point at the data plane.
+
 ## Console
 
 | Key          | Default  | Awareness | Meaning                                                                 |

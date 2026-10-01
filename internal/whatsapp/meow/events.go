@@ -75,6 +75,7 @@ func (s *session) inbound(ctx context.Context, v *events.Message) whatsapp.Inbou
 	}
 	m.SenderPhone = whatsapp.ResolvePhone(m.SenderJID, m.SenderAltJID, func(lid string) string { return s.cli.PNForLID(ctx, lid) })
 	fillContent(&m, v.Message)
+	enrichInbound(&m, v)
 	if v.RawMessage != nil {
 		if raw, err := proto.Marshal(v.RawMessage); err == nil {
 			m.Raw = raw

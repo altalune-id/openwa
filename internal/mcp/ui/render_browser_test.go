@@ -54,6 +54,15 @@ const inner = app.renderRoot.querySelector(%TAG%);
 await inner.updateComplete;
 const badge = inner.renderRoot.querySelector(".app-badge");
 const img = inner.renderRoot.querySelector("img");
+const submit = %SUBMIT%;
+let actions = 0;
+document.addEventListener("openwa-action", () => { actions++; }, true);
+if (submit) {
+  const form = inner.renderRoot.querySelector("form");
+  form.querySelector("[name=text]").value = submit.text;
+  form.requestSubmit();
+  await inner.updateComplete;
+}
 const payload = {
   outer: app.renderRoot.innerHTML,
   inner: inner.renderRoot.innerHTML,
@@ -66,6 +75,7 @@ const payload = {
   badgeBackground: badge ? getComputedStyle(badge).backgroundColor : "",
   badgePosition: badge ? getComputedStyle(badge).position : "",
   scoped: !!inner.shadowRoot,
+  actions: actions,
 };
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
 `
@@ -79,12 +89,27 @@ type renderReport struct {
 	Scripts int    `json:"scripts"`
 	Buttons int    `json:"buttons"`
 	Scoped  bool   `json:"scoped"`
+	Actions int    `json:"actions"`
 }
 
 //nolint:gochecknoglobals // compiled once; a package-level regexp is the idiom.
 var dumpedOut = regexp.MustCompile(`(?s)<pre id="out">(.*?)</pre>`)
 
 func renderInBrowser(t *testing.T, tool, tag, fixture string) renderReport {
+	t.Helper()
+	return runInBrowser(t, tool, tag, fixture, "null")
+}
+
+func submitInBrowser(t *testing.T, tool, tag, fixture, text string) renderReport {
+	t.Helper()
+	body, err := json.Marshal(map[string]string{"text": text})
+	if err != nil {
+		t.Fatalf("marshal submit: %v", err)
+	}
+	return runInBrowser(t, tool, tag, fixture, string(body))
+}
+
+func runInBrowser(t *testing.T, tool, tag, fixture, submit string) renderReport {
 	t.Helper()
 	bin := findBrowser(t)
 
@@ -105,6 +130,7 @@ func renderInBrowser(t *testing.T, tool, tag, fixture string) renderReport {
 	doc.WriteString(strings.NewReplacer(
 		"%TOOL%", strconv.Quote(tool),
 		"%TAG%", strconv.Quote(tag),
+		"%SUBMIT%", submit,
 		// NOTE: the fixture is embedded in a <script> block, so "</" must not close it early.
 		"%FIXTURE%", strings.ReplaceAll(fixture, "</", `<\/`),
 	).Replace(driverTemplate))

@@ -20,6 +20,7 @@ import (
 	"altalune.id/openwa/internal/platform/authn"
 	"altalune.id/openwa/internal/platform/publicid"
 	"altalune.id/openwa/internal/platform/session"
+	"altalune.id/openwa/internal/testutil/fakes"
 )
 
 const testKey = "key_test"
@@ -403,12 +404,21 @@ type env struct {
 	devices      *fakeDevices
 	authz        *fakeAuthz
 	caps         dataplane.Capabilities
+	messages     *fakeMessages
+	chats        *fakeChats
+	contacts     *fakeContacts
+	deviceA      uuid.UUID
+	deviceB      uuid.UUID
+	deviceAPub   string
+	deviceBPub   string
+	scoped       *projectDevices
+	sendLimit    int
 }
 
 func newEnv(published bool) *env {
 	orgID, projectID, categoryID := uuid.New(), uuid.New(), uuid.New()
 	altProjectID := uuid.New()
-	return &env{
+	e := &env{
 		orgID:        orgID,
 		projectID:    projectID,
 		altProjectID: altProjectID,
@@ -427,12 +437,20 @@ func newEnv(published bool) *env {
 			dataplane.DeviceRef{ID: uuid.New(), PublicID: "dev_SupportDevice001", Name: "Support", Version: 1, State: "unlinked"},
 		),
 		authz: &fakeAuthz{
-			key:        testKey,
-			scopes:     []string{authn.ScopePostsRead, authn.ScopePostsWrite, authn.ScopePostsAdmin, authn.ScopeDevicesRead, authn.ScopeDevicesWrite},
+			key: testKey,
+			scopes: []string{authn.ScopePostsRead, authn.ScopePostsWrite, authn.ScopePostsAdmin, authn.ScopeDevicesRead, authn.ScopeDevicesWrite,
+				authn.ScopeMessagesRead, authn.ScopeMessagesWrite, authn.ScopeChatsRead, authn.ScopeChatsWrite, authn.ScopeContactsRead},
 			orgID:      orgID,
 			projectIDs: []uuid.UUID{projectID, altProjectID},
 		},
+		messages: newFakeMessages(),
+		chats:    &fakeChats{rows: map[uuid.UUID]dataplane.ChatRef{}},
+		contacts: &fakeContacts{},
 	}
+	sales, support := e.deviceNamed("Sales"), e.deviceNamed("Support")
+	e.deviceA, e.deviceAPub, e.deviceB, e.deviceBPub = sales.ID, sales.PublicID, support.ID, support.PublicID
+	e.scoped = &projectDevices{fakeDevices: e.devices, sibling: dataplane.DeviceRef{ID: uuid.New(), PublicID: fakes.DevicePublicID(), Name: "Sibling", State: "connected"}}
+	return e
 }
 
 func (e *env) logger() *slog.Logger {
@@ -451,10 +469,12 @@ func (e *env) handler() http.Handler {
 			{orgID: e.orgID, slug: "other"}: {ID: e.altProjectID},
 		},
 		Posts:   e.posts,
-		Devices: e.devices,
+		Devices: e.scoped,
 		Authz:   e.authz,
 		Caps:    e.caps,
 		Log:     e.logger(),
+
+		Messages: e.messages, Chats: e.chats, Contacts: e.contacts, MaxMediaBytes: 1 << 20, MaxConcurrentSends: e.sendLimit,
 	})
 }
 

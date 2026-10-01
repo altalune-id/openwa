@@ -16,7 +16,7 @@ code: [`howto/error-code.md`](../howto/error-code.md); raising one: [`howto/erro
 - **CLI (S6)** — printed with the message; exit codes are separate ([`cli`](../cli/README.md)).
 - **Data plane `/api/v1/` (S3) and ingest `/hooks/` (S4) emit no codes** — only an opaque outcome
   word (`not_found`, `unauthorized`, `bad_request`, `conflict`, `in_progress`,
-  `precondition_failed`, `precondition_required`, `method_not_allowed`, `payload_too_large`,
+  `precondition_failed`, `precondition_required`, `method_not_allowed`, `payload_too_large`, `gone`,
   `internal`), so a denied scope and a missing row look the same. See [`surfaces`](../surfaces/README.md) R6.
 
 In the Status column, `—` means registered but not yet constructed.
@@ -226,21 +226,33 @@ scope-denial code, returned by `internal/mcp/auth.go` — for a denied or undecl
 
 ## MSG — Messages
 
-| Code | Constant | Status | Meaning |
-| ---- | -------- | ------ | ------- |
+| Code     | Constant                               | Status               | Meaning                    |
+| -------- | -------------------------------------- | -------------------- | -------------------------- |
+| `MSG001` | `apperror.CodeMessageNotFound`         | `NotFound`           | Message Not Found          |
+| `MSG002` | `apperror.CodeMessageInvalidInput`     | `InvalidArgument`    | Message Invalid Input      |
+| `MSG003` | `apperror.CodeMessageDeviceNotLinked`  | `FailedPrecondition` | Message Device Not Linked  |
+| `MSG004` | `apperror.CodeMessageMediaTooLarge`    | `InvalidArgument`    | Message Media Too Large    |
+| `MSG005` | `apperror.CodeMessageUnsupportedMime`  | `InvalidArgument`    | Message Unsupported Mime   |
+| `MSG006` | `apperror.CodeMessageEditWindowClosed` | `FailedPrecondition` | Message Edit Window Closed |
+| `MSG007` | `apperror.CodeMessageNotOwn`           | `FailedPrecondition` | Message Not Own            |
+| `MSG008` | `apperror.CodeMessageVersionMismatch`  | `Aborted`            | Message Version Mismatch   |
+| `MSG009` | `apperror.CodeMessageMediaUnavailable` | `FailedPrecondition` | Message Media Unavailable  |
+| `MSG010` | `apperror.CodeMessageInvalidRetention` | `InvalidArgument`    | Message Invalid Retention  |
+| `MSG011` | `apperror.CodeMessageMediaFetch`       | `InvalidArgument`    | Message Media Fetch        |
 
-_Reserved for spec 03/04; no codes yet._
+`MSG009` answers `410 Gone` on the data plane and the console media door: WhatsApp's CDN no longer holds the file. This applies to sent and received media alike.
 
 ## CHT — Chats
 
-| Code | Constant | Status | Meaning |
-| ---- | -------- | ------ | ------- |
-
-_Reserved for spec 03/04; no codes yet._
+| Code     | Constant                           | Status               | Meaning               |
+| -------- | ---------------------------------- | -------------------- | --------------------- |
+| `CHT001` | `apperror.CodeChatNotFound`        | `NotFound`           | Chat Not Found        |
+| `CHT002` | `apperror.CodeChatVersionMismatch` | `Aborted`            | Chat Version Mismatch |
+| `CHT003` | `apperror.CodeChatInvalidJID`      | `InvalidArgument`    | Chat Invalid JID      |
+| `CHT004` | `apperror.CodeChatNotAGroup`       | `FailedPrecondition` | Chat Not A Group      |
 
 ## CNT — Contacts
 
-| Code | Constant | Status | Meaning |
-| ---- | -------- | ------ | ------- |
-
-_Reserved for spec 03/04; no codes yet._
+| Code     | Constant                       | Status     | Meaning           |
+| -------- | ------------------------------ | ---------- | ----------------- |
+| `CNT001` | `apperror.CodeContactNotFound` | `NotFound` | Contact Not Found |

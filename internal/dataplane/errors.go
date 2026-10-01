@@ -6,7 +6,11 @@ import (
 	"net/http"
 
 	"altalune.id/openwa/internal/blog"
+	"altalune.id/openwa/internal/chat"
+	"altalune.id/openwa/internal/contact"
 	"altalune.id/openwa/internal/device"
+	"altalune.id/openwa/internal/message"
+	"altalune.id/openwa/internal/platform/keyset"
 	"altalune.id/openwa/internal/whatsapp"
 )
 
@@ -98,6 +102,28 @@ func IsInProgressError(err error) bool {
 	return errors.As(err, &target)
 }
 
+// PayloadTooLargeError reports a request body over this surface's limit.
+type PayloadTooLargeError struct{}
+
+func (*PayloadTooLargeError) Error() string { return "dataplane: payload too large" }
+
+// IsPayloadTooLargeError reports whether err is a *PayloadTooLargeError.
+func IsPayloadTooLargeError(err error) bool {
+	var target *PayloadTooLargeError
+	return errors.As(err, &target)
+}
+
+// UnavailableError reports a request abandoned while waiting for capacity.
+type UnavailableError struct{}
+
+func (*UnavailableError) Error() string { return "dataplane: unavailable" }
+
+// IsUnavailableError reports whether err is an *UnavailableError.
+func IsUnavailableError(err error) bool {
+	var target *UnavailableError
+	return errors.As(err, &target)
+}
+
 type errorBody struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
@@ -121,8 +147,13 @@ type failure struct {
 func statusFor(err error) failure {
 	switch {
 	case IsNotFoundError(err), blog.IsNotFoundError(err), device.IsNotFoundError(err),
+		message.IsNotFoundError(err), chat.IsNotFoundError(err), contact.IsNotFoundError(err),
 		whatsapp.IsSessionNotFoundError(err), whatsapp.IsSessionGoneError(err):
 		return failure{http.StatusNotFound, "not_found"}
+	case message.IsMediaUnavailableError(err):
+		return failure{http.StatusGone, "gone"}
+	case IsPayloadTooLargeError(err), message.IsMediaTooLargeError(err):
+		return failure{http.StatusRequestEntityTooLarge, "payload_too_large"}
 	case IsUnauthorizedError(err):
 		return failure{http.StatusUnauthorized, "unauthorized"}
 	case IsMethodNotAllowedError(err):
@@ -132,13 +163,15 @@ func statusFor(err error) failure {
 	case IsPreconditionFailedError(err), blog.IsStaleVersionError(err), device.IsStaleVersionError(err):
 		return failure{http.StatusPreconditionFailed, "precondition_failed"}
 	case IsConflictError(err), blog.IsAlreadyExistsError(err), device.IsNameTakenError(err),
+		message.IsDeviceNotLinkedError(err), message.IsEditWindowClosedError(err), message.IsNotOwnMessageError(err),
+		chat.IsNotAGroupError(err), message.IsVersionMismatchError(err), chat.IsVersionMismatchError(err),
 		whatsapp.IsAlreadyLinkedError(err), whatsapp.IsNotConnectedError(err), whatsapp.IsLinkTimeoutError(err):
 		return failure{http.StatusConflict, "conflict"}
 	case IsInProgressError(err):
 		return failure{http.StatusConflict, "in_progress"}
-	case IsBadRequestError(err), isInvalidPost(err), isInvalidDevice(err):
+	case IsBadRequestError(err), isInvalidPost(err), isInvalidDevice(err), isInvalidMessaging(err):
 		return failure{http.StatusBadRequest, "bad_request"}
-	case whatsapp.IsNotOwnedError(err):
+	case whatsapp.IsNotOwnedError(err), IsUnavailableError(err):
 		return failure{http.StatusServiceUnavailable, "unavailable"}
 	case whatsapp.IsUnsupportedError(err):
 		return failure{http.StatusNotImplemented, "not_implemented"}
@@ -155,4 +188,9 @@ func isInvalidPost(err error) bool {
 
 func isInvalidDevice(err error) bool {
 	return device.IsInvalidNameError(err) || device.IsInvalidRulesError(err) || whatsapp.IsInvalidPhoneError(err)
+}
+
+func isInvalidMessaging(err error) bool {
+	return message.IsInvalidInputError(err) || message.IsUnsupportedMimeError(err) || message.IsMediaFetchError(err) ||
+		message.IsInvalidRetentionError(err) || chat.IsInvalidJIDError(err) || keyset.IsInvalidCursorError(err)
 }

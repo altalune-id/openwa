@@ -176,6 +176,10 @@ mcp:
   # env: OPENWA_MCP_ENABLED
   enabled: ""
 
+media:
+  # [bootstrap] env: OPENWA_MEDIA_STORE
+  store: wa
+
 # [required, bootstrap] env: OPENWA_MODE
 mode: selfhosted
 
@@ -219,6 +223,10 @@ queue:
   token: ""
   # [secret] env: OPENWA_QUEUE_URL
   url: ""
+
+retention:
+  # env: OPENWA_RETENTION_MESSAGE_DAYS
+  messageDays: 30
 
 scheduler:
   # [bootstrap] env: OPENWA_SCHEDULER_ENABLED
@@ -308,5 +316,13 @@ whatsapp:
   leaseTTL: 45s
   # env: OPENWA_WHATSAPP_LINK_TIMEOUT
   linkTimeout: 3m
+  # env: OPENWA_WHATSAPP_MEDIA_MAX_BYTES
+  mediaMaxBytes: 33554432
   # env: OPENWA_WHATSAPP_PARK_FOR
   parkFor: 0s
+  # env: OPENWA_WHATSAPP_SEND_SPACING_MAX
+  sendSpacingMax: 3s
+  # env: OPENWA_WHATSAPP_SEND_SPACING_MIN
+  sendSpacingMin: 1s
+  # env: OPENWA_WHATSAPP_TYPING_BEFORE_TEXT
+  typingBeforeText: true

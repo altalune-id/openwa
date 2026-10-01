@@ -179,7 +179,7 @@ mint_key() {
     printf "%s" "$key"
 }
 
-READ_KEY=$(mint_key "mcp-reader" "projects:read" "devices:read")
+READ_KEY=$(mint_key "mcp-reader" "projects:read" "devices:read" "messages:read" "chats:read" "contacts:read")
 NOSCOPE_KEY=$(mint_key "mcp-keys-only" "apikeys:read")
 
 rpc() {
@@ -240,10 +240,10 @@ code=$(rpc "$tools_out" "$READ_KEY" '{"jsonrpc":"2.0","id":2,"method":"tools/lis
 
 names=$(jqx "$tools_out" '[.result.tools[].name] | sort | join(",")') \
     || fail "tools/list returned no tools array"
-[ "$names" = "device_get,device_list,device_logout,device_pair,member_list,project_list" ] \
-    || fail "tools/list published [${names}], want [device_get,device_list,device_logout,device_pair,member_list,project_list] — 6 tools"
+[ "$names" = "chat_list,contact_list,device_get,device_list,device_logout,device_pair,group_join,group_list,member_list,message_list,message_send,project_list" ] \
+    || fail "tools/list published [${names}], want [chat_list,contact_list,device_get,device_list,device_logout,device_pair,group_join,group_list,member_list,message_list,message_send,project_list] — 12 tools"
 
-for tool in device_get device_list device_logout device_pair member_list project_list; do
+for tool in chat_list contact_list device_get device_list device_logout device_pair group_join group_list member_list message_list message_send project_list; do
     require_true "$tools_out" \
         ".result.tools[] | select(.name == \"${tool}\") | .description | type == \"string\" and length > 0" \
         "tool ${tool} carries no description — a host renders it unlabelled"
@@ -285,6 +285,30 @@ require_true "$tools_out" \
     '.result.tools[] | select(.name == "device_pair") | ._meta | has("ui/resourceUri") | not' \
     'device_pair _meta carries the deprecated flat "ui/resourceUri" sibling — the pair breaks strict hosts'
 
+meta_keys_message_send=$(jqx "$tools_out" '.result.tools[] | select(.name == "message_send") | ._meta | keys | join(",")') \
+    || fail "message_send carries no _meta — mcp.appsUI must bind it to the app resource"
+[ "$meta_keys_message_send" = "ui" ] \
+    || fail "message_send _meta carries keys [${meta_keys_message_send}], want exactly [ui] — a strict host rejects any extra sibling"
+require_true "$tools_out" \
+    '.result.tools[] | select(.name == "message_send") | ._meta.ui.resourceUri == "ui://openwa/app"' \
+    "message_send _meta.ui.resourceUri is not ui://openwa/app"
+require_true "$tools_out" \
+    '.result.tools[] | select(.name == "message_send") | ._meta | has("ui/resourceUri") | not' \
+    'message_send _meta carries the deprecated flat "ui/resourceUri" sibling — the pair breaks strict hosts'
+
+meta_keys_chat_list=$(jqx "$tools_out" '.result.tools[] | select(.name == "chat_list") | ._meta | keys | join(",")') \
+    || fail "chat_list carries no _meta — mcp.appsUI must bind it to the app resource"
+[ "$meta_keys_chat_list" = "ui" ] \
+    || fail "chat_list _meta carries keys [${meta_keys_chat_list}], want exactly [ui] — a strict host rejects any extra sibling"
+require_true "$tools_out" \
+    '.result.tools[] | select(.name == "chat_list") | ._meta.ui.resourceUri == "ui://openwa/app"' \
+    "chat_list _meta.ui.resourceUri is not ui://openwa/app"
+require_true "$tools_out" \
+    '.result.tools[] | select(.name == "chat_list") | ._meta | has("ui/resourceUri") | not' \
+    'chat_list _meta carries the deprecated flat "ui/resourceUri" sibling — the pair breaks strict hosts'
+
+require_true "$tools_out" '.result.tools[] | select(.name == "message_list") | has("_meta") | not' \
+    "message_list carries _meta; only message_send and chat_list are the messaging app tools"
 require_true "$tools_out" '.result.tools[] | select(.name == "device_get") | has("_meta") | not' \
     "device_get carries _meta — only device_list and device_pair are app tools"
 
@@ -303,6 +327,13 @@ code=$(rpc "$devices_out" "$READ_KEY" \
 [ "$code" = "200" ] || fail "device_list returned HTTP ${code}, want 200"
 require_true "$devices_out" '.result.isError != true' \
     "device_list with no projectId did not fall back to the credential's active project"
+
+chats_out="${tmpdir}/chat-list.json"
+code=$(rpc "$chats_out" "$READ_KEY" \
+    '{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"chat_list","arguments":{}}}')
+[ "$code" = "200" ] || fail "chat_list returned HTTP ${code}, want 200"
+require_true "$chats_out" '.result.isError != true' \
+    "chat_list with no projectId did not fall back to the credential's active project"
 
 res_out="${tmpdir}/resources-list.json"
 code=$(rpc "$res_out" "$READ_KEY" '{"jsonrpc":"2.0","id":3,"method":"resources/list"}')
@@ -377,7 +408,7 @@ resource=$(jqx "$meta_out" '.resource') || fail "${metadata_url} names no resour
     || fail "metadata resource is ${resource}, want ${AUDIENCE} — the verifier enforces that audience"
 require_true "$meta_out" "[.authorization_servers[]] | index(\"${ISSUER}\") != null" \
     "metadata does not name ${ISSUER} as an authorization server"
-require_true "$meta_out" '[.scopes_supported[]] | index("projects:read") != null and index("members:read") != null and index("devices:read") != null' \
+require_true "$meta_out" '[.scopes_supported[]] | index("projects:read") != null and index("members:read") != null and index("devices:read") != null and index("messages:write") != null and index("chats:read") != null and index("contacts:read") != null' \
     "metadata scopes_supported does not cover the registered tools' scopes"
 
 kill -TERM "$SERVE_PID"
@@ -411,5 +442,5 @@ fi
 mkdir -p .cache
 cp "$servelog" .cache/verify-mcp.log 2>/dev/null || true
 
-echo "OK: initialize + 6 tools + ui://openwa/app (${bundle_size} bytes) + RFC 9728 challenge; shutdown in ${elapsed}s"
+echo "OK: initialize + 12 tools + ui://openwa/app (${bundle_size} bytes) + RFC 9728 challenge; shutdown in ${elapsed}s"
 exit 0

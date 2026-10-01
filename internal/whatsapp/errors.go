@@ -1,6 +1,7 @@
 package whatsapp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -172,13 +173,20 @@ func IsSessionGoneError(err error) bool {
 	return ok
 }
 
-// EngineError wraps a failure the engine reported for one operation.
+// EngineError wraps an engine failure; Retryable says whether the sender should requeue the row.
 type EngineError struct {
-	Op  string
-	Err error
+	Op        string
+	Reason    string
+	Retryable bool
+	Err       error
 }
 
-func (e *EngineError) Error() string { return fmt.Sprintf("whatsapp: engine %s: %v", e.Op, e.Err) }
+func (e *EngineError) Error() string {
+	if e.Reason != "" {
+		return fmt.Sprintf("whatsapp: engine %s: %s: %v", e.Op, e.Reason, e.Err)
+	}
+	return fmt.Sprintf("whatsapp: engine %s: %v", e.Op, e.Err)
+}
 
 // Unwrap exposes the engine's error.
 func (e *EngineError) Unwrap() error { return e.Err }
@@ -233,4 +241,66 @@ func (e *StaleVersionError) Error() string {
 func IsStaleVersionError(err error) bool {
 	_, ok := errors.AsType[*StaleVersionError](err)
 	return ok
+}
+
+// MediaUnavailableError reports media WhatsApp no longer serves (HTTP 404 or 410 from the media host).
+type MediaUnavailableError struct{ ID string }
+
+func (e *MediaUnavailableError) Error() string { return "whatsapp: media unavailable: " + e.ID }
+
+// IsMediaUnavailableError reports whether err's tree contains a *MediaUnavailableError.
+func IsMediaUnavailableError(err error) bool {
+	_, ok := errors.AsType[*MediaUnavailableError](err)
+	return ok
+}
+
+// SetupError reports a port wired twice, or after the runtime started.
+type SetupError struct{ Reason string }
+
+func (e *SetupError) Error() string { return "whatsapp: setup: " + e.Reason }
+
+// IsSetupError reports whether err's tree contains a *SetupError.
+func IsSetupError(err error) bool {
+	_, ok := errors.AsType[*SetupError](err)
+	return ok
+}
+
+// IsRetryable classifies a send failure: a lost connection, a cancelled or timed-out send and an engine error marked retryable requeue; malformed input and unsupported kinds do not.
+func IsRetryable(err error) bool {
+	switch {
+	case err == nil:
+		return false
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded), IsNotConnectedError(err):
+		return true
+	case IsUnsupportedError(err), IsInvalidJIDError(err), IsMediaUnavailableError(err):
+		return false
+	}
+	if e, ok := errors.AsType[*EngineError](err); ok {
+		return e.Retryable
+	}
+	return true
+}
+
+// FailureClass names a send failure for the message.status webhook; the full error text stays in the logs.
+func FailureClass(err error) string {
+	if e, ok := errors.AsType[*EngineError](err); ok && e.Reason != "" {
+		return e.Reason
+	}
+	switch {
+	case err == nil:
+		return "unknown"
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return "cancelled"
+	case IsNotConnectedError(err):
+		return "not_connected"
+	case IsNotOwnedError(err):
+		return "not_owned"
+	case IsUnsupportedError(err):
+		return "unsupported"
+	case IsInvalidJIDError(err):
+		return "invalid_recipient"
+	case IsMediaUnavailableError(err):
+		return "media_unavailable"
+	}
+	return "engine_error"
 }

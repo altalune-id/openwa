@@ -1,0 +1,13 @@
+{
+  "device": {
+    "id": "dev_V1StGXR8Z5jdHi6B",
+    "name": "sales-01",
+    "phone": "628123456789"
+  },
+  "message": {
+    "id": "msg_St0Xw7Ge3Ua8Yi1d",
+    "wa_id": "3EB00199C1F000007000800000000000E003"
+  },
+  "status": "read",
+  "at": "2026-09-28T10:17:00Z"
+}

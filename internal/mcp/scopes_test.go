@@ -6,7 +6,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	chatv1mcp "altalune.id/openwa/gen/go/chat/v1/chatv1mcp"
+	contactv1mcp "altalune.id/openwa/gen/go/contact/v1/contactv1mcp"
 	devicev1mcp "altalune.id/openwa/gen/go/device/v1/devicev1mcp"
+	messagev1mcp "altalune.id/openwa/gen/go/message/v1/messagev1mcp"
 	orgv1mcp "altalune.id/openwa/gen/go/org/v1/orgv1mcp"
 	projectv1mcp "altalune.id/openwa/gen/go/project/v1/projectv1mcp"
 	mcpinternal "altalune.id/openwa/internal/mcp"
@@ -46,7 +49,8 @@ func TestScopeForMatchesTheTable(t *testing.T) {
 
 // TestEveryGeneratedToolIsTabulated keeps the catalog and the protos one set, enumerated from the generator rather than restated by hand. SECURITY: an annotated RPC nobody tabulated registers with the empty scope, which is a tool the root mcp server refuses; a row naming no generated tool is a scope nothing will ever check.
 func TestEveryGeneratedToolIsTabulated(t *testing.T) {
-	generated := slices.Concat(orgv1mcp.MemberServiceToolNames(), projectv1mcp.ProjectServiceToolNames(), devicev1mcp.DeviceServiceToolNames())
+	generated := slices.Concat(orgv1mcp.MemberServiceToolNames(), projectv1mcp.ProjectServiceToolNames(), devicev1mcp.DeviceServiceToolNames(),
+		messagev1mcp.MessageServiceToolNames(), chatv1mcp.ChatServiceToolNames(), contactv1mcp.ContactServiceToolNames())
 	require.NotEmpty(t, generated, "the generator emitted no tool names; nothing below guards anything")
 
 	table := mcpinternal.ScopeTable()

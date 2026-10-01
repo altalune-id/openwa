@@ -142,7 +142,7 @@ lint: ## Run golangci-lint if present; else fall back to go vet
 	else echo "golangci-lint not installed; running go vet instead"; $(GO) vet ./...; fi
 
 dev: ui-vendor build ## Rebuild + run the server (defaults to serve)
-	$(BIN) serve
+	OPENWA_HTTP_BASE_URL=$${OPENWA_HTTP_BASE_URL:-http://localhost:5150} $(BIN) serve
 
 clean: ## Remove build artifacts + generated code
 	rm -rf bin/ dist/ gen/
