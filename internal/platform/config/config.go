@@ -590,6 +590,22 @@ func IsMCPAudienceMismatchError(err error) bool {
 	return errors.As(err, &target)
 }
 
+// MCPAudienceCollisionError reports an mcp.audience equal to tokens.audience.
+type MCPAudienceCollisionError struct {
+	Audience string
+}
+
+func (e *MCPAudienceCollisionError) Error() string {
+	// SECURITY: a shared audience lets a token minted for the MCP endpoint, carrying only its narrow scopes, authenticate on the control plane.
+	return fmt.Sprintf("config: mcp.audience and tokens.audience are both %q — the MCP endpoint and the control plane must have distinct token audiences (set ALT_MCP_AUDIENCE or ALT_TOKENS_AUDIENCE)", e.Audience)
+}
+
+// IsMCPAudienceCollisionError reports whether err is an *MCPAudienceCollisionError.
+func IsMCPAudienceCollisionError(err error) bool {
+	var target *MCPAudienceCollisionError
+	return errors.As(err, &target)
+}
+
 func validateMCP(c *Config) error {
 	if !c.MCP.Enabled {
 		return nil
@@ -629,11 +645,20 @@ func validateMCPAudience(c *Config) error {
 	if !u.IsAbs() {
 		return &MCPAudienceInvalidError{Audience: c.MCP.Audience, Reason: "not absolute"}
 	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return &MCPAudienceInvalidError{Audience: c.MCP.Audience, Reason: "not an http(s) URL"}
+	}
+	if u.Host == "" {
+		return &MCPAudienceInvalidError{Audience: c.MCP.Audience, Reason: "missing a host"}
+	}
 	if strings.Contains(c.MCP.Audience, "#") {
 		return &MCPAudienceInvalidError{Audience: c.MCP.Audience, Reason: "carrying a fragment"}
 	}
 	if !c.MCP.AudienceOverride && c.MCP.Audience != mounted {
 		return &MCPAudienceMismatchError{Audience: c.MCP.Audience, Mounted: mounted}
+	}
+	if c.Tokens.Audience == c.MCP.Audience {
+		return &MCPAudienceCollisionError{Audience: c.MCP.Audience}
 	}
 	return nil
 }

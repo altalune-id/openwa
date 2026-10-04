@@ -243,7 +243,7 @@ func writeRegister(g *protogen.GeneratedFile, svc *protogen.Service, tools []too
 		g.P("var req ", g.QualifiedGoIdent(t.method.Input.GoIdent))
 		g.P("if err := (", g.QualifiedGoIdent(protojsonPackage.Ident("UnmarshalOptions")),
 			"{DiscardUnknown: false}).Unmarshal(input, &req); err != nil {")
-		g.P("return nil, ", errorf, "(\"mcp: %s: decode arguments: %w\", ", t.constName, ", err)")
+		g.P("return nil, ", g.QualifiedGoIdent(runtime.Ident("NewInvalidArgumentsError")), "(", t.constName, ", err)")
 		g.P("}")
 		g.P("resp, err := h.", t.method.GoName, "(ctx, ",
 			g.QualifiedGoIdent(connectPackage.Ident("NewRequest")), "(&req))")

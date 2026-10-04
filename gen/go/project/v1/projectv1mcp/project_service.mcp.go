@@ -40,7 +40,7 @@ func RegisterProjectServiceTools(reg *mcp.Registry, h projectv1connect.ProjectSe
 			}
 			var req v1.ListProjectsRequest
 			if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(input, &req); err != nil {
-				return nil, fmt.Errorf("mcp: %s: decode arguments: %w", ProjectListToolName, err)
+				return nil, mcp.NewInvalidArgumentsError(ProjectListToolName, err)
 			}
 			resp, err := h.ListProjects(ctx, connect.NewRequest(&req))
 			if err != nil {

@@ -39,7 +39,7 @@ func RegisterContactServiceTools(reg *mcp.Registry, h contactv1connect.ContactSe
 			}
 			var req v1.ListRequest
 			if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(input, &req); err != nil {
-				return nil, fmt.Errorf("mcp: %s: decode arguments: %w", ContactListToolName, err)
+				return nil, mcp.NewInvalidArgumentsError(ContactListToolName, err)
 			}
 			resp, err := h.List(ctx, connect.NewRequest(&req))
 			if err != nil {

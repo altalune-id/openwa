@@ -139,5 +139,16 @@ func mcpErrorPayload(ctx context.Context, err error) rootmcp.ErrorPayload {
 	if denied, ok := errors.AsType[*rootmcp.ScopeDeniedError](err); ok {
 		payload.Meta = map[string]string{"tool": denied.Tool, "scope": denied.Scope}
 	}
+	if invalid, ok := errors.AsType[*rootmcp.InvalidArgumentsError](err); ok {
+		payload.Meta = invalidArgumentsMeta(invalid)
+	}
 	return mcpinternal.AttachContext(ctx, payload)
+}
+
+func invalidArgumentsMeta(e *rootmcp.InvalidArgumentsError) map[string]string {
+	meta := map[string]string{"tool": e.Tool}
+	if e.Field != "" {
+		meta["field"] = e.Field
+	}
+	return meta
 }

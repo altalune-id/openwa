@@ -140,5 +140,5 @@ device and refuses (exit `4`, `GEN004`) when there are several, naming them.
 | `version`                                     | `version`, `commit`, `buildTime`                                                                                                                                  |
 | `healthz`                                     | `url`, `status`, `ok`, `took`, `error`                                                                                                                            |
 
-Timestamps are RFC 3339. `role` is `owner\|admin\|member`; `status` is `pending\|accepted` for an
+Timestamps are RFC 3339 in UTC (`Z`), and table dates are UTC days. Human tables print times in UTC (chat `LAST`, message `WHEN`, `migrate status`, invite `EXPIRES`), and JSON timestamps are RFC 3339 UTC. `role` is `owner\|admin\|member`; `status` is `pending\|accepted` for an
 invite.

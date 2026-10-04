@@ -247,15 +247,18 @@ templ htmxRequestHooks(nonce string) {
 templ themeInitScript(nonce string) {
 	<script nonce={ nonce }>
 	(function() {
+		var root = document.documentElement;
+		var mql = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+		function applyMode() {
+			var m = root.getAttribute('data-color-mode') || 'auto';
+			root.classList.toggle('dark', m === 'dark' || (m === 'auto' && !!mql && mql.matches));
+		}
 		try {
-			var root = document.documentElement;
-			var t = localStorage.getItem('openwa.theme') || root.getAttribute('data-default-theme');
-			var m = localStorage.getItem('openwa.mode') || 'auto';
-			root.setAttribute('data-theme', t);
-			root.setAttribute('data-color-mode', m);
-			var dark = m === 'dark' || (m === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-			root.classList.toggle('dark', dark);
+			root.setAttribute('data-theme', localStorage.getItem('openwa.theme') || root.getAttribute('data-default-theme'));
+			root.setAttribute('data-color-mode', localStorage.getItem('openwa.mode') || 'auto');
 		} catch (e) {}
+		applyMode();
+		if (mql && mql.addEventListener) mql.addEventListener('change', applyMode);
 	})();
 	</script>
 }
@@ -365,12 +368,6 @@ templ themeApplyScript(nonce string) {
 				var m = e.target.closest('button[data-color-mode]');
 				if (m) { setMode(m.getAttribute('data-color-mode')); closeParentDetails(m); return; }
 			});
-			if (window.matchMedia) {
-				var mql = window.matchMedia('(prefers-color-scheme: dark)');
-				if (mql.addEventListener) mql.addEventListener('change', function(){
-					if ((localStorage.getItem('openwa.mode') || 'auto') === 'auto') setMode('auto');
-				});
-			}
 		}
 		if (document.readyState === 'loading') {
 			document.addEventListener('DOMContentLoaded', refreshLabels);

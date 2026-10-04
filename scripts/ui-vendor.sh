@@ -165,9 +165,9 @@ EOF
 fi
 
 "$TW_BIN" \
+	-c "$ROOT/internal/web/tailwind.config.js" \
 	-i "$SRC" \
 	-o "$STATIC/app.css" \
-	--content "$ROOT/internal/web/**/*.templ,$ROOT/internal/web/templates/*.go" \
-	--minify
+	--content "$ROOT/internal/web/**/*.templ,$ROOT/internal/web/templates/*.go"
 
 echo "==> done — vendored assets in $STATIC"

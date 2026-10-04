@@ -50,7 +50,7 @@ func newChatListCmd(bootClient ClientBootFn) *cobra.Command {
 				for _, c := range resp.Msg.GetChats() {
 					last := ""
 					if c.GetLastMessageAt() != nil {
-						last = c.GetLastMessageAt().AsTime().Local().Format("2006-01-02 15:04")
+						last = tableDateTime(c.GetLastMessageAt().AsTime())
 					}
 					pg.items = append(pg.items, chatMap(c))
 					pg.rows = append(pg.rows, []string{c.GetName(), c.GetKind(), itoa(c.GetUnreadCount()), last, c.GetLastMessagePreview(), c.GetId()})

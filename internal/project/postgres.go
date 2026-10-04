@@ -43,7 +43,7 @@ func (r *pgProjectRow) toProject() *Project {
 		OrgID:     r.OrgID,
 		Slug:      r.Slug,
 		Name:      r.Name,
-		CreatedAt: r.CreatedAt,
+		CreatedAt: r.CreatedAt.UTC(),
 		System:    r.System,
 	}
 }

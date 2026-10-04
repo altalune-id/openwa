@@ -39,7 +39,7 @@ func RegisterMemberServiceTools(reg *mcp.Registry, h orgv1connect.MemberServiceH
 			}
 			var req v1.ListMembersRequest
 			if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(input, &req); err != nil {
-				return nil, fmt.Errorf("mcp: %s: decode arguments: %w", MemberListToolName, err)
+				return nil, mcp.NewInvalidArgumentsError(MemberListToolName, err)
 			}
 			resp, err := h.ListMembers(ctx, connect.NewRequest(&req))
 			if err != nil {

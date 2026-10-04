@@ -59,7 +59,7 @@ internal/web/static/.vendor-stamp: scripts/ui-vendor.sh
 	bash scripts/ui-vendor.sh
 	@touch $@
 
-internal/web/static/app.css: internal/web/static/.vendor-stamp internal/web/static/app.tailwind.css $(UI_TEMPL_SRC)
+internal/web/static/app.css: internal/web/static/.vendor-stamp internal/web/static/app.tailwind.css internal/web/tailwind.config.js $(UI_TEMPL_SRC)
 	bash scripts/ui-vendor.sh --css-only
 
 ui-vendor: internal/web/static/app.css ## Download the SHA-256 pinned static assets and compile app.css

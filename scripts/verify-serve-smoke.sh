@@ -168,6 +168,12 @@ if [ "$elapsed" -gt 10 ]; then
     exit 1
 fi
 
+if grep -E '"level":"ERROR"| ERROR ' "$logfile" >/dev/null; then
+    echo "a clean shutdown logged at ERROR; log:" >&2
+    cat "$logfile" >&2
+    exit 1
+fi
+
 mkdir -p .cache
 cp "$logfile" .cache/verify-serve.log 2>/dev/null || true
 

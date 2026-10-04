@@ -49,7 +49,7 @@ func RegisterDeviceServiceTools(reg *mcp.Registry, h devicev1connect.DeviceServi
 			}
 			var req v1.ListDevicesRequest
 			if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(input, &req); err != nil {
-				return nil, fmt.Errorf("mcp: %s: decode arguments: %w", DeviceListToolName, err)
+				return nil, mcp.NewInvalidArgumentsError(DeviceListToolName, err)
 			}
 			resp, err := h.ListDevices(ctx, connect.NewRequest(&req))
 			if err != nil {
@@ -75,7 +75,7 @@ func RegisterDeviceServiceTools(reg *mcp.Registry, h devicev1connect.DeviceServi
 			}
 			var req v1.GetDeviceRequest
 			if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(input, &req); err != nil {
-				return nil, fmt.Errorf("mcp: %s: decode arguments: %w", DeviceGetToolName, err)
+				return nil, mcp.NewInvalidArgumentsError(DeviceGetToolName, err)
 			}
 			resp, err := h.GetDevice(ctx, connect.NewRequest(&req))
 			if err != nil {
@@ -103,7 +103,7 @@ func RegisterDeviceServiceTools(reg *mcp.Registry, h devicev1connect.DeviceServi
 			}
 			var req v1.StartLinkRequest
 			if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(input, &req); err != nil {
-				return nil, fmt.Errorf("mcp: %s: decode arguments: %w", DevicePairToolName, err)
+				return nil, mcp.NewInvalidArgumentsError(DevicePairToolName, err)
 			}
 			resp, err := h.StartLink(ctx, connect.NewRequest(&req))
 			if err != nil {
@@ -130,7 +130,7 @@ func RegisterDeviceServiceTools(reg *mcp.Registry, h devicev1connect.DeviceServi
 			}
 			var req v1.UnlinkRequest
 			if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(input, &req); err != nil {
-				return nil, fmt.Errorf("mcp: %s: decode arguments: %w", DeviceLogoutToolName, err)
+				return nil, mcp.NewInvalidArgumentsError(DeviceLogoutToolName, err)
 			}
 			resp, err := h.Unlink(ctx, connect.NewRequest(&req))
 			if err != nil {

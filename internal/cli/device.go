@@ -374,7 +374,7 @@ func deviceMap(d *devicev1.Device) map[string]any {
 		"version":   d.GetVersion(),
 	}
 	if ts := d.GetLastSeenAt(); ts != nil {
-		out["last_seen_at"] = ts.AsTime().UTC().Format(time.RFC3339)
+		out["last_seen_at"] = rfc3339UTC(ts.AsTime())
 	}
 	return out
 }
