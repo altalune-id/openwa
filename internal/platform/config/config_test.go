@@ -260,6 +260,34 @@ func TestValidate_ModeInvariants(t *testing.T) {
 			wantSub: "",
 		},
 		{
+			name: "queue user with password is allowed",
+			mutate: func(c *Config) {
+				c.Queue = QueueConfig{Enabled: true, URL: "nats://127.0.0.1:4222", User: "openwa", Password: "pw"}
+			},
+			wantSub: "",
+		},
+		{
+			name: "queue user without password fails",
+			mutate: func(c *Config) {
+				c.Queue = QueueConfig{Enabled: true, URL: "nats://127.0.0.1:4222", User: "openwa"}
+			},
+			wantSub: "OPENWA_QUEUE_PASSWORD",
+		},
+		{
+			name: "queue password without user fails",
+			mutate: func(c *Config) {
+				c.Queue = QueueConfig{Enabled: true, URL: "nats://127.0.0.1:4222", Password: "pw"}
+			},
+			wantSub: "OPENWA_QUEUE_USER",
+		},
+		{
+			name: "queue token with user fails",
+			mutate: func(c *Config) {
+				c.Queue = QueueConfig{Enabled: true, URL: "nats://127.0.0.1:4222", Token: "t", User: "openwa", Password: "pw"}
+			},
+			wantSub: "mutually exclusive",
+		},
+		{
 			name: "cloud with genesis password alone fails",
 			mutate: func(c *Config) {
 				c.Mode = ModeCloud
@@ -591,4 +619,28 @@ func TestDefaults_WhatsAppRuntime(t *testing.T) {
 	require.Equal(t, 3*time.Minute, c.WhatsApp.LinkTimeout)
 	require.Zero(t, c.WhatsApp.ParkFor)
 	require.Equal(t, 1024, c.WhatsApp.InboundQueueSize)
+}
+
+func TestValidate_QueueCredentialErrorsAreTyped(t *testing.T) {
+	tests := []struct {
+		name  string
+		queue QueueConfig
+		is    func(error) bool
+	}{
+		{"conflict", QueueConfig{Enabled: true, URL: "nats://x:4222", Token: "t", Password: "pw"}, IsQueueCredentialsConflictError},
+		{"incomplete", QueueConfig{Enabled: true, URL: "nats://x:4222", User: "u"}, IsQueueCredentialsIncompleteError},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validSelfhosted()
+			c.Queue = tt.queue
+			err := validateInvariants(c)
+			if !tt.is(err) {
+				t.Fatalf("want typed %s error, got %v", tt.name, err)
+			}
+		})
+	}
+	if IsQueueCredentialsConflictError(errors.New("other")) || IsQueueCredentialsIncompleteError(errors.New("other")) {
+		t.Fatal("helpers must reject unrelated errors")
+	}
 }
