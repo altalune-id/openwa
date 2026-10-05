@@ -49,6 +49,8 @@ Order is enforced — each step's omission is a boot error:
 `mcp.audience` must be absolute, fragment-free, and equal the mounted URL unless
 `mcp.audienceOverride=true`. The override is the only way to widen what the verifier accepts,
 so it is explicit rather than inferred.
+It must also differ from `tokens.audience`: a shared audience would let a token minted for MCP
+authenticate on the control plane.
 
 ## Auth
 
@@ -99,6 +101,10 @@ sequenceDiagram
 
 **SECURITY:** a tool failure answers _in the result_, never as a JSON-RPC error — a bare error
 yields a wire error with code zero, which is invalid. Codes: [`error codes`](../errors/README.md).
+
+Arguments that do not decode into the tool's input message answer `GEN004` with
+`meta: { "tool", "field" }` (`field` only when the decoder names it). The generated handler
+returns `mcp.InvalidArgumentsError`; it is a client error and is never logged as an incident.
 
 ## Tools
 

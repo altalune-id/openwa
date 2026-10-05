@@ -60,8 +60,8 @@ func (r *pgPostRow) toPost() *Post {
 		Slug:         r.Slug,
 		BodyMarkdown: r.BodyMarkdown,
 		Status:       Status(r.Status),
-		CreatedAt:    r.CreatedAt,
-		UpdatedAt:    r.UpdatedAt,
+		CreatedAt:    r.CreatedAt.UTC(),
+		UpdatedAt:    r.UpdatedAt.UTC(),
 		Version:      r.Version,
 	}
 	if r.FirstPublishedAt != nil {

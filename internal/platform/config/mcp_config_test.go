@@ -113,6 +113,70 @@ func TestValidate_MCPInvariants(t *testing.T) {
 			wantSubs: []string{"not absolute"},
 		},
 		{
+			name: "a non-http scheme is refused",
+			mutate: func(c *Config) {
+				c.MCP.Audience = "urn:example:mcp"
+				c.MCP.AudienceOverride = true
+			},
+			is:       IsMCPAudienceInvalidError,
+			wantSubs: []string{"urn:example:mcp", "http(s)"},
+		},
+		{
+			name: "an ftp audience is refused",
+			mutate: func(c *Config) {
+				c.MCP.Audience = "ftp://h/mcp"
+				c.MCP.AudienceOverride = true
+			},
+			is:       IsMCPAudienceInvalidError,
+			wantSubs: []string{"ftp://h/mcp", "http(s)"},
+		},
+		{
+			name: "an audience without a host is refused",
+			mutate: func(c *Config) {
+				c.MCP.Audience = "https:///mcp"
+				c.MCP.AudienceOverride = true
+			},
+			is:       IsMCPAudienceInvalidError,
+			wantSubs: []string{"https:///mcp", "host"},
+		},
+		{
+			name: "an http audience with a port is accepted under the override",
+			mutate: func(c *Config) {
+				c.MCP.Audience = "http://localhost:5150/mcp"
+				c.MCP.AudienceOverride = true
+			},
+			wantAud: "http://localhost:5150/mcp",
+		},
+		{
+			name: "an https audience on another host is accepted under the override",
+			mutate: func(c *Config) {
+				c.MCP.Audience = "https://app.example/mcp"
+				c.MCP.AudienceOverride = true
+			},
+			wantAud: "https://app.example/mcp",
+		},
+		{
+			name:     "a tokens.audience equal to the mounted mcp audience is refused",
+			mutate:   func(c *Config) { c.Tokens.Audience = "https://app.example.com/mcp" },
+			is:       IsMCPAudienceCollisionError,
+			wantSubs: []string{"https://app.example.com/mcp", "tokens.audience", "ALT_TOKENS_AUDIENCE"},
+		},
+		{
+			name: "a tokens.audience equal to an overridden mcp audience is refused",
+			mutate: func(c *Config) {
+				c.MCP.Audience = "https://proxy.example.com/mcp"
+				c.MCP.AudienceOverride = true
+				c.Tokens.Audience = "https://proxy.example.com/mcp"
+			},
+			is:       IsMCPAudienceCollisionError,
+			wantSubs: []string{"https://proxy.example.com/mcp", "tokens.audience"},
+		},
+		{
+			name:    "a tokens.audience distinct from the mcp audience is accepted",
+			mutate:  func(c *Config) { c.Tokens.Audience = "https://app.example.com/api" },
+			wantAud: "https://app.example.com/mcp",
+		},
+		{
 			name: "a fragment in the audience is refused",
 			mutate: func(c *Config) {
 				c.MCP.Audience = "https://proxy.example.com/mcp#fragment"

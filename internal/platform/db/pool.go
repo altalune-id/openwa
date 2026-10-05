@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 )
 
@@ -39,13 +40,14 @@ func OpenPool(ctx context.Context, cfg DBConfig, log *slog.Logger) (Pool, error)
 	return p, nil
 }
 
-// Close closes every distinct handle; safe when R aliases W.
+// Close closes every distinct handle and joins their errors; safe when R aliases W.
 func (p Pool) Close() error {
+	var errs []error
 	if p.R != nil && p.R != p.W {
-		_ = p.R.Close()
+		errs = append(errs, p.R.Close())
 	}
 	if p.W != nil {
-		return p.W.Close()
+		errs = append(errs, p.W.Close())
 	}
-	return nil
+	return errors.Join(errs...)
 }

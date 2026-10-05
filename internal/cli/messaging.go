@@ -7,7 +7,6 @@ import (
 	"os"
 	"slices"
 	"strconv"
-	"time"
 
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -126,7 +125,7 @@ func ts(t *timestamppb.Timestamp) string {
 	if t == nil {
 		return ""
 	}
-	return t.AsTime().UTC().Format(time.RFC3339)
+	return rfc3339UTC(t.AsTime())
 }
 
 func messageMap(m *messagev1.Message) map[string]any {
@@ -162,7 +161,7 @@ func messageRow(m *messagev1.Message) []string {
 	}
 	when := ""
 	if m.GetTimestamp() != nil {
-		when = m.GetTimestamp().AsTime().Local().Format("2006-01-02 15:04")
+		when = tableDateTime(m.GetTimestamp().AsTime())
 	}
 	return []string{when, who, body, m.GetStatus(), m.GetId()}
 }

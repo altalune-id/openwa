@@ -62,6 +62,9 @@ func TranslateError(err error) error {
 	if authn.IsUnauthorizedError(err) {
 		return appError(apperror.CodeUnauthenticated, unauthorizedMessage, codes.Unauthenticated, err)
 	}
+	if invalid, ok := errors.AsType[*rootmcp.InvalidArgumentsError](err); ok {
+		return appError(apperror.CodeValidation, "invalid tool arguments: "+invalid.Reason, codes.InvalidArgument, err)
+	}
 	return err
 }
 

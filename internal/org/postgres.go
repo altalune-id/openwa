@@ -65,7 +65,7 @@ func (r *pgOrgRow) toOrg() *Org {
 		Slug:      r.Slug,
 		Name:      r.Name,
 		OwnerID:   r.CreatedBy,
-		CreatedAt: r.CreatedAt,
+		CreatedAt: r.CreatedAt.UTC(),
 		System:    r.System,
 	}
 }
@@ -83,7 +83,7 @@ func (r *pgMembershipRow) toMembership() *Membership {
 		OrgID:     r.OrgID,
 		UserID:    r.UserID,
 		Role:      Role(r.Role),
-		CreatedAt: r.CreatedAt,
+		CreatedAt: r.CreatedAt.UTC(),
 		System:    r.System,
 	}
 }
@@ -103,7 +103,7 @@ func (r *pgMemberProfileRow) toProfile() *MemberProfile {
 		Email:     r.Email,
 		Name:      r.Name,
 		Role:      Role(r.Role),
-		CreatedAt: r.CreatedAt,
+		CreatedAt: r.CreatedAt.UTC(),
 		System:    r.System,
 	}
 }

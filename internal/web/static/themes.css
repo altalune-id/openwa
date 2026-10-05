@@ -1,4 +1,4 @@
-/* OpenWA theme catalog. NOTE: loads after basecoat.css and app.css so these variables and utilities win the cascade. */
+/* OpenWA theme catalog. NOTE: loads after basecoat.css and app.css so these variables win the cascade; theme-token utilities compile into app.css from internal/web/tailwind.config.js. */
 
 html, body {
 	background-color: hsl(var(--background));
@@ -7,61 +7,6 @@ html, body {
 
 /* Scrollbar tint matches the theme rather than the OS grey. */
 * { scrollbar-color: hsl(var(--border)) transparent; }
-
-/* Backgrounds */
-.bg-background { background-color: hsl(var(--background)); }
-.bg-foreground { background-color: hsl(var(--foreground)); }
-.bg-card { background-color: hsl(var(--card)); }
-.bg-popover { background-color: hsl(var(--popover)); }
-.bg-primary { background-color: hsl(var(--primary)); }
-.bg-secondary { background-color: hsl(var(--secondary)); }
-.bg-muted { background-color: hsl(var(--muted)); }
-.bg-accent { background-color: hsl(var(--accent)); }
-.bg-destructive { background-color: hsl(var(--destructive)); }
-.bg-border { background-color: hsl(var(--border)); }
-.bg-primary\/40 { background-color: hsl(var(--primary) / 0.4); }
-.bg-primary\/10 { background-color: hsl(var(--primary) / 0.1); }
-.bg-muted\/50 { background-color: hsl(var(--muted) / 0.5); }
-.bg-muted\/60 { background-color: hsl(var(--muted) / 0.6); }
-
-/* Text colors */
-.text-foreground { color: hsl(var(--foreground)); }
-.text-foreground\/90 { color: hsl(var(--foreground) / 0.9); }
-.text-foreground\/70 { color: hsl(var(--foreground) / 0.7); }
-.text-card-foreground { color: hsl(var(--card-foreground)); }
-.text-popover-foreground { color: hsl(var(--popover-foreground)); }
-.text-primary { color: hsl(var(--primary)); }
-.text-primary-foreground { color: hsl(var(--primary-foreground)); }
-.text-secondary-foreground { color: hsl(var(--secondary-foreground)); }
-.text-accent-foreground { color: hsl(var(--accent-foreground)); }
-.text-destructive { color: hsl(var(--destructive)); }
-.text-destructive-foreground { color: hsl(var(--destructive-foreground)); }
-.text-muted-foreground { color: hsl(var(--muted-foreground)); }
-.text-muted-foreground\/70 { color: hsl(var(--muted-foreground) / 0.7); }
-.bg-success { background-color: hsl(var(--success)); }
-.bg-warning { background-color: hsl(var(--warning)); }
-.bg-info { background-color: hsl(var(--info)); }
-.bg-destructive\/10 { background-color: hsl(var(--destructive) / 0.1); }
-.bg-success\/10 { background-color: hsl(var(--success) / 0.1); }
-.bg-warning\/10 { background-color: hsl(var(--warning) / 0.1); }
-.bg-info\/10 { background-color: hsl(var(--info) / 0.1); }
-.text-success { color: hsl(var(--success)); }
-.text-warning { color: hsl(var(--warning)); }
-.text-info { color: hsl(var(--info)); }
-.text-success-foreground { color: hsl(var(--success-foreground)); }
-.text-warning-foreground { color: hsl(var(--warning-foreground)); }
-.text-info-foreground { color: hsl(var(--info-foreground)); }
-.border-success { border-color: hsl(var(--success)); }
-.border-success\/30 { border-color: hsl(var(--success) / 0.3); }
-.border-warning\/30 { border-color: hsl(var(--warning) / 0.3); }
-.border-info\/30 { border-color: hsl(var(--info) / 0.3); }
-.border-destructive\/30 { border-color: hsl(var(--destructive) / 0.3); }
-.hover\:bg-destructive\/10:hover { background-color: hsl(var(--destructive) / 0.1); }
-.hover\:bg-destructive\/90:hover { background-color: hsl(var(--destructive) / 0.9); }
-.hover\:text-destructive:hover { color: hsl(var(--destructive)); }
-.placeholder\:text-muted-foreground::placeholder { color: hsl(var(--muted-foreground)); }
-.focus\:bg-card:focus { background-color: hsl(var(--card)); }
-.focus\:text-foreground:focus { color: hsl(var(--foreground)); }
 
 :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
 	outline: 2px solid hsl(var(--ring));
@@ -106,37 +51,7 @@ dialog[data-confirm] {
 .prose a { text-decoration: underline; }
 .prose strong { font-weight: 600; }
 
-/* Borders (color only — width comes from Tailwind `.border`) */
-.border-border { border-color: hsl(var(--border)); }
-.border-border\/50 { border-color: hsl(var(--border) / 0.5); }
-.border-border\/70 { border-color: hsl(var(--border) / 0.7); }
-.border-input { border-color: hsl(var(--input)); }
 .border-subtle { border-color: hsl(var(--border)); }
-
-/* Rings (color only — width comes from Tailwind `.ring-1` / `.ring-2`) */
-.ring-border { --tw-ring-color: hsl(var(--border)); }
-.ring-ring { --tw-ring-color: hsl(var(--ring)); }
-.ring-primary\/20 { --tw-ring-color: hsl(var(--primary) / 0.2); }
-
-/* Placeholder color */
-
-/* Divide-y color: applied to > :not([hidden]) ~ :not([hidden]) chain */
-.divide-border\/50 > :not([hidden]) ~ :not([hidden]) { border-color: hsl(var(--border) / 0.5); }
-
-/* Hover / focus states */
-.hover\:bg-muted:hover { background-color: hsl(var(--muted)); }
-.hover\:bg-muted\/50:hover { background-color: hsl(var(--muted) / 0.5); }
-.hover\:bg-muted\/60:hover { background-color: hsl(var(--muted) / 0.6); }
-.hover\:bg-primary\/90:hover { background-color: hsl(var(--primary) / 0.9); }
-.hover\:text-foreground:hover { color: hsl(var(--foreground)); }
-.hover\:border-muted-foreground:hover { border-color: hsl(var(--muted-foreground)); }
-.hover\:border-muted-foreground\/40:hover { border-color: hsl(var(--muted-foreground) / 0.4); }
-.hover\:ring-border:hover { --tw-ring-color: hsl(var(--border)); }
-
-.focus\:bg-muted:focus { background-color: hsl(var(--muted)); }
-.focus\:border-ring:focus { border-color: hsl(var(--ring)); }
-.focus\:ring-ring:focus { --tw-ring-color: hsl(var(--ring)); }
-.focus\:outline-none:focus { outline: 2px solid transparent; outline-offset: 2px; }
 
 .surface {
 	background-color: hsl(var(--card));

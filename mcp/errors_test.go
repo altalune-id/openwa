@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"regexp"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -115,5 +118,84 @@ func TestErrorPayloadOmitsTheCorrelationFieldsWhenEmpty(t *testing.T) {
 		if _, present := wire[key]; present {
 			t.Errorf("wire carries %q with no value; it must be omitempty", key)
 		}
+	}
+}
+
+func TestNewInvalidArgumentsErrorNamesTheFieldTheDecoderReports(t *testing.T) {
+	tests := []struct {
+		name   string
+		cause  error
+		field  string
+		reason string
+	}{
+		{
+			name:   "unknown field",
+			cause:  errors.New(`proto: (line 1:2): unknown field "bogus"`),
+			field:  "bogus",
+			reason: `(line 1:2): unknown field "bogus"`,
+		},
+		{
+			name:   "wrong scalar type behind a non-breaking prefix",
+			cause:  errors.New("proto: (line 1:9): invalid value for string field title: 5"),
+			field:  "title",
+			reason: "(line 1:9): invalid value for string field title: 5",
+		},
+		{
+			name:   "a string where an object belongs",
+			cause:  errors.New(`proto: syntax error (line 1:11): unexpected token "12000"`),
+			reason: `syntax error (line 1:11): unexpected token "12000"`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := mcp.NewInvalidArgumentsError("blog_publish", tc.cause)
+			if err.Tool != "blog_publish" || err.Field != tc.field || err.Reason != tc.reason {
+				t.Fatalf("got {Tool:%q Field:%q Reason:%q}, want {Tool:%q Field:%q Reason:%q}",
+					err.Tool, err.Field, err.Reason, "blog_publish", tc.field, tc.reason)
+			}
+		})
+	}
+}
+
+func TestIsInvalidArgumentsError(t *testing.T) {
+	err := mcp.NewInvalidArgumentsError("blog_publish", errors.New(`proto: (line 1:2): unknown field "bogus"`))
+	if !mcp.IsInvalidArgumentsError(fmt.Errorf("wrapped: %w", err)) {
+		t.Fatal("IsInvalidArgumentsError(wrapped) = false, want true")
+	}
+	if mcp.IsInvalidArgumentsError(errors.New("other")) {
+		t.Fatal("IsInvalidArgumentsError(other) = true, want false")
+	}
+}
+
+func TestNewInvalidArgumentsErrorCapsAnOversizeTokenOnARuneBoundary(t *testing.T) {
+	value := strings.Repeat("é", 5000)
+	name := strings.Repeat("ü", 512)
+	tests := []struct {
+		name      string
+		cause     error
+		wantField bool
+	}{
+		{name: "a 10 KB string value", cause: errors.New(`proto: syntax error (line 1:11): unexpected token "` + value + `"`)},
+		{name: "a 1 KB unknown field name", cause: errors.New(`proto: (line 1:2): unknown field "` + name + `"`), wantField: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := mcp.NewInvalidArgumentsError("blog_publish", tc.cause)
+			details := map[string]string{"Reason": err.Reason}
+			if tc.wantField {
+				details["Field"] = err.Field
+			}
+			for label, got := range details {
+				if len(got) > 200 {
+					t.Errorf("%s is %d bytes, want at most 200", label, len(got))
+				}
+				if !utf8.ValidString(got) {
+					t.Errorf("%s was cut inside a UTF-8 sequence: %q", label, got)
+				}
+				if !strings.HasSuffix(got, "…") {
+					t.Errorf("%s = %q, want an ellipsis marking the cut", label, got)
+				}
+			}
+		})
 	}
 }

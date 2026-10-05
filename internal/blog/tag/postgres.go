@@ -44,8 +44,8 @@ func (r *pgTagRow) toTag() *Tag {
 		ProjectID: r.ProjectID,
 		Name:      r.Name,
 		Slug:      r.Slug,
-		CreatedAt: r.CreatedAt,
-		UpdatedAt: r.UpdatedAt,
+		CreatedAt: r.CreatedAt.UTC(),
+		UpdatedAt: r.UpdatedAt.UTC(),
 	}
 }
 

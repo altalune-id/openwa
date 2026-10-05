@@ -46,7 +46,7 @@ func RegisterChatServiceTools(reg *mcp.Registry, h chatv1connect.ChatServiceHand
 			}
 			var req v1.ListRequest
 			if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(input, &req); err != nil {
-				return nil, fmt.Errorf("mcp: %s: decode arguments: %w", ChatListToolName, err)
+				return nil, mcp.NewInvalidArgumentsError(ChatListToolName, err)
 			}
 			resp, err := h.List(ctx, connect.NewRequest(&req))
 			if err != nil {
@@ -72,7 +72,7 @@ func RegisterChatServiceTools(reg *mcp.Registry, h chatv1connect.ChatServiceHand
 			}
 			var req v1.ListGroupsRequest
 			if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(input, &req); err != nil {
-				return nil, fmt.Errorf("mcp: %s: decode arguments: %w", GroupListToolName, err)
+				return nil, mcp.NewInvalidArgumentsError(GroupListToolName, err)
 			}
 			resp, err := h.ListGroups(ctx, connect.NewRequest(&req))
 			if err != nil {
@@ -98,7 +98,7 @@ func RegisterChatServiceTools(reg *mcp.Registry, h chatv1connect.ChatServiceHand
 			}
 			var req v1.JoinGroupRequest
 			if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(input, &req); err != nil {
-				return nil, fmt.Errorf("mcp: %s: decode arguments: %w", GroupJoinToolName, err)
+				return nil, mcp.NewInvalidArgumentsError(GroupJoinToolName, err)
 			}
 			resp, err := h.JoinGroup(ctx, connect.NewRequest(&req))
 			if err != nil {

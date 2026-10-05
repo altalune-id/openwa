@@ -82,7 +82,7 @@ func newMigrateStatusCmd(_ ServerBootFn) *cobra.Command {
 			for _, r := range rows {
 				applied := "pending"
 				if r.Applied {
-					applied = r.AppliedAt.Format("2006-01-02 15:04:05")
+					applied = tableDateTimeSeconds(r.AppliedAt)
 				}
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%-12d %s  %s\n", r.Version, applied, r.Source)
 			}

@@ -358,6 +358,7 @@ func TestTranslateError(t *testing.T) {
 		{name: "scope undeclared", err: &rootmcp.ScopeUndeclaredError{Tool: "blog_unscoped"}, code: apperror.CodeForbidden},
 		{name: "insufficient scope", err: &authn.InsufficientScopeError{Scope: "posts:write"}, code: apperror.CodeForbidden},
 		{name: "unauthorized", err: &authn.UnauthorizedError{}, code: apperror.CodeUnauthenticated},
+		{name: "invalid arguments", err: &rootmcp.InvalidArgumentsError{Tool: "blog_publish", Field: "title", Reason: "bad"}, code: apperror.CodeValidation},
 		{name: "unrecognized error passes through", err: other},
 	}
 

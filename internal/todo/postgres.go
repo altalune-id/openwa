@@ -42,8 +42,8 @@ func (r *pgTodoRow) toTodo() *Todo {
 		ProjectID: r.ProjectID,
 		Title:     r.Title,
 		Done:      r.Done,
-		CreatedAt: r.CreatedAt,
-		UpdatedAt: r.UpdatedAt,
+		CreatedAt: r.CreatedAt.UTC(),
+		UpdatedAt: r.UpdatedAt.UTC(),
 	}
 	if r.UserID != nil {
 		t.Author.UserID = *r.UserID

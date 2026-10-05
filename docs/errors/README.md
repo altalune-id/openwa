@@ -165,6 +165,10 @@ write's expected version no longer matches. On the data plane the same failure a
 `WWW-Authenticate` and an `mcp.ErrorPayload` body. A failure inside a tool call goes through
 `mcp.TranslateError` instead and carries `GEN002` for a rejected credential, and `GEN003` — the
 scope-denial code, returned by `internal/mcp/auth.go` — for a denied or undeclared scope.
+Tool arguments that do not decode into the tool's input message (a wrong JSON type, or an
+unknown field under the strict decode) raise `mcp.InvalidArgumentsError` and answer `GEN004`
+with `meta.tool` and, when the decoder names it, `meta.field`. It is a client error, not an
+unmapped `GEN900` incident.
 
 ## APK — API keys
 
