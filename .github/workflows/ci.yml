@@ -46,8 +46,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.26'
-          cache: false
+          go-version-file: go.mod          cache: false
       - name: Cache Go modules
         uses: actions/cache@v5
         with:
@@ -77,8 +76,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.26'
-          cache: false
+          go-version-file: go.mod          cache: false
       - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
@@ -162,8 +160,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.26'
-      - name: Verify committed templ output matches sources
+          go-version-file: go.mod      - name: Verify committed templ output matches sources
         run: go tool templ generate
       - name: Fail on drift (*_templ.go)
         run: |
@@ -179,8 +176,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.26'
-      - name: Verify comment discipline
+          go-version-file: go.mod      - name: Verify comment discipline
         run: go tool comment-lint .
 
   # Drift check: .env.example must match what `internal/platform/config` declares.
@@ -190,8 +186,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.26'
-      - name: Verify .env.example matches config struct tags
+          go-version-file: go.mod      - name: Verify .env.example matches config struct tags
         run: |
           go tool gen-config-example --check
           go tool gen-config-example --format=yaml --check
@@ -204,8 +199,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.26'
-      - uses: goreleaser/goreleaser-action@v7
+          go-version-file: go.mod      - uses: goreleaser/goreleaser-action@v7
         with:
           version: '~> v2'
           args: check
@@ -255,8 +249,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.26'
-      - name: Re-vendor and fail on drift from the committed bytes
+          go-version-file: go.mod      - name: Re-vendor and fail on drift from the committed bytes
         run: make ui-vendor-check
       - name: Boot + assert static assets
         run: bash scripts/verify-serve-smoke.sh
@@ -285,8 +278,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.26'
-      - name: Boot + assert the MCP surface
+          go-version-file: go.mod      - name: Boot + assert the MCP surface
         run: bash scripts/verify-mcp-smoke.sh
 
   # Vulnerability scan against stdlib + dependencies.
@@ -297,6 +289,5 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.26'
-      - name: Run govulncheck
+          go-version-file: go.mod      - name: Run govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
