@@ -41,7 +41,7 @@ type sendRequest struct {
 	MarkReadFirst bool     `json:"mark_read_first"`
 }
 
-// SECURITY: plan 03's beginDevice (credential, public-id shape, scope, project-scoped Resolve, resource list) runs before the body is read, so a bad key or a foreign device costs one 404 and no upload.
+// SECURITY: beginDevice (credential, public-id shape, scope, project-scoped Resolve, resource list) runs before the body is read, so a bad key or a foreign device costs one 404 and no upload.
 func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 	req, dev, ok := h.beginDevice(w, r, authn.ScopeMessagesWrite)
 	if !ok {
@@ -71,7 +71,7 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	// NOTE: namespaced per device (D25).
+	// NOTE: namespaced per device.
 	key := idempotencyKeyOf(r, "messages:"+dev.PublicID+":")
 	if key != "" {
 		rec, reserveErr := h.idem.reserve(req.scope.projectID, key, fp)
@@ -198,7 +198,7 @@ type sendFingerprint struct {
 	MediaSHA256   string       `json:"media_sha256"`
 }
 
-// NOTE: compared instead of the raw body, so JSON and multipart retries match (D25).
+// NOTE: compared instead of the raw body, so JSON and multipart retries match.
 func fingerprint(in SendInput) ([]byte, error) {
 	fp := sendFingerprint{To: in.To, Text: in.Text, ReplyTo: in.ReplyTo, Mentions: in.Mentions, MarkReadFirst: in.MarkReadFirst, Location: in.Location}
 	if in.Media != nil {

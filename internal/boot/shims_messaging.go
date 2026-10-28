@@ -23,7 +23,7 @@ type groupsForChat struct {
 	devices device.Store
 }
 
-// SECURITY: defence in depth; whatsapp.Service.messaging owns the tenant check for every session call (D21), and this rejects a foreign device before the engine call.
+// SECURITY: defence in depth; whatsapp.Service.messaging owns the tenant check for every session call, and this rejects a foreign device before the engine call.
 func (s groupsForChat) own(ctx context.Context, deviceID uuid.UUID) error {
 	tc, err := tenant.From(ctx)
 	if err != nil {
@@ -329,7 +329,7 @@ func (s inboundForWhatsApp) UpsertContact(ctx context.Context, ref whatsapp.Sess
 	})
 }
 
-// NOTE: voice becomes audio with Voice set; sticker becomes a webp image (D23).
+// NOTE: voice becomes audio with Voice set; sticker becomes a webp image.
 func inboundType(m whatsapp.InboundMessage) (typ string, voice bool, mimeType string) {
 	if m.Media != nil {
 		mimeType = m.Media.Mime

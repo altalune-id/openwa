@@ -75,7 +75,7 @@ func TestMCP_ProjectListIsScopedToTheCallersOrg(t *testing.T) {
 	}
 }
 
-// TestMCP_KeyNeverReachesASiblingProject drives a project-bound key over the real surface. SECURITY: the fixture runs on superuser Postgres (RLS bypassed), so the reach check is the only guard between the key and its sibling project. TODO: restore the blog_list-style reach proofs on device_list in plan 03 Task 11.
+// TestMCP_KeyNeverReachesASiblingProject drives a project-bound key over the real surface. SECURITY: the fixture runs on superuser Postgres (RLS bypassed), so the reach check is the only guard between the key and its sibling project.
 func TestMCP_KeyNeverReachesASiblingProject(t *testing.T) {
 	f := newMCPFixture(t, mcpOpts{enabled: true})
 	ctx := t.Context()
