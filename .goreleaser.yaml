@@ -92,7 +92,7 @@ dockers:
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
       - --label=org.opencontainers.image.source=https://github.com/{{ .Env.GHCR_OWNER }}/{{ .ProjectName }}
       - --label=org.opencontainers.image.created={{ .CommitDate }}
-      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.licenses=MIT
       - --build-arg=VERSION={{ .Version }}
       - --build-arg=COMMIT={{ .FullCommit }}
       - --build-arg=BUILD_TIME={{ .Date }}
@@ -110,7 +110,7 @@ dockers:
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
       - --label=org.opencontainers.image.source=https://github.com/{{ .Env.GHCR_OWNER }}/{{ .ProjectName }}
       - --label=org.opencontainers.image.created={{ .CommitDate }}
-      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.licenses=MIT
       - --build-arg=VERSION={{ .Version }}
       - --build-arg=COMMIT={{ .FullCommit }}
       - --build-arg=BUILD_TIME={{ .Date }}
