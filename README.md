@@ -123,4 +123,4 @@ Invite issuance requires `mode=cloud` or `oidc.issuer` set. `/signup/complete` r
 
 ## License
 
-Apache 2.0 — see [`LICENSE`](LICENSE).
+MIT — see [`LICENSE`](LICENSE).
