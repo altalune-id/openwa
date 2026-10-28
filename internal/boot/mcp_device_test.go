@@ -73,7 +73,7 @@ func TestMCP_DevicePairWithoutADeviceNamesTheWayOut(t *testing.T) {
 	require.Contains(t, rec.Body.String(), "no device yet")
 }
 
-// TestMCP_DeviceListReachIsChecked re-adds on device_list the reach proofs PR #36 ran on blog_list (removed with blog in plan 01 B8): a project key cannot reach a sibling project, a person in the org can, an org key must name a project, and a selected-projects org key sees only its grant. It drives the real surface on superuser Postgres (RLS bypassed), where the handler's reach check is the only guard.
+// TestMCP_DeviceListReachIsChecked re-adds on device_list the reach proofs PR #36 ran on blog_list (removed with blog): a project key cannot reach a sibling project, a person in the org can, an org key must name a project, and a selected-projects org key sees only its grant. It drives the real surface on superuser Postgres (RLS bypassed), where the handler's reach check is the only guard.
 func TestMCP_DeviceListReachIsChecked(t *testing.T) {
 	f := newMCPFixture(t, mcpOpts{enabled: true})
 	ctx := t.Context()

@@ -7,7 +7,7 @@ import (
 	"altalune.id/openwa/internal/whatsapp"
 )
 
-// NOTE: fills the fields messaging needs beyond plan 03's translation: the chat's alternate address, the quoted sender, a location and voice-note metadata.
+// NOTE: fills the fields messaging needs beyond the base translation: the chat's alternate address, the quoted sender, a location and voice-note metadata.
 func enrichInbound(m *whatsapp.InboundMessage, evt *events.Message) {
 	src := evt.Info.MessageSource
 	if !src.IsGroup {

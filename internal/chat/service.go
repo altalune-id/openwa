@@ -271,7 +271,7 @@ func (s *Service) load(ctx context.Context, span trace.Span, op string, id uuid.
 	return c, nil
 }
 
-// NOTE: a LID another chat already holds is not written, so chats_device_lid_key never aborts the transaction (D5).
+// NOTE: a LID another chat already holds is not written, so chats_device_lid_key never aborts the transaction.
 func (s *Service) freeLID(ctx context.Context, deviceID uuid.UUID, c *Chat, lid string) (string, error) {
 	if lid == "" || c.LID != "" {
 		return lid, nil

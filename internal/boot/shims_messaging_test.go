@@ -124,7 +124,7 @@ func TestInboundShim_DeliveredReceiptReachesTheMessage(t *testing.T) {
 	require.NoError(t, svc.MarkSent(ctx, claimed.ID, time.Now(), nil))
 	shim := inboundForWhatsApp{recorder: svc.Recorder(), messages: svc}
 	require.NoError(t, shim.RecordReceipt(t.Context(), ref, whatsapp.Receipt{MessageIDs: []string{m.WAMessageID}, Type: "delivered", Timestamp: time.Now()}),
-		"plan 03's receiptOf rewrites whatsmeow's empty delivered type to \"delivered\"")
+		"receiptOf rewrites whatsmeow's empty delivered type to \"delivered\"")
 	got, err := store.ByID(ctx, m.ID)
 	require.NoError(t, err)
 	require.Equal(t, message.StatusDelivered, got.Status)

@@ -36,7 +36,7 @@ Think like spf13: if this is a CLI, does it follow Cobra/Viper conventions prope
 
 ### Step 0 — Load the Standards
 
-If the `go` and `cobra-viper` skills are installed (check `/mnt/skills/user/go/SKILL.md` and `/mnt/skills/user/cobra-viper/SKILL.md`), read them first. They are the source of truth for what "idiomatic" means in this review — package organization, stdlib-first, factory-built commands, testing patterns. Do not re-derive standards that conflict with them.
+If the `go` and `cobra-viper` skills are installed (`.agents/skills/go/SKILL.md` and `.agents/skills/cobra-viper/SKILL.md`), read them first. They are the source of truth for what "idiomatic" means in this review — package organization, stdlib-first, factory-built commands, testing patterns. Do not re-derive standards that conflict with them.
 
 ### Step 1 — Understand the Codebase Context
 
