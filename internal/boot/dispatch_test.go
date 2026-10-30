@@ -7,6 +7,7 @@ import (
 
 	"altalune.id/openwa/internal/boot"
 	"altalune.id/openwa/internal/platform/outbox"
+	"altalune.id/openwa/internal/testutil/pgtest"
 )
 
 type noopDeliverer struct{}
@@ -26,6 +27,7 @@ func TestBootServer_OutboxIsOnTheKernel(t *testing.T) {
 }
 
 func TestBootServer_DispatchWorkerIsAlwaysRegistered(t *testing.T) {
+	h := pgtest.NewDatabase(t)
 	for _, tc := range []struct {
 		name string
 		opts []boot.Option
@@ -37,7 +39,7 @@ func TestBootServer_DispatchWorkerIsAlwaysRegistered(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			srv, err := boot.BootServer(context.Background(), newSmokeCfg(t), tc.opts...)
+			srv, err := boot.BootServer(context.Background(), smokeCfgFor(t, h), tc.opts...)
 			if err != nil {
 				t.Fatalf("BootServer: %v", err)
 			}

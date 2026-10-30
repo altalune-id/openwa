@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"altalune.id/openwa/internal/boot"
+	"altalune.id/openwa/internal/testutil/pgtest"
 )
 
 func statusOf(t *testing.T, h http.Handler, path string) int {
@@ -83,6 +84,7 @@ func TestBootServer_SchedulerDisabled_ReadyzStillTracksSnapshot(t *testing.T) {
 }
 
 func TestBootServer_HealthWorkerIsRegisteredRegardlessOfScheduler(t *testing.T) {
+	h := pgtest.NewDatabase(t)
 	for _, tc := range []struct {
 		name string
 		opts []boot.Option
@@ -91,7 +93,7 @@ func TestBootServer_HealthWorkerIsRegisteredRegardlessOfScheduler(t *testing.T) 
 		{name: "scheduler-off", opts: []boot.Option{boot.WithScheduler(false)}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := newSmokeCfg(t)
+			cfg := smokeCfgFor(t, h)
 			cfg.Scheduler.Enabled = true
 
 			srv, err := boot.BootServer(context.Background(), cfg, tc.opts...)
@@ -112,6 +114,7 @@ func TestBootServer_HealthWorkerIsRegisteredRegardlessOfScheduler(t *testing.T) 
 }
 
 func TestBootServer_HealthzIsDBIndependent(t *testing.T) {
+	h := pgtest.NewDatabase(t)
 	for _, tc := range []struct {
 		name string
 		opts []boot.Option
@@ -120,7 +123,7 @@ func TestBootServer_HealthzIsDBIndependent(t *testing.T) {
 		{name: "scheduler-off", opts: []boot.Option{boot.WithScheduler(false)}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := newSmokeCfg(t)
+			cfg := smokeCfgFor(t, h)
 			cfg.Scheduler.Enabled = true
 
 			srv, err := boot.BootServer(context.Background(), cfg, tc.opts...)
@@ -140,6 +143,7 @@ func TestBootServer_HealthzIsDBIndependent(t *testing.T) {
 }
 
 func TestBootServer_SchedulerOnlyWithSchedulerDisabled_IsRejected(t *testing.T) {
+	h := pgtest.NewDatabase(t)
 	tests := []struct {
 		name       string
 		enabled    bool
@@ -161,7 +165,7 @@ func TestBootServer_SchedulerOnlyWithSchedulerDisabled_IsRejected(t *testing.T) 
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := newSmokeCfg(t)
+			cfg := smokeCfgFor(t, h)
 			cfg.Scheduler.Enabled = tc.enabled
 
 			srv, err := boot.BootServer(context.Background(), cfg, tc.opts...)

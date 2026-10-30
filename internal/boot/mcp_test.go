@@ -99,22 +99,19 @@ func newMCPFixture(t *testing.T, opts mcpOpts) *mcpFixture {
 	cfg.Tokens = tokens.Config{Issuer: issuer.url, Audience: controlAudience, Introspection: introspection}
 	cfg.MCP = config.MCPConfig{Enabled: opts.enabled, AppsUI: opts.appsUI, Audience: mcpAudience, Introspection: introspection}
 
-	seed, err := boot.BootServer(context.Background(), cfg, boot.WithOIDCHTTPClient(issuer.idp.Client()), boot.WithScheduler(false), boot.WithConsumer(false))
-	require.NoError(t, err)
-	seedUser, err := seed.Users.Create(context.Background(), user.CreateRequest{
-		Email: "mcp-seed@example.com", Name: "MCP Seed", Source: user.SourceOIDC,
-	})
-	require.NoError(t, err)
-	_, err = seed.Onboards.Complete(context.Background(), seedUser.ID, onboard.MethodCLIInit)
-	require.NoError(t, err)
-	require.NoError(t, seed.Close())
-
 	capture := &captureLog{}
 	srv, err := boot.BootServer(context.Background(), cfg, boot.WithLogger(slog.New(capture)), boot.WithOIDCHTTPClient(issuer.idp.Client()),
 		boot.WithScheduler(false), boot.WithConsumer(false))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = srv.Close() })
-	require.True(t, srv.Onboarded, "the fixture must be past the onboarding gate")
+	seedUser, err := srv.Users.Create(context.Background(), user.CreateRequest{
+		Email: "mcp-seed@example.com", Name: "MCP Seed", Source: user.SourceOIDC,
+	})
+	require.NoError(t, err)
+	_, err = srv.Onboards.Complete(context.Background(), seedUser.ID, onboard.MethodCLIInit)
+	require.NoError(t, err)
+	srv.CompleteOnboarding(context.Background())
+	requireOnboarded(t, srv)
 
 	ctx := context.Background()
 	owner, err := srv.Users.EnsureFromOIDC(ctx, user.Claims{
@@ -240,10 +237,7 @@ func callToolBody(name string, args map[string]any) map[string]any {
 	}
 }
 
-// TestMCP_RejectsAControlPlaneAudienceToken is the two-verifier guard.
-func TestMCP_RejectsAControlPlaneAudienceToken(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
-
+func mcpRejectsAControlPlaneAudienceToken(t *testing.T, f *mcpFixture) {
 	controlToken := f.issuer.mint(t, controlAudience, []string{authn.ScopeProjectsRead})
 	mcpToken := f.issuer.mint(t, mcpAudience, []string{authn.ScopeProjectsRead})
 
@@ -295,10 +289,8 @@ func (f *mcpFixture) connect(t *testing.T, credential string) *httptest.Response
 	return rec
 }
 
-// TestMCP_TokenWithoutTheToolScopeGetsAStepUpChallenge is the R4 S7 rule for OAuth tokens: every tool is scope-checked, and a missing scope is an RFC 6750 403 before dispatch, so the host can ask for it.
-func TestMCP_TokenWithoutTheToolScopeGetsAStepUpChallenge(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
-
+// mcpTokenWithoutTheToolScopeGetsAStepUpChallenge is the R4 S7 rule for OAuth tokens: every tool is scope-checked, and a missing scope is an RFC 6750 403 before dispatch, so the host can ask for it.
+func mcpTokenWithoutTheToolScopeGetsAStepUpChallenge(t *testing.T, f *mcpFixture) {
 	tests := []struct {
 		name       string
 		scopes     []string
@@ -327,9 +319,8 @@ func TestMCP_TokenWithoutTheToolScopeGetsAStepUpChallenge(t *testing.T) {
 	}
 }
 
-// TestMCP_IDTokenIsNeverAnAccessToken pins RFC 9068's typ check on both resources.
-func TestMCP_IDTokenIsNeverAnAccessToken(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
+// mcpIDTokenIsNeverAnAccessToken pins RFC 9068's typ check on both resources.
+func mcpIDTokenIsNeverAnAccessToken(t *testing.T, f *mcpFixture) {
 	now := time.Now()
 	for _, aud := range []string{mcpAudience, controlAudience} {
 		idToken := f.issuer.idp.IDToken(map[string]any{
@@ -341,9 +332,7 @@ func TestMCP_IDTokenIsNeverAnAccessToken(t *testing.T) {
 	}
 }
 
-// TestMCP_PersonalTokenIsRevokedAtOnce is the introspection path: a personal token works until Othra revokes it, and the next call is refused.
-func TestMCP_PersonalTokenIsRevokedAtOnce(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
+func mcpPersonalTokenIsRevokedAtOnce(t *testing.T, f *mcpFixture) {
 	const pt = tokens.PersonalTokenPrefix + "boot-test"
 	f.issuer.idp.Opaque(pt, map[string]any{
 		"aud": controlAudience, "sub": tokenSubject, "scope": authn.ScopePostsRead, "exp": time.Now().Add(time.Hour).Unix(),
@@ -354,9 +343,7 @@ func TestMCP_PersonalTokenIsRevokedAtOnce(t *testing.T) {
 	require.True(t, credentialRejected(f.connect(t, pt)), "a revoked personal token still opened the control plane")
 }
 
-// TestMCP_APIKeyIsNeverIntrospected keeps an app credential inside the app, even a wrong one.
-func TestMCP_APIKeyIsNeverIntrospected(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
+func mcpAPIKeyIsNeverIntrospected(t *testing.T, f *mcpFixture) {
 	before := f.issuer.idp.Introspections()
 	f.connect(t, f.readKey)
 	f.connect(t, f.readKey+"x")
@@ -364,9 +351,7 @@ func TestMCP_APIKeyIsNeverIntrospected(t *testing.T) {
 	require.Equal(t, before, f.issuer.idp.Introspections(), "an API key reached the issuer's introspection endpoint")
 }
 
-// TestMCP_ControlPlaneEnforcesScopesOnTokens closes the scope gap: a token principal on Connect is held to the RPC scope table.
-func TestMCP_ControlPlaneEnforcesScopesOnTokens(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
+func mcpControlPlaneEnforcesScopesOnTokens(t *testing.T, f *mcpFixture) {
 	read := f.issuer.mint(t, controlAudience, []string{authn.ScopePostsRead})
 
 	require.Equal(t, http.StatusOK, f.connectRPC(t, read, todoListProcedure, map[string]any{"projectId": f.projectID}).Code)
@@ -383,9 +368,8 @@ func TestMCP_ControlPlaneEnforcesScopesOnTokens(t *testing.T) {
 		"a 401 for a presented token on Connect must say invalid_token and point at the API's RFC 9728 document")
 }
 
-// TestMCP_EachResourceServesItsOwnMetadata pins the two RFC 9728 documents Othra verifies before it mints tokens.
-func TestMCP_EachResourceServesItsOwnMetadata(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
+// mcpEachResourceServesItsOwnMetadata pins the two RFC 9728 documents Othra verifies before it mints tokens.
+func mcpEachResourceServesItsOwnMetadata(t *testing.T, f *mcpFixture) {
 	for path, resource := range map[string]string{mcpMetadataPath: mcpAudience, apiMetadataPath: controlAudience} {
 		rec := f.get(t, path, "", "")
 		require.Equal(t, http.StatusOK, rec.Code, "%s: body=%s", path, rec.Body.String())
@@ -417,10 +401,7 @@ func (f *mcpFixture) connectRPC(t *testing.T, credential, procedure string, body
 	return rec
 }
 
-// TestMCP_KeyScopeIsCheckedPerTool keeps the same rule true of the other credential class, and proves the surface reaches the shared Connect handlers rather than a second implementation.
-func TestMCP_KeyScopeIsCheckedPerTool(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
-
+func mcpKeyScopeIsCheckedPerTool(t *testing.T, f *mcpFixture) {
 	t.Run("a key holding projects:read lists projects", func(t *testing.T) {
 		rec := f.call(t, f.readKey, callToolBody(mcpinternal.ToolProjectList, map[string]any{}))
 		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
@@ -436,10 +417,7 @@ func TestMCP_KeyScopeIsCheckedPerTool(t *testing.T) {
 	})
 }
 
-// TestMCP_CallWithoutArgumentsDecodes pins the nil-arguments normalization on the real protojson decode path.
-func TestMCP_CallWithoutArgumentsDecodes(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
-
+func mcpCallWithoutArgumentsDecodes(t *testing.T, f *mcpFixture) {
 	token := f.issuer.mint(t, mcpAudience, []string{authn.ScopeProjectsRead})
 	rec := f.call(t, token, map[string]any{
 		"jsonrpc": "2.0", "id": 2, "method": "tools/call",
@@ -470,10 +448,8 @@ func toolPayload(t *testing.T, rec *httptest.ResponseRecorder) rootmcp.ErrorPayl
 	return payload
 }
 
-// TestMCP_UnauthenticatedCallIsChallenged keeps the surface fail-closed: no credential, an unparsable one and a credential of the wrong shape all answer one masked 401 carrying the RFC 9728 challenge.
-func TestMCP_UnauthenticatedCallIsChallenged(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
-
+// mcpUnauthenticatedCallIsChallenged keeps the surface fail-closed: no credential, an unparsable one and a credential of the wrong shape all answer one masked 401 carrying the RFC 9728 challenge.
+func mcpUnauthenticatedCallIsChallenged(t *testing.T, f *mcpFixture) {
 	for _, credential := range []string{"", "key_not_a_real_key", "not.a.token", "opaque-credential"} {
 		t.Run("credential="+credential, func(t *testing.T) {
 			rec := f.call(t, credential, listToolsBody())
@@ -487,10 +463,7 @@ func TestMCP_UnauthenticatedCallIsChallenged(t *testing.T) {
 	}
 }
 
-// TestMCP_RunsTheMCPChainNotTheConsoleChain enforces R5 on boot's own assembly: /mcp carries the edge middlewares and none of the SSR ones.
-func TestMCP_RunsTheMCPChainNotTheConsoleChain(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
-
+func mcpRunsTheMCPChainNotTheConsoleChain(t *testing.T, f *mcpFixture) {
 	require.NotEmpty(t, f.get(t, "/login", "", "").Header().Get("Content-Security-Policy"),
 		"the console chain must set CSP, or this guard proves nothing")
 
@@ -541,9 +514,7 @@ func TestMCP_DisabledLeavesThePathUnmounted(t *testing.T) {
 	require.Nil(t, f.srv.MCP, "no MCP server may be built while mcp.enabled is false")
 }
 
-// TestMCP_ToolsCarryAScopeAndTheSharedInstances walks the registry boot actually built: no tool may reach a caller without a scope, and each must close over the same service instance /api mounts, so no verb has a second implementation.
-func TestMCP_ToolsCarryAScopeAndTheSharedInstances(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
+func mcpToolsCarryAScopeAndTheSharedInstances(t *testing.T, f *mcpFixture) {
 	require.NotNil(t, f.srv.MCP, "mcp.enabled is true, so boot must have built a server")
 
 	registry := f.srv.MCP.Registry()
@@ -582,9 +553,8 @@ func TestMCP_ToolsCarryAScopeAndTheSharedInstances(t *testing.T) {
 	}
 }
 
-// TestMCP_ToolsShareTheConnectHandlerInstance is the identity guard the surface rests on: each tool must close over the very *controlplane service the Connect mount serves. SECURITY: a second, independently constructed service — or a tool body calling straight into a domain package past Connect — would still satisfy the behavioral test below while duplicating a verb, and a duplicated verb is a verb whose tenant scoping and authorization can diverge.
-func TestMCP_ToolsShareTheConnectHandlerInstance(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
+// mcpToolsShareTheConnectHandlerInstance is the identity guard the surface rests on: each tool must close over the very *controlplane service the Connect mount serves. SECURITY: a second, independently constructed service — or a tool body calling straight into a domain package past Connect — would still satisfy the behavioral test below while duplicating a verb, and a duplicated verb is a verb whose tenant scoping and authorization can diverge.
+func mcpToolsShareTheConnectHandlerInstance(t *testing.T, f *mcpFixture) {
 	require.NotNil(t, f.srv.MCP, "mcp.enabled is true, so boot must have built a server")
 	require.NotNil(t, f.srv.API, "the control plane must be mounted, or there is no instance to share")
 
@@ -628,10 +598,7 @@ func TestMCP_ToolsShareTheConnectHandlerInstance(t *testing.T) {
 	}
 }
 
-// TestMCP_PublishesMemberAndProjectTools pins the whole tool catalog the template core exposes.
-func TestMCP_PublishesMemberAndProjectTools(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
-
+func mcpPublishesMemberAndProjectTools(t *testing.T, f *mcpFixture) {
 	rec := f.call(t, f.readKey, listToolsBody())
 	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
 
@@ -649,4 +616,59 @@ func TestMCP_PublishesMemberAndProjectTools(t *testing.T) {
 	}
 	slices.Sort(names)
 	require.Equal(t, []string{"chat_list", "contact_list", "device_get", "device_list", "device_logout", "device_pair", "group_join", "group_list", "member_list", "message_list", "message_send", "project_list"}, names)
+}
+
+// TestMCP_SharedFixture runs the MCP checks that change no state another check reads, on one booted fixture.
+func TestMCP_SharedFixture(t *testing.T) {
+	f := newMCPFixture(t, mcpOpts{enabled: true})
+	for _, c := range []struct {
+		name  string
+		check func(*testing.T, *mcpFixture)
+	}{
+		{"UndecodableArgumentsAnswerAValidationErrorNotAnIncident", mcpUndecodableArgumentsAnswerAValidationErrorNotAnIncident},
+		{"DeviceListIsScopeChecked", mcpDeviceListIsScopeChecked},
+		{"DevicePairWithoutADeviceNamesTheWayOut", mcpDevicePairWithoutADeviceNamesTheWayOut},
+		{"ChatListFallsBackToTheActiveProject", mcpChatListFallsBackToTheActiveProject},
+		{"MessageSendWithoutADeviceNamesTheWayOut", mcpMessageSendWithoutADeviceNamesTheWayOut},
+		{"InlineMediaIsCappedAtTheMount", mcpInlineMediaIsCappedAtTheMount},
+		{"MessageSendRefusesAKeyWithoutMessagesWrite", mcpMessageSendRefusesAKeyWithoutMessagesWrite},
+		{"ContactListReturnsAnEmptyPage", mcpContactListReturnsAnEmptyPage},
+		{"TokenStepUpRunsInsideTheBodyCap", mcpTokenStepUpRunsInsideTheBodyCap},
+		{"RejectsAControlPlaneAudienceToken", mcpRejectsAControlPlaneAudienceToken},
+		{"TokenWithoutTheToolScopeGetsAStepUpChallenge", mcpTokenWithoutTheToolScopeGetsAStepUpChallenge},
+		{"IDTokenIsNeverAnAccessToken", mcpIDTokenIsNeverAnAccessToken},
+		{"PersonalTokenIsRevokedAtOnce", mcpPersonalTokenIsRevokedAtOnce},
+		{"APIKeyIsNeverIntrospected", mcpAPIKeyIsNeverIntrospected},
+		{"ControlPlaneEnforcesScopesOnTokens", mcpControlPlaneEnforcesScopesOnTokens},
+		{"EachResourceServesItsOwnMetadata", mcpEachResourceServesItsOwnMetadata},
+		{"KeyScopeIsCheckedPerTool", mcpKeyScopeIsCheckedPerTool},
+		{"CallWithoutArgumentsDecodes", mcpCallWithoutArgumentsDecodes},
+		{"UnauthenticatedCallIsChallenged", mcpUnauthenticatedCallIsChallenged},
+		{"RunsTheMCPChainNotTheConsoleChain", mcpRunsTheMCPChainNotTheConsoleChain},
+		{"ToolsCarryAScopeAndTheSharedInstances", mcpToolsCarryAScopeAndTheSharedInstances},
+		{"ToolsShareTheConnectHandlerInstance", mcpToolsShareTheConnectHandlerInstance},
+		{"PublishesMemberAndProjectTools", mcpPublishesMemberAndProjectTools},
+		{"OneErrorVocabularyAcrossTheSurface", mcpOneErrorVocabularyAcrossTheSurface},
+		{"AppsUIOffPublishesNoResource", mcpAppsUIOffPublishesNoResource},
+	} {
+		t.Run(c.name, func(t *testing.T) { c.check(t, f) })
+	}
+}
+
+// TestMCP_SharedAppsUIFixture runs the MCP Apps checks that change no shared state, on one booted fixture with the UI on.
+func TestMCP_SharedAppsUIFixture(t *testing.T) {
+	f := newMCPFixture(t, mcpOpts{enabled: true, appsUI: true})
+	for _, c := range []struct {
+		name  string
+		check func(*testing.T, *mcpFixture)
+	}{
+		{"DeviceToolsCarryTheirAnnotationsAndUI", mcpDeviceToolsCarryTheirAnnotationsAndUI},
+		{"MessagingToolDescriptorsAreFrozen", mcpMessagingToolDescriptorsAreFrozen},
+		{"MessagingToolsCarryTheirAnnotationsAndUI", mcpMessagingToolsCarryTheirAnnotationsAndUI},
+		{"AppsUIServesTheAdvertisedResource", mcpAppsUIServesTheAdvertisedResource},
+		{"AppsUIBindsProjectList", mcpAppsUIBindsProjectList},
+		{"BootAnnouncesTheMountedSurface", mcpBootAnnouncesTheMountedSurface},
+	} {
+		t.Run(c.name, func(t *testing.T) { c.check(t, f) })
+	}
 }

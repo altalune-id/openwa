@@ -31,8 +31,7 @@ func toolsByName(t *testing.T, body []byte) map[string]map[string]any {
 	return byName
 }
 
-func TestMCP_DeviceToolsCarryTheirAnnotationsAndUI(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true, appsUI: true})
+func mcpDeviceToolsCarryTheirAnnotationsAndUI(t *testing.T, f *mcpFixture) {
 	rec := f.call(t, f.deviceKey, listToolsBody())
 	require.Equal(t, 200, rec.Code)
 	tools := toolsByName(t, rec.Body.Bytes())
@@ -52,9 +51,7 @@ func TestMCP_DeviceToolsCarryTheirAnnotationsAndUI(t *testing.T) {
 	require.Equal(t, false, pair["destructiveHint"])
 }
 
-func TestMCP_DeviceListIsScopeChecked(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
-
+func mcpDeviceListIsScopeChecked(t *testing.T, f *mcpFixture) {
 	rec := f.call(t, f.deviceKey, callToolBody("device_list", map[string]any{}))
 	require.Equal(t, 200, rec.Code)
 	require.NotContains(t, rec.Body.String(), `"isError":true`, rec.Body.String())
@@ -64,8 +61,7 @@ func TestMCP_DeviceListIsScopeChecked(t *testing.T) {
 	require.Equal(t, apperror.CodeForbidden, toolPayload(t, rec).Code, "a key without devices:read is refused in the result")
 }
 
-func TestMCP_DevicePairWithoutADeviceNamesTheWayOut(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
+func mcpDevicePairWithoutADeviceNamesTheWayOut(t *testing.T, f *mcpFixture) {
 	rec := f.call(t, f.deviceKey, callToolBody("device_pair", map[string]any{}))
 	require.Equal(t, 200, rec.Code)
 	require.Equal(t, apperror.CodeValidation, toolPayload(t, rec).Code)

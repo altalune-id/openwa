@@ -50,20 +50,17 @@ func newDataplaneFixture(t *testing.T, opts dataplaneOpts) *dataplaneFixture {
 	cfg.Blog.PublicReads = opts.publicReads
 	cfg.HTTP.CSP.Enabled = true
 
-	seed, err := boot.BootServer(context.Background(), cfg)
+	srv, err := boot.BootServer(context.Background(), cfg)
 	require.NoError(t, err)
-	seedUser, err := seed.Users.Create(context.Background(), user.CreateRequest{
+	t.Cleanup(func() { _ = srv.Close() })
+	seedUser, err := srv.Users.Create(context.Background(), user.CreateRequest{
 		Email: "dp-seed@example.com", Name: "DP Seed", Source: user.SourceOIDC,
 	})
 	require.NoError(t, err)
-	_, err = seed.Onboards.Complete(context.Background(), seedUser.ID, onboard.MethodCLIInit)
+	_, err = srv.Onboards.Complete(context.Background(), seedUser.ID, onboard.MethodCLIInit)
 	require.NoError(t, err)
-	require.NoError(t, seed.Close())
-
-	srv, err := boot.BootServer(context.Background(), cfg)
-	require.NoError(t, err)
-	require.True(t, srv.Onboarded, "the fixture must be past the onboarding gate")
-	t.Cleanup(func() { _ = srv.Close() })
+	srv.CompleteOnboarding(context.Background())
+	requireOnboarded(t, srv)
 
 	ctx := context.Background()
 	owner, err := srv.Users.Create(ctx, user.CreateRequest{

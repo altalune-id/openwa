@@ -16,8 +16,7 @@ import (
 	"altalune.id/openwa/internal/platform/authn"
 )
 
-func TestMCP_MessagingToolsCarryTheirAnnotationsAndUI(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true, appsUI: true})
+func mcpMessagingToolsCarryTheirAnnotationsAndUI(t *testing.T, f *mcpFixture) {
 	rec := f.call(t, f.msgKey, listToolsBody())
 	require.Equal(t, 200, rec.Code)
 	tools := toolsByName(t, rec.Body.Bytes())
@@ -46,23 +45,20 @@ func TestMCP_MessagingToolsCarryTheirAnnotationsAndUI(t *testing.T) {
 	}
 }
 
-func TestMCP_ChatListFallsBackToTheActiveProject(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
+func mcpChatListFallsBackToTheActiveProject(t *testing.T, f *mcpFixture) {
 	rec := f.call(t, f.msgKey, callToolBody("chat_list", map[string]any{}))
 	require.Equal(t, 200, rec.Code)
 	require.NotContains(t, rec.Body.String(), `"isError":true`, rec.Body.String())
 }
 
-func TestMCP_MessageSendWithoutADeviceNamesTheWayOut(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
+func mcpMessageSendWithoutADeviceNamesTheWayOut(t *testing.T, f *mcpFixture) {
 	rec := f.call(t, f.msgKey, callToolBody("message_send", map[string]any{"to": "628111222333", "text": "halo"}))
 	require.Equal(t, 200, rec.Code)
 	require.Equal(t, apperror.CodeValidation, toolPayload(t, rec).Code)
 	require.Contains(t, rec.Body.String(), "no device yet")
 }
 
-func TestMCP_InlineMediaIsCappedAtTheMount(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
+func mcpInlineMediaIsCappedAtTheMount(t *testing.T, f *mcpFixture) {
 	media := func(size int) map[string]any {
 		data := base64.StdEncoding.EncodeToString(make([]byte, size))
 		return map[string]any{"to": "628111", "media": map[string]any{"data": data, "mime": "image/png"}}
@@ -79,8 +75,7 @@ func TestMCP_InlineMediaIsCappedAtTheMount(t *testing.T) {
 	require.NotContains(t, big.Body.String(), "no device yet")
 }
 
-func TestMCP_MessageSendRefusesAKeyWithoutMessagesWrite(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
+func mcpMessageSendRefusesAKeyWithoutMessagesWrite(t *testing.T, f *mcpFixture) {
 	rec := f.call(t, f.readKey, callToolBody("message_send", map[string]any{"to": "628111", "text": "x"}))
 	require.Equal(t, 200, rec.Code)
 	require.True(t, scopeDeniedFor(t, rec, "messages:write"))
@@ -117,8 +112,7 @@ func TestMCP_MessagingToolsRefuseADeviceBoundKey(t *testing.T) {
 	}
 }
 
-func TestMCP_ContactListReturnsAnEmptyPage(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
+func mcpContactListReturnsAnEmptyPage(t *testing.T, f *mcpFixture) {
 	rec := f.call(t, f.msgKey, callToolBody("contact_list", map[string]any{}))
 	require.Equal(t, 200, rec.Code)
 	var out struct {
@@ -132,8 +126,7 @@ func TestMCP_ContactListReturnsAnEmptyPage(t *testing.T) {
 }
 
 // SECURITY: the step-up runs inside the MCP body cap: a token short of messages:write gets the scope 403 on a large call under the cap, and a call over the cap is refused 413.
-func TestMCP_TokenStepUpRunsInsideTheBodyCap(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
+func mcpTokenStepUpRunsInsideTheBodyCap(t *testing.T, f *mcpFixture) {
 	token := f.issuer.mint(t, mcpAudience, []string{authn.ScopeProjectsRead})
 
 	under := f.call(t, token, callToolBody(mcpinternal.ToolMessageSend, map[string]any{"to": "628111222333", "text": strings.Repeat("x", 5<<20)}))

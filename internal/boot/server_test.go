@@ -5,15 +5,18 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"altalune.id/openwa/internal/boot"
+	"altalune.id/openwa/internal/onboard"
 	"altalune.id/openwa/internal/platform/config"
 	"altalune.id/openwa/internal/platform/db"
 	"altalune.id/openwa/internal/testutil/pgtest"
+	"altalune.id/openwa/internal/user"
 	"altalune.id/openwa/logger"
 )
 
@@ -181,4 +184,31 @@ func TestBootServer_CloseNilSafe(t *testing.T) {
 	if srv != nil {
 		_ = srv.Close()
 	}
+}
+
+func requireOnboarded(t *testing.T, srv *boot.Server) {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	srv.Web.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	require.False(t, rec.Code == http.StatusSeeOther && strings.HasPrefix(rec.Header().Get("Location"), "/onboard"),
+		"the fixture must be past the onboarding gate")
+}
+
+// TestBootServer_ComesUpOnboardedFromStorage boots again after onboarding and finds the deployment onboarded in the database.
+func TestBootServer_ComesUpOnboardedFromStorage(t *testing.T) {
+	cfg := newSmokeCfg(t)
+	first, err := boot.BootServer(t.Context(), cfg, boot.WithScheduler(false), boot.WithConsumer(false))
+	require.NoError(t, err)
+	require.False(t, first.Onboarded, "a fresh database starts behind the onboarding gate")
+	owner, err := first.Users.Create(t.Context(), user.CreateRequest{Email: "reboot@example.com", Name: "Reboot", Source: user.SourceOIDC})
+	require.NoError(t, err)
+	_, err = first.Onboards.Complete(t.Context(), owner.ID, onboard.MethodCLIInit)
+	require.NoError(t, err)
+	require.NoError(t, first.Close())
+
+	second, err := boot.BootServer(t.Context(), cfg, boot.WithScheduler(false), boot.WithConsumer(false))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = second.Close() })
+	require.True(t, second.Onboarded, "the second boot must read onboarding from storage")
+	requireOnboarded(t, second)
 }

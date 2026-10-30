@@ -14,10 +14,7 @@ import (
 	"altalune.id/openwa/reqid"
 )
 
-// TestMCP_OneErrorVocabularyAcrossTheSurface pins the 401 body and an in-result tool failure to one struct, one code registry and one request id, so a host needs a single parser.
-func TestMCP_OneErrorVocabularyAcrossTheSurface(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
-
+func mcpOneErrorVocabularyAcrossTheSurface(t *testing.T, f *mcpFixture) {
 	t.Run("the 401 body", func(t *testing.T) {
 		const id = "mcp-401-vocabulary-0123456789"
 		rec := f.callWithRequestID(t, "", id, listToolsBody())
@@ -64,10 +61,7 @@ func (f *mcpFixture) callWithRequestID(t *testing.T, credential, requestID strin
 	return rec
 }
 
-// TestMCP_BootAnnouncesTheMountedSurface keeps the surface visible in the logs: an operator reading boot output must see that /mcp mounted, at what audience and with the UI on or off.
-func TestMCP_BootAnnouncesTheMountedSurface(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true, appsUI: true})
-
+func mcpBootAnnouncesTheMountedSurface(t *testing.T, f *mcpFixture) {
 	require.True(t, f.log.warned("boot: mcp surface mounted"),
 		"boot logged no line for the MCP surface; its only line is a warning on the failure path")
 

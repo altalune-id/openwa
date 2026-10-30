@@ -214,9 +214,10 @@ func TestReadyz_IsDBAwareInEveryProcessShape(t *testing.T) {
 		{name: "scheduler on, scheduler-only", schedulerEnabled: true, schedulerOnly: true},
 		{name: "scheduler off, scheduler-only", schedulerOnly: true, wantBootRejected: true},
 	}
+	h := pgtest.NewDatabase(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := schedulerBootCfg(t)
+			cfg := schedulerBootCfgFor(t, h)
 			cfg.Scheduler.Enabled = tt.schedulerEnabled
 			var opts []Option
 			if tt.schedulerOnly {
@@ -258,7 +259,11 @@ const testEncryptionKey = "0123456789abcdef0123456789abcdef0123456789abcdef01234
 
 func schedulerBootCfg(t *testing.T) *config.Config {
 	t.Helper()
-	h := pgtest.NewDatabase(t)
+	return schedulerBootCfgFor(t, pgtest.NewDatabase(t))
+}
+
+func schedulerBootCfgFor(t *testing.T, h *pgtest.Handle) *config.Config {
+	t.Helper()
 	return &config.Config{
 		Mode: config.ModeSelfhosted,
 		HTTP: config.HTTPConfig{Addr: "127.0.0.1:0", BaseURL: "http://127.0.0.1"},

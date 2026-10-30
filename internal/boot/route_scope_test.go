@@ -167,21 +167,18 @@ func newScopeProbeServer(t *testing.T, mode config.Mode) (*boot.Server, *bytes.B
 	var logBuf bytes.Buffer
 	log := boot.WithLogger(slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug})))
 
-	// NOTE: OnboardingGate 303s every route to /onboard until the deployment is onboarded, so mark it onboarded first.
-	seed, err := boot.BootServer(context.Background(), cfg, log, boot.WithOIDCHTTPClient(idp.Client()))
+	srv, err := boot.BootServer(context.Background(), cfg, log, boot.WithOIDCHTTPClient(idp.Client()))
 	require.NoError(t, err)
-	seedUser, err := seed.Users.Create(context.Background(), user.CreateRequest{
+	t.Cleanup(func() { _ = srv.Close() })
+	// NOTE: OnboardingGate 303s every route to /onboard until the deployment is onboarded, so mark it onboarded first.
+	seedUser, err := srv.Users.Create(context.Background(), user.CreateRequest{
 		Email: "probe-seed@example.com", Name: "Probe Seed", Source: user.SourceOIDC,
 	})
 	require.NoError(t, err)
-	_, err = seed.Onboards.Complete(context.Background(), seedUser.ID, onboard.MethodCLIInit)
+	_, err = srv.Onboards.Complete(context.Background(), seedUser.ID, onboard.MethodCLIInit)
 	require.NoError(t, err)
-	require.NoError(t, seed.Close())
-
-	srv, err := boot.BootServer(context.Background(), cfg, log, boot.WithOIDCHTTPClient(idp.Client()))
-	require.NoError(t, err)
-	require.True(t, srv.Onboarded, "the probe server must be past the onboarding gate")
-	t.Cleanup(func() { _ = srv.Close() })
+	srv.CompleteOnboarding(context.Background())
+	requireOnboarded(t, srv)
 	logBuf.Reset()
 	return srv, &logBuf
 }

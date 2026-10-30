@@ -20,10 +20,7 @@ func readResourceBody(uri string) map[string]any {
 	}
 }
 
-// TestMCP_AppsUIServesTheAdvertisedResource is the end-to-end guard that the ui:// link project_list advertises must resolve to a document over the real mount.
-func TestMCP_AppsUIServesTheAdvertisedResource(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true, appsUI: true})
-
+func mcpAppsUIServesTheAdvertisedResource(t *testing.T, f *mcpFixture) {
 	rec := f.call(t, f.readKey, readResourceBody(ui.ResourceURI))
 	require.Equal(t, 200, rec.Code)
 
@@ -51,17 +48,13 @@ func TestMCP_AppsUIServesTheAdvertisedResource(t *testing.T) {
 	}
 }
 
-func TestMCP_AppsUIOffPublishesNoResource(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true, appsUI: false})
-
+func mcpAppsUIOffPublishesNoResource(t *testing.T, f *mcpFixture) {
 	rec := f.call(t, f.readKey, readResourceBody(ui.ResourceURI))
 	require.Equal(t, 200, rec.Code)
 	require.Contains(t, rec.Body.String(), "error", "reading an unpublished resource must fail, not serve a blank frame")
 }
 
-func TestMCP_AppsUIBindsProjectList(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true, appsUI: true})
-
+func mcpAppsUIBindsProjectList(t *testing.T, f *mcpFixture) {
 	rec := f.call(t, f.readKey, listToolsBody())
 	require.Equal(t, 200, rec.Code, rec.Body.String())
 

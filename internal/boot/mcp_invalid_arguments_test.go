@@ -9,8 +9,7 @@ import (
 	"altalune.id/openwa/internal/apperror"
 )
 
-func TestMCP_UndecodableArgumentsAnswerAValidationErrorNotAnIncident(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
+func mcpUndecodableArgumentsAnswerAValidationErrorNotAnIncident(t *testing.T, f *mcpFixture) {
 	names := f.srv.MCP.Registry().Names()
 	require.NotEmpty(t, names, "boot registered no MCP tools")
 	tool := names[0]
