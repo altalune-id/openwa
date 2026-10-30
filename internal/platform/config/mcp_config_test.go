@@ -159,7 +159,7 @@ func TestValidate_MCPInvariants(t *testing.T) {
 			name:     "a tokens.audience equal to the mounted mcp audience is refused",
 			mutate:   func(c *Config) { c.Tokens.Audience = "https://app.example.com/mcp" },
 			is:       IsMCPAudienceCollisionError,
-			wantSubs: []string{"https://app.example.com/mcp", "tokens.audience", "ALT_TOKENS_AUDIENCE"},
+			wantSubs: []string{"https://app.example.com/mcp", "tokens.audience", "OPENWA_TOKENS_AUDIENCE", "OPENWA_MCP_AUDIENCE"},
 		},
 		{
 			name: "a tokens.audience equal to an overridden mcp audience is refused",
@@ -304,12 +304,12 @@ func TestLoad_MCPDefaultsOff(t *testing.T) {
 
 func TestEnvKeys_MCPKeysAreRuntime(t *testing.T) {
 	want := map[string][]string{
-		"OPENWA_MCP_ENABLED":           nil,
-		"OPENWA_MCP_AUDIENCE":          nil,
-		"OPENWA_MCP_AUDIENCE_OVERRIDE": nil,
-		"OPENWA_MCP_APPS_UI":           nil,
-		"OPENWA_MCP_CHALLENGE_TOKEN":   nil,
-		"OPENWA_MCP_CHALLENGE_PREFIX":  nil,
+		"OPENWA_MCP_ENABLED":                     nil,
+		"OPENWA_MCP_AUDIENCE":                    nil,
+		"OPENWA_MCP_AUDIENCE_OVERRIDE":           nil,
+		"OPENWA_MCP_APPS_UI":                     nil,
+		"OPENWA_MCP_INTROSPECTION_CLIENT_ID":     nil,
+		"OPENWA_MCP_INTROSPECTION_CLIENT_SECRET": {"secret"},
 	}
 	seen := map[string]bool{}
 	for _, k := range WalkEnvKeys(EnvPrefix) {

@@ -43,15 +43,15 @@ primitive each surface uses, what narrows it, and the tests that hold it togethe
 
 ### R4 — authorization depth per surface
 
-| Surface          | Credential                                                     | Authenticated by               | Authorization depth                                                                         |
-| ---------------- | -------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------- |
-| S1 console       | `sid` cookie, HMAC                                             | `webmw.Session`                | org membership + role                                                                       |
-| S2 control plane | Bearer JWT **or** an api key (`api.keyPrefix`, default `key_`) | `authn.Interceptor(Chain)`     | **method→scope table, fail closed**; a device RPC reaches only a bound key's device         |
-| S3 data plane    | Bearer or `X-API-Key`, key only — a JWT is **401**             | per-route `Authorize`          | scope **+** `ResourceIDs`                                                                   |
-| S4 ingest        | provider signature                                             | per-provider `ingest.Verifier` | none — provider identity _is_ the authz                                                     |
-| S5 dispatch      | n/a, we sign                                                   | n/a                            | n/a                                                                                         |
-| S6 cli           | in-process: none; remote: the credential of the plane it calls | —                              | inherits the plane it calls                                                                 |
-| S7 mcp           | Bearer JWT (MCP audience) **or** an api key                    | `authn.Chain` + per-tool scope | **every tool scope-checked, JWT included**; a device tool reaches only a bound key's device |
+| Surface          | Credential                                                     | Authenticated by               | Authorization depth                                                                        |
+| ---------------- | -------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------ |
+| S1 console       | `sid` cookie, HMAC                                             | `webmw.Session`                | org membership + role                                                                      |
+| S2 control plane | Othra token (API audience) **or** an api key (`api.keyPrefix`) | `authn.Interceptor(Chain)`     | **method→scope table, fail closed**; a device RPC reaches only a bound key's device        |
+| S3 data plane    | Bearer or `X-API-Key`, key only — a JWT is **401**             | per-route `Authorize`          | scope **+** `ResourceIDs`                                                                  |
+| S4 ingest        | provider signature                                             | per-provider `ingest.Verifier` | none — provider identity _is_ the authz                                                    |
+| S5 dispatch      | n/a, we sign                                                   | n/a                            | n/a                                                                                        |
+| S6 cli           | in-process: none; remote: the credential of the plane it calls | —                              | inherits the plane it calls                                                                |
+| S7 mcp           | Othra token (MCP audience) **or** an api key                   | `authn.Chain` + per-tool scope | **every tool scope-checked, 403 step-up**; a device tool reaches only a bound key's device |
 
 A device-bound key reaches only its device, on every surface. PR #36 puts `ResourceIDs` on
 `session.Principal` and adds `ReachesResource`/`ReachesWholeProject`, so S2, S3 and S7 all
@@ -64,11 +64,11 @@ reach rule: entering through the project scope, they refuse a device-bound key (
 The device verbs span S1 (console pages), S2 (`DeviceService`), S3 (`/devices` REST), S6 (`openwa device`)
 and S7 (`device_*` tools); S6 and S7 call the S2 handler, so they inherit its checks.
 
-Fail-closed is the whole point of the S2 row: a key principal reaching a Connect method absent
-from the scope table is **denied**, and `TestEveryRPCHasAScope` asserts every mounted method has
-an entry. The S7 row deliberately breaks S2's pattern, so do not generalize from it. Both
-asymmetries and the enforcement points behind them are [`scopes`](../scopes/README.md); the S7 mount,
-its config keys and its tool contract are [`mcp`](../mcp/README.md).
+Fail-closed is the whole point of the S2 row: a key or token principal reaching a Connect method
+absent from the scope table is **denied**, and `TestEveryRPCHasAScope` asserts every mounted method
+has an entry. An Othra token is an RFC 9068 access token (or an `othra_pt_` personal token through
+introspection) verified by `oauthrs`; the enforcement points are [`scopes`](../scopes/README.md); the
+S7 mount, its config keys and its tool contract are [`mcp`](../mcp/README.md).
 
 ### R7 — what the guard test actually guards
 

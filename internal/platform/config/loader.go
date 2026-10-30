@@ -153,11 +153,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("genesis.breakGlass", false)
 
 	v.SetDefault("oidc.scopes", []string{"openid", "email", "profile"})
+	v.SetDefault("oidc.endSessionOnLogout", true)
 
 	v.SetDefault("i18n.defaultLocale", "en-US")
 
-	v.SetDefault("tokens.audience", "urn:openwa:api")
-	v.SetDefault("tokens.supportedAlgs", []string{"RS256", "ES256"})
 	v.SetDefault("tokens.clockSkew", "60s")
 }
 

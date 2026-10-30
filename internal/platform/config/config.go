@@ -179,7 +179,7 @@ type OIDCConfig struct {
 	Issuer             string   `yaml:"issuer"             mapstructure:"issuer"             awareness:"required,mode:cloud" validate:"omitempty,url"`
 	ClientID           string   `yaml:"clientID"           mapstructure:"clientID"           awareness:"required,mode:cloud"`
 	ClientSecret       string   `yaml:"clientSecret"       mapstructure:"clientSecret"       awareness:"required,mode:cloud,secret"`
-	Resource           string   `yaml:"resource"           mapstructure:"resource"           awareness:"-"`
+	CLIClientID        string   `yaml:"cliClientID"        mapstructure:"cliClientID"        awareness:"-"`
 	Scopes             []string `yaml:"scopes"             mapstructure:"scopes"             awareness:"-"`
 	RedirectPort       int      `yaml:"redirectPort"       mapstructure:"redirectPort"       awareness:"-" validate:"gte=0,lte=65535"`
 	ButtonLabel        string   `yaml:"buttonLabel"        mapstructure:"buttonLabel"        awareness:"-"`
@@ -200,10 +200,8 @@ type MCPConfig struct {
 	Audience         string `yaml:"audience"         mapstructure:"audience"         awareness:"-"`
 	AudienceOverride bool   `yaml:"audienceOverride" mapstructure:"audienceOverride" awareness:"-"`
 	AppsUI           bool   `yaml:"appsUI"           mapstructure:"appsUI"           awareness:"-"`
-	// ChallengeToken is the host-control proof the authorization server issues; it is published, not secret.
-	ChallengeToken string `yaml:"challengeToken" mapstructure:"challengeToken" awareness:"-"`
-	// ChallengePrefix overrides the path the proof is served under; empty means mcp.DefaultChallengePrefix.
-	ChallengePrefix string `yaml:"challengePrefix" mapstructure:"challengePrefix" awareness:"-"`
+	// Introspection registers the MCP resource server at the issuer's RFC 7662 endpoint, for personal tokens.
+	Introspection tokens.IntrospectionConfig `yaml:"introspection" mapstructure:"introspection" awareness:"-"`
 }
 
 // OpenAPIConfig configures the OpenAPI documentation endpoint.
@@ -338,6 +336,9 @@ func validateInvariants(c *Config) error {
 		return err
 	}
 	if err := validateGenesisPasswordNeedsEmail(c); err != nil {
+		return err
+	}
+	if err := validateTokens(c); err != nil {
 		return err
 	}
 	if err := validateMCP(c); err != nil {
@@ -597,7 +598,8 @@ type MCPAudienceCollisionError struct {
 
 func (e *MCPAudienceCollisionError) Error() string {
 	// SECURITY: a shared audience lets a token minted for the MCP endpoint, carrying only its narrow scopes, authenticate on the control plane.
-	return fmt.Sprintf("config: mcp.audience and tokens.audience are both %q — the MCP endpoint and the control plane must have distinct token audiences (set ALT_MCP_AUDIENCE or ALT_TOKENS_AUDIENCE)", e.Audience)
+	return fmt.Sprintf("config: mcp.audience and tokens.audience are both %q — the MCP endpoint and the control plane must have distinct token audiences (set %s or %s)",
+		e.Audience, EnvVar("mcp.audience"), EnvVar("tokens.audience"))
 }
 
 // IsMCPAudienceCollisionError reports whether err is an *MCPAudienceCollisionError.
@@ -661,6 +663,37 @@ func validateMCPAudience(c *Config) error {
 		return &MCPAudienceCollisionError{Audience: c.MCP.Audience}
 	}
 	return nil
+}
+
+// TokensIssuerMismatchError reports a tokens.issuer that differs from oidc.issuer, so signed-in users could never be found by their bearer tokens.
+type TokensIssuerMismatchError struct {
+	Tokens string
+	OIDC   string
+}
+
+func (e *TokensIssuerMismatchError) Error() string {
+	return fmt.Sprintf("config: tokens.issuer %q differs from oidc.issuer %q — users are keyed by (issuer, subject), so a token from another issuer finds no user (set %s to %s)",
+		e.Tokens, e.OIDC, EnvVar("tokens.issuer"), EnvVar("oidc.issuer"))
+}
+
+// IsTokensIssuerMismatchError reports whether err is a *TokensIssuerMismatchError.
+func IsTokensIssuerMismatchError(err error) bool {
+	_, ok := errors.AsType[*TokensIssuerMismatchError](err)
+	return ok
+}
+
+func validateTokens(c *Config) error {
+	if c.Tokens.Issuer != "" && c.OIDC.Issuer != "" && c.Tokens.Issuer != c.OIDC.Issuer {
+		return &TokensIssuerMismatchError{Tokens: c.Tokens.Issuer, OIDC: c.OIDC.Issuer}
+	}
+	if c.Tokens.Audience == "" && c.HTTP.BaseURL != "" {
+		c.Tokens.Audience = defaultAPIAudience(c.HTTP.BaseURL, c.HTTP.BasePath)
+	}
+	return nil
+}
+
+func defaultAPIAudience(baseURL, basePath string) string {
+	return strings.TrimRight(baseURL, "/") + strings.TrimRight(basePath, "/") + "/api"
 }
 
 func defaultMCPAudience(baseURL, basePath string) string {

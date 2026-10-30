@@ -14,7 +14,6 @@ import (
 	"altalune.id/openwa/internal/mcp/ui"
 	"altalune.id/openwa/internal/platform/authn"
 	"altalune.id/openwa/internal/platform/tenant"
-	"altalune.id/openwa/internal/user"
 )
 
 func toolsByName(t *testing.T, body []byte) map[string]map[string]any {
@@ -76,16 +75,10 @@ func TestMCP_DevicePairWithoutADeviceNamesTheWayOut(t *testing.T) {
 // TestMCP_DeviceListReachIsChecked re-adds on device_list the reach proofs PR #36 ran on blog_list (removed with blog): a project key cannot reach a sibling project, a person in the org can, an org key must name a project, and a selected-projects org key sees only its grant. It drives the real surface on superuser Postgres (RLS bypassed), where the handler's reach check is the only guard.
 func TestMCP_DeviceListReachIsChecked(t *testing.T) {
 	f := newMCPFixture(t, mcpOpts{enabled: true})
-	ctx := t.Context()
 
-	owner, err := f.srv.Users.EnsureFromOIDC(ctx, user.Claims{Issuer: f.issuer.url, Subject: tokenSubject, Email: tokenEmail, Name: "MCP Agent"})
+	sibling, err := f.srv.Projects.Create(f.orgCtx, f.orgID, "sibling-project", "Sibling Project")
 	require.NoError(t, err)
-	o, err := f.srv.Orgs.BySlug(ctx, "mcp-org")
-	require.NoError(t, err)
-	orgCtx := tenant.Into(ctx, tenant.Context{OrgID: o.ID, UserID: owner.ID})
-	sibling, err := f.srv.Projects.Create(orgCtx, o.ID, "sibling-project", "Sibling Project")
-	require.NoError(t, err)
-	_, err = f.srv.Devices.Create(tenant.WithProject(orgCtx, sibling.ID), "Sibling Device")
+	_, err = f.srv.Devices.Create(tenant.WithProject(f.orgCtx, sibling.ID), "Sibling Device")
 	require.NoError(t, err)
 
 	t.Run("a project key is refused a sibling project", func(t *testing.T) {
@@ -101,7 +94,7 @@ func TestMCP_DeviceListReachIsChecked(t *testing.T) {
 		require.NotContains(t, rec.Body.String(), `"isError":true`, "body=%s", rec.Body.String())
 	})
 
-	_, selected, err := f.srv.APIKeys.MintOrg(orgCtx, "org-devices", []string{authn.ScopeDevicesRead},
+	_, selected, err := f.srv.APIKeys.MintOrg(f.orgCtx, "org-devices", []string{authn.ScopeDevicesRead},
 		apikey.ProjectGrant{ProjectIDs: []uuid.UUID{sibling.ID}}, soon())
 	require.NoError(t, err)
 
@@ -117,4 +110,19 @@ func TestMCP_DeviceListReachIsChecked(t *testing.T) {
 		rec = f.call(t, selected, callToolBody(mcpinternal.ToolDeviceList, map[string]any{"projectId": f.projectID}))
 		require.Equal(t, apperror.CodeForbidden, toolPayload(t, rec).Code, "the org key cannot read its ungranted home project; body=%s", rec.Body.String())
 	})
+}
+
+// SECURITY: a device-bound key short of a tool's scope is refused in the tool result, never with an HTTP 403 challenge meant for OAuth tokens.
+func TestMCP_DeviceBoundKeyScopeDenialStaysInTheResult(t *testing.T) {
+	f := newMCPFixture(t, mcpOpts{enabled: true})
+
+	device, err := f.srv.Devices.Create(f.projCtx, "Bound Device")
+	require.NoError(t, err)
+	_, boundKey, err := f.srv.APIKeys.Mint(f.projCtx, "mcp-bound-read", []string{authn.ScopeDevicesRead}, []uuid.UUID{device.ID}, soon())
+	require.NoError(t, err)
+
+	rec := f.call(t, boundKey, callToolBody("message_send", map[string]any{"to": "628111222333", "text": "x"}))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Empty(t, rec.Header().Get("WWW-Authenticate"))
+	require.True(t, scopeDeniedFor(t, rec, authn.ScopeMessagesWrite), rec.Body.String())
 }

@@ -4,16 +4,16 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"altalune.id/openwa/internal/apperror"
+	mcpinternal "altalune.id/openwa/internal/mcp"
 	"altalune.id/openwa/internal/mcp/ui"
 	"altalune.id/openwa/internal/platform/authn"
-	"altalune.id/openwa/internal/platform/tenant"
-	"altalune.id/openwa/internal/user"
 )
 
 func TestMCP_MessagingToolsCarryTheirAnnotationsAndUI(t *testing.T) {
@@ -89,18 +89,10 @@ func TestMCP_MessageSendRefusesAKeyWithoutMessagesWrite(t *testing.T) {
 // SECURITY: every messaging tool enters through the project scope, whose ReachesWholeProject refuses a device-bound key even when the scope is held.
 func TestMCP_MessagingToolsRefuseADeviceBoundKey(t *testing.T) {
 	f := newMCPFixture(t, mcpOpts{enabled: true})
-	ctx := t.Context()
 
-	owner, err := f.srv.Users.EnsureFromOIDC(ctx, user.Claims{Issuer: f.issuer.url, Subject: tokenSubject, Email: tokenEmail, Name: "MCP Agent"})
+	device, err := f.srv.Devices.Create(f.projCtx, "Bound Device")
 	require.NoError(t, err)
-	o, err := f.srv.Orgs.BySlug(ctx, "mcp-org")
-	require.NoError(t, err)
-	p, err := f.srv.Projects.BySlug(tenant.Into(ctx, tenant.Context{OrgID: o.ID, UserID: owner.ID}), o.ID, "mcp-project")
-	require.NoError(t, err)
-	projCtx := tenant.WithProject(tenant.Into(ctx, tenant.Context{OrgID: o.ID, UserID: owner.ID}), p.ID)
-	device, err := f.srv.Devices.Create(projCtx, "Bound Device")
-	require.NoError(t, err)
-	_, boundKey, err := f.srv.APIKeys.Mint(projCtx, "mcp-bound", []string{
+	_, boundKey, err := f.srv.APIKeys.Mint(f.projCtx, "mcp-bound", []string{
 		authn.ScopeMessagesRead, authn.ScopeMessagesWrite, authn.ScopeChatsRead,
 	}, []uuid.UUID{device.ID}, soon())
 	require.NoError(t, err)
@@ -137,4 +129,17 @@ func TestMCP_ContactListReturnsAnEmptyPage(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &out), rec.Body.String())
 	require.False(t, out.Result.IsError, rec.Body.String())
+}
+
+// SECURITY: the step-up runs inside the MCP body cap: a token short of messages:write gets the scope 403 on a large call under the cap, and a call over the cap is refused 413.
+func TestMCP_TokenStepUpRunsInsideTheBodyCap(t *testing.T) {
+	f := newMCPFixture(t, mcpOpts{enabled: true})
+	token := f.issuer.mint(t, mcpAudience, []string{authn.ScopeProjectsRead})
+
+	under := f.call(t, token, callToolBody(mcpinternal.ToolMessageSend, map[string]any{"to": "628111222333", "text": strings.Repeat("x", 5<<20)}))
+	require.Equal(t, http.StatusForbidden, under.Code, "a 5 MiB call short of its scope")
+	require.Contains(t, under.Header().Get("WWW-Authenticate"), `error="insufficient_scope", scope="`+authn.ScopeMessagesWrite+`"`)
+
+	over := f.call(t, token, callToolBody(mcpinternal.ToolMessageSend, map[string]any{"to": "628111222333", "text": strings.Repeat("x", 7<<20)}))
+	require.Equal(t, http.StatusRequestEntityTooLarge, over.Code, "a call over the 6 MiB cap")
 }

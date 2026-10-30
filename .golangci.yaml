@@ -185,7 +185,6 @@ linters:
         platform-boundary-root:
           list-mode: lax
           files:
-            - "**/authl/**"
             - "**/reqid/**"
             - "**/nanoid/**"
             - "**/slug/**"

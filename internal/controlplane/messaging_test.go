@@ -124,7 +124,10 @@ func newMsgHarnessAs(t *testing.T, key *apiKeyAs, deviceNames ...string) *msgHar
 
 	orgSvc := org.NewService(fakes.NewOrg(), capabilities.Capabilities{OrgCreation: true}, log, reporter.Unexpected)
 	projectSvc := project.NewService(projs, log, reporter.Unexpected)
-	p := session.Principal{UserID: uuid.New(), Email: "a@b", ActiveOrgID: orgID, ActiveProjectID: proj.ID}
+	p := session.Principal{
+		UserID: uuid.New(), Email: "a@b", ActiveOrgID: orgID, ActiveProjectID: proj.ID,
+		Scopes: []string{authn.ScopeMessagesRead, authn.ScopeMessagesWrite, authn.ScopeChatsRead, authn.ScopeChatsWrite, authn.ScopeContactsRead},
+	}
 	keyStore := fakes.NewAPIKey()
 	var keyPlain string
 	if key != nil {
@@ -139,11 +142,10 @@ func newMsgHarnessAs(t *testing.T, key *apiKeyAs, deviceNames ...string) *msgHar
 		keyStore.Seed(k)
 		keyPlain = plain
 	}
-	kernel := &platform.Kernel{Log: log, Reporter: reporter, Verifier: stubVerifier{principal: p}}
+	kernel := &platform.Kernel{Log: log, Reporter: reporter, Verifier: stubVerifier{principal: fullTokenGrant(p)}}
 	deviceSvc := device.NewService(devStore, log, reporter.Unexpected, fakes.UnitOfWork, fakes.NewDeviceSessions())
 	srv := controlplane.New(nil, kernel, nil, nil, orgSvc, projectSvc, nil, nil, nil, nil, nil, nil, deviceSvc)
-	srv.Authn = authn.Chain{apikey.NewAuthenticator(keyStore, nil, apikey.Scheme{}, fakes.NewMembers()), tokens.NewAuthenticator(kernel.Verifier)}
-	srv.KeyPrefix = apikey.DefaultPrefix
+	srv.Authn = authn.Chain{apikey.NewAuthenticator(keyStore, nil, apikey.Scheme{}, fakes.NewMembers()), tokens.NewAuthenticator(kernel.Verifier, authn.Scheme{Prefix: apikey.DefaultPrefix})}
 	srv.Messages, srv.Chats, srv.Contacts = msgs, chats, contacts
 	ts := httptest.NewServer(srv.Handler(""))
 	t.Cleanup(ts.Close)

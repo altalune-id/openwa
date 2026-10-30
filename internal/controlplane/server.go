@@ -48,6 +48,7 @@ import (
 	"altalune.id/openwa/internal/platform"
 	"altalune.id/openwa/internal/platform/authn"
 	"altalune.id/openwa/internal/platform/config"
+	"altalune.id/openwa/internal/platform/tokens"
 	"altalune.id/openwa/internal/project"
 	"altalune.id/openwa/internal/todo"
 	"altalune.id/openwa/internal/user"
@@ -70,7 +71,7 @@ type Server struct {
 	Tags       *tag.Service
 	Devices    *device.Service
 
-	// APIKeys is set by boot after New returns, mirroring Authn/KeyPrefix below.
+	// APIKeys is set by boot after New returns, mirroring Authn below.
 	APIKeys *apikey.Service
 
 	// Messages, Chats and Contacts are set by boot after New returns, like APIKeys.
@@ -90,8 +91,9 @@ type Server struct {
 	ChatSvc    *ChatService
 	ContactSvc *ContactService
 
-	Authn     authn.Chain
-	KeyPrefix string
+	Authn authn.Chain
+	// Resource is the control plane's protected resource, named in every 401 and 403 challenge; nil sends none.
+	Resource *tokens.Resource
 
 	OpenAPIEnabled   bool
 	OpenAPIBasicAuth *BasicAuth
@@ -246,8 +248,8 @@ func (s *Server) handlerOptions() []connect.HandlerOption {
 	}
 	ics = append(ics,
 		interceptor.Wrap(s.unexpected()),
-		translateAuthnErrors(),
-		authn.Interceptor(s.Authn, authn.Scheme{Prefix: s.KeyPrefix}, ScopeTable()),
+		translateAuthnErrors(s.Resource),
+		authn.Interceptor(s.Authn, ScopeTable()),
 		interceptor.Tenant(),
 	)
 	return []connect.HandlerOption{

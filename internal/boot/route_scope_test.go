@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/altalune-id/oidcrp/oidcrptest"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -154,10 +155,11 @@ func newScopeProbeServer(t *testing.T, mode config.Mode) (*boot.Server, *bytes.B
 	t.Helper()
 	cfg := newSmokeCfg(t)
 	cfg.Mode = mode
+	idp := oidcrptest.New(t)
 	if mode == config.ModeCloud {
 		// NOTE: org creation and the signup flow are cloud-only capabilities.
 		cfg.OIDC = config.OIDCConfig{
-			Issuer:       stubIssuer(t),
+			Issuer:       idp.Issuer(),
 			ClientID:     "probe-client",
 			ClientSecret: "probe-secret",
 		}
@@ -166,7 +168,7 @@ func newScopeProbeServer(t *testing.T, mode config.Mode) (*boot.Server, *bytes.B
 	log := boot.WithLogger(slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug})))
 
 	// NOTE: OnboardingGate 303s every route to /onboard until the deployment is onboarded, so mark it onboarded first.
-	seed, err := boot.BootServer(context.Background(), cfg, log)
+	seed, err := boot.BootServer(context.Background(), cfg, log, boot.WithOIDCHTTPClient(idp.Client()))
 	require.NoError(t, err)
 	seedUser, err := seed.Users.Create(context.Background(), user.CreateRequest{
 		Email: "probe-seed@example.com", Name: "Probe Seed", Source: user.SourceOIDC,
@@ -176,7 +178,7 @@ func newScopeProbeServer(t *testing.T, mode config.Mode) (*boot.Server, *bytes.B
 	require.NoError(t, err)
 	require.NoError(t, seed.Close())
 
-	srv, err := boot.BootServer(context.Background(), cfg, log)
+	srv, err := boot.BootServer(context.Background(), cfg, log, boot.WithOIDCHTTPClient(idp.Client()))
 	require.NoError(t, err)
 	require.True(t, srv.Onboarded, "the probe server must be past the onboarding gate")
 	t.Cleanup(func() { _ = srv.Close() })
@@ -301,27 +303,7 @@ func templatize(path string) string {
 
 func stubIssuer(t *testing.T) string {
 	t.Helper()
-	mux := http.NewServeMux()
-	ts := httptest.NewServer(mux)
-	t.Cleanup(ts.Close)
-	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{
-			"issuer": "` + ts.URL + `",
-			"authorization_endpoint": "` + ts.URL + `/authorize",
-			"token_endpoint": "` + ts.URL + `/token",
-			"userinfo_endpoint": "` + ts.URL + `/userinfo",
-			"jwks_uri": "` + ts.URL + `/jwks",
-			"response_types_supported": ["code"],
-			"subject_types_supported": ["public"],
-			"id_token_signing_alg_values_supported": ["RS256"]
-		}`))
-	})
-	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"keys":[]}`))
-	})
-	return ts.URL
+	return oidcrptest.New(t).Issuer()
 }
 
 // TestRoutes_NonMemberCannotReachAnotherOrg locks the membership gate: the slug is attacker-supplied and RLS cannot gate it.
