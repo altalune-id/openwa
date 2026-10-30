@@ -47,10 +47,18 @@ func (c *captureLog) WithAttrs([]slog.Attr) slog.Handler { return c }
 
 func (c *captureLog) WithGroup(string) slog.Handler { return c }
 
-func (c *captureLog) warned(substr string) bool {
+func (c *captureLog) warned(substr string) bool { return c.warnedSince(0, substr) }
+
+func (c *captureLog) size() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for _, line := range c.lines {
+	return len(c.lines)
+}
+
+func (c *captureLog) warnedSince(start int, substr string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, line := range c.lines[start:] {
 		if strings.Contains(line.msg, substr) {
 			return true
 		}

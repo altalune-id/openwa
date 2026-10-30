@@ -214,10 +214,10 @@ func TestReadyz_IsDBAwareInEveryProcessShape(t *testing.T) {
 		{name: "scheduler on, scheduler-only", schedulerEnabled: true, schedulerOnly: true},
 		{name: "scheduler off, scheduler-only", schedulerOnly: true, wantBootRejected: true},
 	}
-	h := pgtest.NewDatabase(t)
+	pg := pgtest.NewDatabase(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := schedulerBootCfgFor(t, h)
+			cfg := schedulerBootCfgFor(t, pg)
 			cfg.Scheduler.Enabled = tt.schedulerEnabled
 			var opts []Option
 			if tt.schedulerOnly {
