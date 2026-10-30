@@ -18,8 +18,8 @@ import (
 func ScopeTable() authn.ScopeTable {
 	return authn.ScopeTable{
 		apikeyv1connect.APIKeyServiceListProcedure:           authn.ScopeAPIKeysRead,
-		apikeyv1connect.APIKeyServiceCreateProcedure:         authn.ScopeAPIKeysWrite,
-		apikeyv1connect.APIKeyServiceRevokeProcedure:         authn.ScopeAPIKeysWrite,
+		apikeyv1connect.APIKeyServiceCreateProcedure:         authn.SessionOnly,
+		apikeyv1connect.APIKeyServiceRevokeProcedure:         authn.SessionOnly,
 		blogv1connect.BlogServiceListPostsProcedure:          authn.ScopePostsRead,
 		blogv1connect.BlogServiceGetPostProcedure:            authn.ScopePostsRead,
 		blogv1connect.BlogServiceCreatePostProcedure:         authn.ScopePostsWrite,

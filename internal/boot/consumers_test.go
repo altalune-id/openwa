@@ -16,6 +16,7 @@ import (
 	"altalune.id/openwa/internal/platform/outbox"
 	"altalune.id/openwa/internal/platform/queue"
 	"altalune.id/openwa/internal/platform/tenant"
+	"altalune.id/openwa/internal/testutil/pgtest"
 	"altalune.id/openwa/internal/user"
 )
 
@@ -61,7 +62,12 @@ func TestListenersOf_CollectsTheOnboardingBroadcast(t *testing.T) {
 
 func queueBootCfg(t *testing.T, url string) *config.Config {
 	t.Helper()
-	cfg := schedulerBootCfg(t)
+	return queueBootCfgFor(t, pgtest.NewDatabase(t), url)
+}
+
+func queueBootCfgFor(t *testing.T, h *pgtest.Handle, url string) *config.Config {
+	t.Helper()
+	cfg := schedulerBootCfgFor(t, h)
 	cfg.Queue = config.QueueConfig{Enabled: url != "", URL: url, ConnectTimeout: 5 * time.Second}
 	return cfg
 }
@@ -101,9 +107,10 @@ func TestBootServer_ProcessMatrix(t *testing.T) {
 		{"scheduler only", []Option{WithSchedulerOnly(true)}, false, true, true},
 		{"consumer only", []Option{WithConsumerOnly(true)}, true, false, true},
 	}
+	h := pgtest.NewDatabase(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv, err := BootServer(t.Context(), queueBootCfg(t, ns.ClientURL()), tt.opts...)
+			srv, err := BootServer(t.Context(), queueBootCfgFor(t, h, ns.ClientURL()), tt.opts...)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, srv.Close()) })
 

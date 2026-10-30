@@ -17,7 +17,7 @@ func TestEnsureFromOIDC_StoresAndBackfillsIDP(t *testing.T) {
 	svc := user.NewService(st, user.GenesisConfig{}, newTestLogger(), noopUnexpected())
 	ctx := context.Background()
 
-	u, err := svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "sub-1", Email: "a@x.id", Name: "A"})
+	u, err := svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "sub-1", Email: "a@x.id", EmailVerified: true, Name: "A"})
 	require.NoError(t, err)
 	require.Equal(t, "https://idp", u.IDPIssuer)
 	require.Equal(t, "sub-1", u.IDPSubject)
@@ -28,7 +28,7 @@ func TestEnsureFromOIDC_StoresAndBackfillsIDP(t *testing.T) {
 	legacy, err := user.New("b@x.id", "B", user.SourceOIDC)
 	require.NoError(t, err)
 	require.NoError(t, st.Save(ctx, legacy))
-	u2, err := svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "sub-2", Email: "b@x.id", Name: "B"})
+	u2, err := svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "sub-2", Email: "b@x.id", EmailVerified: true, Name: "B"})
 	require.NoError(t, err)
 	require.Equal(t, legacy.ID, u2.ID)
 	require.Equal(t, "https://idp", u2.IDPIssuer)
@@ -112,10 +112,10 @@ func TestPostgres_EnsureFromOIDC_EmailChangedAtIDP(t *testing.T) {
 	svc := user.NewService(store, user.GenesisConfig{}, newTestLogger(), noopUnexpected())
 	ctx := t.Context()
 
-	first, err := svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "sub-1", Email: "old@x.id", Name: "A"})
+	first, err := svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "sub-1", Email: "old@x.id", EmailVerified: true, Name: "A"})
 	require.NoError(t, err)
 
-	second, err := svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "sub-1", Email: "new@x.id", Name: "A"})
+	second, err := svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "sub-1", Email: "new@x.id", EmailVerified: true, Name: "A"})
 	require.NoError(t, err, "a changed IdP email must resolve via users_idp_idx, not collide on it")
 	assert.Equal(t, first.ID, second.ID)
 	assert.Equal(t, "new@x.id", second.Email)
@@ -127,4 +127,94 @@ func TestPostgres_EnsureFromOIDC_EmailChangedAtIDP(t *testing.T) {
 
 	_, err = store.ByEmail(ctx, "old@x.id")
 	assert.True(t, user.IsNotFoundError(err), "the old address must no longer resolve, got %v", err)
+}
+
+func TestPostgres_EnsureFromOIDC_RelinksAVerifiedEmailFromAnotherIssuer(t *testing.T) {
+	store := newPostgresStoreForTest(t)
+	svc := user.NewService(store, user.GenesisConfig{}, newTestLogger(), noopUnexpected())
+	ctx := t.Context()
+
+	old, err := svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://old-idp", Subject: "old-sub", Email: "ana@x.id", EmailVerified: true, Name: "Ana"})
+	require.NoError(t, err)
+
+	got, err := svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://new-idp", Subject: "new-sub", Email: "ana@x.id", EmailVerified: true, Name: "Ana"})
+	require.NoError(t, err)
+	assert.Equal(t, old.ID, got.ID, "a verified email keeps the account across an issuer switch")
+
+	byNew, err := store.ByIDP(ctx, "https://new-idp", "new-sub")
+	require.NoError(t, err, "bearer tokens from the new issuer must resolve the user")
+	assert.Equal(t, old.ID, byNew.ID)
+	_, err = store.ByIDP(ctx, "https://old-idp", "old-sub")
+	assert.True(t, user.IsNotFoundError(err), "the old link must be gone, got %v", err)
+}
+
+func TestEnsureFromOIDC_RefusesAnUnverifiedEmailForAnUnknownSubject(t *testing.T) {
+	t.Parallel()
+	st := fakes.NewUser()
+	svc := user.NewService(st, user.GenesisConfig{}, newTestLogger(), noopUnexpected())
+	ctx := context.Background()
+
+	victim, err := svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "sub-1", Email: "ana@x.id", EmailVerified: true, Name: "Ana"})
+	require.NoError(t, err)
+
+	_, err = svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "attacker", Email: "ana@x.id", Name: "Eve"})
+	require.True(t, user.IsEmailUnverifiedError(err), "want *EmailUnverifiedError, got %v", err)
+	still, err := st.ByIDP(ctx, "https://idp", "sub-1")
+	require.NoError(t, err)
+	assert.Equal(t, victim.ID, still.ID, "an unverified email must not move the link")
+
+	_, err = svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "fresh", Email: "new@x.id", Name: "New"})
+	require.True(t, user.IsEmailUnverifiedError(err), "want *EmailUnverifiedError for a new user, got %v", err)
+	_, err = st.ByEmail(ctx, "new@x.id")
+	assert.True(t, user.IsNotFoundError(err), "no user is created from an unverified email, got %v", err)
+}
+
+func TestEnsureFromOIDC_SubjectWinsOverEmail(t *testing.T) {
+	t.Parallel()
+	st := fakes.NewUser()
+	svc := user.NewService(st, user.GenesisConfig{}, newTestLogger(), noopUnexpected())
+	ctx := context.Background()
+
+	a, err := svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "sub-a", Email: "a@x.id", EmailVerified: true, Name: "A"})
+	require.NoError(t, err)
+	b, err := svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "sub-b", Email: "b@x.id", EmailVerified: true, Name: "B"})
+	require.NoError(t, err)
+
+	got, err := svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "sub-a", Email: "b@x.id", Name: "A"})
+	require.NoError(t, err, "a known subject signs in even with an unverified email")
+	assert.Equal(t, a.ID, got.ID, "the subject decides the account, never the email")
+	assert.Equal(t, "a@x.id", got.Email, "an unverified email never replaces the stored one")
+	other, err := st.ByIDP(ctx, "https://idp", "sub-b")
+	require.NoError(t, err)
+	assert.Equal(t, b.ID, other.ID)
+}
+
+func TestEnsureFromOIDC_RefusesAVerifiedEmailLinkedToAnotherSubjectAtTheSameIssuer(t *testing.T) {
+	t.Parallel()
+	st := fakes.NewUser()
+	svc := user.NewService(st, user.GenesisConfig{}, newTestLogger(), noopUnexpected())
+	ctx := context.Background()
+
+	owner, err := svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "sub-1", Email: "ana@x.id", EmailVerified: true, Name: "Ana"})
+	require.NoError(t, err)
+
+	_, err = svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "sub-2", Email: "ana@x.id", EmailVerified: true, Name: "Other"})
+	require.True(t, user.IsIdentityConflictError(err), "want *IdentityConflictError, got %v", err)
+	still, err := st.ByIDP(ctx, "https://idp", "sub-1")
+	require.NoError(t, err)
+	assert.Equal(t, owner.ID, still.ID, "another subject at the same issuer must not take the account")
+}
+
+// TestPostgres_EnsureFromOIDC_EmailChangeOntoAnotherUser proves a verified email change that collides with another user is an identity conflict, not a 500.
+func TestPostgres_EnsureFromOIDC_EmailChangeOntoAnotherUser(t *testing.T) {
+	svc := user.NewService(newPostgresStoreForTest(t), user.GenesisConfig{}, newTestLogger(), noopUnexpected())
+	ctx := t.Context()
+
+	_, err := svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "sub-1", Email: "a@x.id", EmailVerified: true, Name: "A"})
+	require.NoError(t, err)
+	_, err = svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "sub-2", Email: "b@x.id", EmailVerified: true, Name: "B"})
+	require.NoError(t, err)
+
+	_, err = svc.EnsureFromOIDC(ctx, user.Claims{Issuer: "https://idp", Subject: "sub-2", Email: "a@x.id", EmailVerified: true, Name: "B"})
+	assert.True(t, user.IsIdentityConflictError(err), "got %v", err)
 }

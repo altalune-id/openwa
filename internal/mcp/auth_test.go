@@ -29,9 +29,8 @@ import (
 )
 
 const (
-	mcpAudience     = "https://app.example.com/mcp"
-	otherAudience   = "https://app.example.com/api"
-	authMetadataURL = "https://app.example.com/.well-known/oauth-protected-resource/mcp"
+	mcpAudience   = "https://app.example.com/mcp"
+	otherAudience = "https://app.example.com/api"
 )
 
 func TestScopesFromContextReadsThePrincipal(t *testing.T) {
@@ -94,16 +93,6 @@ func TestScopesFromContextDoesNotAliasThePrincipal(t *testing.T) {
 	}
 }
 
-func TestWWWAuthenticateNamesTheResourceMetadataURL(t *testing.T) {
-	t.Parallel()
-
-	got := mcpinternal.WWWAuthenticate(authMetadataURL)
-	want := `Bearer resource_metadata="` + authMetadataURL + `"`
-	if got != want {
-		t.Fatalf("WWWAuthenticate = %q, want %q", got, want)
-	}
-}
-
 func TestToolCallIsScopeCheckedForEveryCredentialClass(t *testing.T) {
 	t.Parallel()
 
@@ -152,6 +141,72 @@ func TestToolCallIsScopeCheckedForEveryCredentialClass(t *testing.T) {
 	}
 }
 
+func TestTokenWithoutTheToolScopeGetsAStepUpChallenge(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	res := h.callTool(t, "Bearer "+h.readJWT(), mcpinternal.ToolMessageSend)
+	t.Cleanup(func() { _ = res.Body.Close() })
+
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403 insufficient_scope", res.StatusCode)
+	}
+	want := `Bearer resource_metadata="` + authResource(t).MetadataURL + `", error="insufficient_scope", scope="` + authn.ScopeMessagesWrite + `"`
+	if got := res.Header.Get("WWW-Authenticate"); got != want {
+		t.Fatalf("WWW-Authenticate = %q, want %q", got, want)
+	}
+	if got := decodePayload(t, res).Code; got != apperror.CodeForbidden {
+		t.Fatalf("payload code = %q, want %q", got, apperror.CodeForbidden)
+	}
+	if h.ran.Load() {
+		t.Fatal("the tool ran for a token without its scope")
+	}
+}
+
+// SECURITY: the step-up reads as far as the MCP body cap, so a large tools/call short of its scope is refused before dispatch too.
+func TestTokenWithoutTheToolScopeGetsAStepUpChallengeForALargeCall(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	text := strings.Repeat("x", 2<<20)
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"` + mcpinternal.ToolMessageSend + `","arguments":{"text":"` + text + `"}}}`
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, h.ts.URL, strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("Authorization", "Bearer "+h.readJWT())
+	res, err := h.ts.Client().Do(req)
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	t.Cleanup(func() { _ = res.Body.Close() })
+
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403 insufficient_scope for a %d-byte call", res.StatusCode, len(body))
+	}
+	if h.ran.Load() {
+		t.Fatal("the tool ran for a token without its scope")
+	}
+}
+
+func TestAPIKeyWithoutTheToolScopeKeepsTheInResultDenial(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	res := h.callTool(t, "Bearer "+h.readKey(), "blog_publish")
+	t.Cleanup(func() { _ = res.Body.Close() })
+
+	if res.StatusCode == http.StatusForbidden || res.Header.Get("WWW-Authenticate") != "" {
+		t.Fatalf("status = %d, challenge = %q; an API key cannot step up, so it keeps the in-result denial",
+			res.StatusCode, res.Header.Get("WWW-Authenticate"))
+	}
+	if h.ran.Load() {
+		t.Fatal("the tool ran for a key without its scope")
+	}
+}
+
 // SECURITY: this is the R4 S7 rule.
 func TestJWTNeverSkipsTheScopeCheck(t *testing.T) {
 	t.Parallel()
@@ -195,8 +250,12 @@ func TestCredentialFailuresAreMaskedAsOneUnauthorized(t *testing.T) {
 			if res.StatusCode != http.StatusUnauthorized {
 				t.Fatalf("status = %d, want 401", res.StatusCode)
 			}
-			if got := res.Header.Get("WWW-Authenticate"); got != mcpinternal.WWWAuthenticate(authMetadataURL) {
-				t.Fatalf("WWW-Authenticate = %q, want the RFC 9728 challenge", got)
+			want := authResource(t).InvalidToken()
+			if tc.auth == "" {
+				want = authResource(t).Challenge()
+			}
+			if got := res.Header.Get("WWW-Authenticate"); got != want {
+				t.Fatalf("WWW-Authenticate = %q, want %q: only the error code tells no token from a refused one", got, want)
 			}
 			if h.ran.Load() {
 				t.Fatal("an unauthenticated request reached a tool handler")
@@ -251,7 +310,7 @@ func TestUnauthorizedCarriesTheRequestID(t *testing.T) {
 	const id = "mcp-unauthorized-probe-0123456789"
 
 	h := newHarness(t)
-	guarded := mcpinternal.Authenticate(nil, authScheme(), authMetadataURL, nil)(h.mcp)
+	guarded := mcpinternal.Authenticate(nil, authResource(t), nil)(h.mcp)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		guarded.ServeHTTP(w, r.WithContext(reqid.WithContext(r.Context(), id)))
 	}))
@@ -325,7 +384,7 @@ func TestNilAuthenticatorDeniesEveryRequest(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	ts := httptest.NewServer(mcpinternal.Authenticate(nil, authScheme(), authMetadataURL, nil)(h.mcp))
+	ts := httptest.NewServer(mcpinternal.Authenticate(nil, authResource(t), nil)(h.mcp))
 	t.Cleanup(ts.Close)
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, ts.URL, strings.NewReader("{}"))
@@ -358,6 +417,7 @@ func TestTranslateError(t *testing.T) {
 		{name: "scope undeclared", err: &rootmcp.ScopeUndeclaredError{Tool: "blog_unscoped"}, code: apperror.CodeForbidden},
 		{name: "insufficient scope", err: &authn.InsufficientScopeError{Scope: "posts:write"}, code: apperror.CodeForbidden},
 		{name: "unauthorized", err: &authn.UnauthorizedError{}, code: apperror.CodeUnauthenticated},
+		{name: "unavailable", err: &authn.UnavailableError{Cause: errors.New("db down")}, code: apperror.CodeTokenUnavailable},
 		{name: "invalid arguments", err: &rootmcp.InvalidArgumentsError{Tool: "blog_publish", Field: "title", Reason: "bad"}, code: apperror.CodeValidation},
 		{name: "unrecognized error passes through", err: other},
 	}
@@ -448,10 +508,10 @@ func newHarness(t *testing.T) *harness {
 	h.keys["reader"] = seedKey(t, store, authn.ScopePostsRead)
 	chain := authn.Chain{
 		apikey.NewAuthenticator(store, nil, apikey.Scheme{}, fakes.NewMembers()),
-		tokens.NewAuthenticator(verifier),
+		tokens.NewAuthenticator(verifier, authScheme()),
 	}
 
-	h.ts = httptest.NewServer(mcpinternal.Authenticate(chain, authScheme(), authMetadataURL, nil)(h.mcp))
+	h.ts = httptest.NewServer(mcpinternal.Authenticate(chain, authResource(t), nil)(h.mcp))
 	t.Cleanup(h.ts.Close)
 	return h
 }
@@ -478,8 +538,13 @@ func (h *harness) connect(t *testing.T, bearer string) *sdkmcp.ClientSession {
 
 func (h *harness) post(t *testing.T, authorization string) *http.Response {
 	t.Helper()
+	return h.callTool(t, authorization, "blog_list")
+}
 
-	body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"blog_list"}}`
+func (h *harness) callTool(t *testing.T, authorization, tool string) *http.Response {
+	t.Helper()
+
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"` + tool + `"}}`
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, h.ts.URL, strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("new request: %v", err)
@@ -505,6 +570,15 @@ func seedKey(t *testing.T, store *fakes.APIKey, scopes ...string) string {
 	}
 	store.Seed(k)
 	return plaintext
+}
+
+func authResource(t *testing.T) tokens.Resource {
+	t.Helper()
+	r, err := tokens.NewResource(mcpAudience)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
 }
 
 func authScheme() authn.Scheme { return authn.Scheme{Prefix: apikey.DefaultPrefix} }

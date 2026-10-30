@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -45,6 +46,25 @@ func (c *captureLog) Handle(ctx context.Context, r slog.Record) error {
 func (c *captureLog) WithAttrs([]slog.Attr) slog.Handler { return c }
 
 func (c *captureLog) WithGroup(string) slog.Handler { return c }
+
+func (c *captureLog) warned(substr string) bool { return c.warnedSince(0, substr) }
+
+func (c *captureLog) size() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.lines)
+}
+
+func (c *captureLog) warnedSince(start int, substr string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, line := range c.lines[start:] {
+		if strings.Contains(line.msg, substr) {
+			return true
+		}
+	}
+	return false
+}
 
 func (c *captureLog) logged(path, id string) bool {
 	c.mu.Lock()

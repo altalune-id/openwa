@@ -31,7 +31,10 @@ func newDeviceCP(t *testing.T) *deviceCP {
 	orgID := uuid.New()
 	proj, err := project.New(orgID, "p1", "Project 1")
 	require.NoError(t, err)
-	h := newHarness(t, session.Principal{UserID: uuid.New(), Email: "a@b", ActiveOrgID: orgID, ActiveProjectID: proj.ID})
+	h := newHarness(t, session.Principal{
+		UserID: uuid.New(), Email: "a@b", ActiveOrgID: orgID, ActiveProjectID: proj.ID,
+		Scopes: []string{authn.ScopeDevicesRead, authn.ScopeDevicesWrite},
+	})
 	require.NoError(t, h.projs.Save(context.Background(), proj))
 	return &deviceCP{h: h, orgID: orgID, project: proj}
 }

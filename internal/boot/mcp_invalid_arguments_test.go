@@ -9,8 +9,8 @@ import (
 	"altalune.id/openwa/internal/apperror"
 )
 
-func TestMCP_UndecodableArgumentsAnswerAValidationErrorNotAnIncident(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true})
+func mcpUndecodableArgumentsAnswerAValidationErrorNotAnIncident(t *testing.T, f *mcpFixture) {
+	logStart := f.log.size()
 	names := f.srv.MCP.Registry().Names()
 	require.NotEmpty(t, names, "boot registered no MCP tools")
 	tool := names[0]
@@ -24,6 +24,6 @@ func TestMCP_UndecodableArgumentsAnswerAValidationErrorNotAnIncident(t *testing.
 	payload := toolPayload(t, rec)
 	require.Equal(t, apperror.CodeValidation, payload.Code, "payload=%+v", payload)
 	require.Equal(t, map[string]string{"tool": tool, "field": "bogus"}, payload.Meta)
-	require.False(t, f.log.warned("mcp: unmapped tool failure"),
+	require.False(t, f.log.warnedSince(logStart, "mcp: unmapped tool failure"),
 		"a client's malformed arguments were logged as an unmapped incident")
 }

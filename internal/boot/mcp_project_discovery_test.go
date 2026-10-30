@@ -78,16 +78,8 @@ func TestMCP_ProjectListIsScopedToTheCallersOrg(t *testing.T) {
 // TestMCP_KeyNeverReachesASiblingProject drives a project-bound key over the real surface. SECURITY: the fixture runs on superuser Postgres (RLS bypassed), so the reach check is the only guard between the key and its sibling project.
 func TestMCP_KeyNeverReachesASiblingProject(t *testing.T) {
 	f := newMCPFixture(t, mcpOpts{enabled: true})
-	ctx := t.Context()
 
-	owner, err := f.srv.Users.EnsureFromOIDC(ctx, user.Claims{
-		Issuer: f.issuer.url, Subject: tokenSubject, Email: tokenEmail, Name: "MCP Agent",
-	})
-	require.NoError(t, err)
-	o, err := f.srv.Orgs.BySlug(ctx, "mcp-org")
-	require.NoError(t, err)
-	orgCtx := tenant.Into(ctx, tenant.Context{OrgID: o.ID, UserID: owner.ID})
-	_, err = f.srv.Projects.Create(orgCtx, o.ID, "sibling-project", "Sibling Project")
+	_, err := f.srv.Projects.Create(f.orgCtx, f.orgID, "sibling-project", "Sibling Project")
 	require.NoError(t, err)
 
 	t.Run("project_list hides the sibling project", func(t *testing.T) {
@@ -115,24 +107,16 @@ func TestMCP_KeyNeverReachesASiblingProject(t *testing.T) {
 // TestMCP_OrgKeyReachesOnlyItsGrantedProjects drives an org key over the real surface with RLS bypassed, where no RLS backs the reach check.
 func TestMCP_OrgKeyReachesOnlyItsGrantedProjects(t *testing.T) {
 	f := newMCPFixture(t, mcpOpts{enabled: true})
-	ctx := t.Context()
 
-	owner, err := f.srv.Users.EnsureFromOIDC(ctx, user.Claims{
-		Issuer: f.issuer.url, Subject: tokenSubject, Email: tokenEmail, Name: "MCP Agent",
-	})
+	granted, err := f.srv.Projects.Create(f.orgCtx, f.orgID, "granted-project", "Granted Project")
 	require.NoError(t, err)
-	o, err := f.srv.Orgs.BySlug(ctx, "mcp-org")
-	require.NoError(t, err)
-	orgCtx := tenant.Into(ctx, tenant.Context{OrgID: o.ID, UserID: owner.ID})
-	granted, err := f.srv.Projects.Create(orgCtx, o.ID, "granted-project", "Granted Project")
-	require.NoError(t, err)
-	_, err = f.srv.Projects.Create(orgCtx, o.ID, "ungranted-project", "Ungranted Project")
+	_, err = f.srv.Projects.Create(f.orgCtx, f.orgID, "ungranted-project", "Ungranted Project")
 	require.NoError(t, err)
 
-	_, selected, err := f.srv.APIKeys.MintOrg(orgCtx, "org-reader", []string{authn.ScopeProjectsRead},
+	_, selected, err := f.srv.APIKeys.MintOrg(f.orgCtx, "org-reader", []string{authn.ScopeProjectsRead},
 		apikey.ProjectGrant{ProjectIDs: []uuid.UUID{granted.ID}}, soon())
 	require.NoError(t, err)
-	_, everything, err := f.srv.APIKeys.MintOrg(orgCtx, "org-all", []string{authn.ScopeProjectsRead}, apikey.ProjectGrant{All: true}, soon())
+	_, everything, err := f.srv.APIKeys.MintOrg(f.orgCtx, "org-all", []string{authn.ScopeProjectsRead}, apikey.ProjectGrant{All: true}, soon())
 	require.NoError(t, err)
 
 	slugsFor := func(t *testing.T, key string) []string {
@@ -174,9 +158,7 @@ func TestMCP_PersonalTokenActsForItsOwner(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
 	require.NotEmpty(t, projectsFromTool(t, rec), "a member's token must read what the member can; body=%s", rec.Body.String())
 
-	owner, err := f.srv.Users.EnsureFromOIDC(ctx, user.Claims{Issuer: f.issuer.url, Subject: tokenSubject, Email: tokenEmail, Name: "MCP Agent"})
-	require.NoError(t, err)
-	require.NoError(t, f.srv.Orgs.RemoveMember(tenant.Into(ctx, tenant.Context{OrgID: o.ID, UserID: owner.ID}), o.ID, member.ID))
+	require.NoError(t, f.srv.Orgs.RemoveMember(f.orgCtx, f.orgID, member.ID))
 	rec = f.call(t, token, callToolBody(mcpinternal.ToolProjectList, map[string]any{}))
 	require.Equal(t, http.StatusUnauthorized, rec.Code, "a departed member's token must be refused at the door; body=%s", rec.Body.String())
 
@@ -189,16 +171,9 @@ func TestMCP_PersonalTokenActsForItsOwner(t *testing.T) {
 // TestMCP_MemberListIsAnOrgLevelRead drives the org-level member_list tool: an org key holding members:read reads its own org's members, and nothing else can.
 func TestMCP_MemberListIsAnOrgLevelRead(t *testing.T) {
 	f := newMCPFixture(t, mcpOpts{enabled: true})
-	ctx := t.Context()
 	seedForeignTenant(t, f)
 
-	owner, err := f.srv.Users.EnsureFromOIDC(ctx, user.Claims{Issuer: f.issuer.url, Subject: tokenSubject, Email: tokenEmail, Name: "MCP Agent"})
-	require.NoError(t, err)
-	o, err := f.srv.Orgs.BySlug(ctx, "mcp-org")
-	require.NoError(t, err)
-	orgCtx := tenant.Into(ctx, tenant.Context{OrgID: o.ID, UserID: owner.ID})
-
-	_, reader, err := f.srv.APIKeys.MintOrg(orgCtx, "members", []string{authn.ScopeMembersRead}, apikey.ProjectGrant{All: true}, soon())
+	_, reader, err := f.srv.APIKeys.MintOrg(f.orgCtx, "members", []string{authn.ScopeMembersRead}, apikey.ProjectGrant{All: true}, soon())
 	require.NoError(t, err)
 
 	rec := f.call(t, reader, callToolBody(mcpinternal.ToolMemberList, map[string]any{}))

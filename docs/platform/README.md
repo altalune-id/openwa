@@ -8,7 +8,7 @@ factory, one field on `Kernel`.
 ## What counts
 
 - **Adapter over an external system** — `internal/platform/{db,session,tokens,outbox,notify,queue}`,
-  `mailer/`, `authl/`.
+  `mailer/`.
 - **Cross-cutting primitive** — `logger/`, `telemetry/`, `reqid/`, `nanoid/`, `slug/`, `httpclient/`,
   `internal/platform/{tenant,capabilities,sealer,authn,publicid,keyset}`. `keyset` is the `(timestamp, id)` cursor codec every keyset-paginated `List` shares (chat, message, contact); predicates stay in each module's `postgres.go` as `ts < $1 OR (ts = $1 AND id < $2)` because jet has no row-value comparison.
 - `internal/platform/publicid` — prefixed nanoid ids (`<prefix>_` + 16 characters) for every id an outside surface sees; the UUID v7 stays the primary key and never leaves the database. Each prefix is a constant of the module that owns the aggregate (`device.PublicIDPrefix`, `whatsapp.LinkIDPrefix`, spec 04's chat and message prefixes).
@@ -21,7 +21,7 @@ factory, one field on `Kernel`.
 
 ## Root or `internal/platform/`
 
-- **Root** — `authl/ httpclient/ logger/ mailer/ mcp/ nanoid/ reqid/ scheduler/ slug/ telemetry/ worker/`.
+- **Root** — `httpclient/ logger/ mailer/ mcp/ nanoid/ reqid/ scheduler/ slug/ telemetry/ worker/`.
   Downstream forks copy them verbatim, so signature changes cost every fork.
 - **`internal/platform/<name>/`** — everything only this app's internals need.
 - **An exported root carries no `mapstructure` tags and no deployment policy.** It takes a plain
@@ -107,13 +107,13 @@ one errgroup and returns the first non-nil error.
 
 depguard in `.golangci.yaml` is the source of truth.
 
-| Rule                     | Scope                                                                             | Effect                                                                 |
-| ------------------------ | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `platform-boundary`      | `internal/platform/**`                                                            | Denies `internal/{todo,user,org,project,invite,auth,api,web,cli,boot}` |
-| `platform-boundary-root` | `authl/ httpclient/ logger/ mailer/ mcp/ nanoid/ reqid/ slug/ telemetry/ worker/` | Denies all of `altalune.id/openwa/internal`                            |
-| `mcp-purity`             | root `mcp/` only                                                                  | Allows only stdlib + the MCP Go SDK                                    |
-| `scheduler-purity`       | `scheduler/`                                                                      | stdlib, otel, `robfig/cron/v3`, `reqid`                                |
-| `httpclient-purity`      | `httpclient/`                                                                     | stdlib, `resty/v2`, `otelhttp`                                         |
+| Rule                     | Scope                                                                      | Effect                                                                 |
+| ------------------------ | -------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `platform-boundary`      | `internal/platform/**`                                                     | Denies `internal/{todo,user,org,project,invite,auth,api,web,cli,boot}` |
+| `platform-boundary-root` | `httpclient/ logger/ mailer/ mcp/ nanoid/ reqid/ slug/ telemetry/ worker/` | Denies all of `altalune.id/openwa/internal`                            |
+| `mcp-purity`             | root `mcp/` only                                                           | Allows only stdlib + the MCP Go SDK                                    |
+| `scheduler-purity`       | `scheduler/`                                                               | stdlib, otel, `robfig/cron/v3`, `reqid`                                |
+| `httpclient-purity`      | `httpclient/`                                                              | stdlib, `resty/v2`, `otelhttp`                                         |
 
 A platform package MAY import stdlib, the third-party library its adapter needs,
 `internal/apperror`, and a narrow set of siblings (`tenant`→`apperror`, `tokens`→`session`,

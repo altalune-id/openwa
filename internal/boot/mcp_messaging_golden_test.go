@@ -13,8 +13,7 @@ import (
 //nolint:gochecknoglobals // a golden-update flag has to be package level.
 var updateMCPGolden = flag.Bool("update-mcp-golden", false, "rewrite the MCP messaging tool descriptor goldens")
 
-func TestMCP_MessagingToolDescriptorsAreFrozen(t *testing.T) {
-	f := newMCPFixture(t, mcpOpts{enabled: true, appsUI: true})
+func mcpMessagingToolDescriptorsAreFrozen(t *testing.T, f *mcpFixture) {
 	rec := f.call(t, f.msgKey, listToolsBody())
 	require.Equal(t, 200, rec.Code)
 	tools := toolsByName(t, rec.Body.Bytes())
