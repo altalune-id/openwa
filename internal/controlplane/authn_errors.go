@@ -29,7 +29,7 @@ func translateAuthnErrors(resource *tokens.Resource) connect.UnaryInterceptorFun
 					codes.PermissionDenied,
 					&apperrorv1.ErrorDetail{Code: apperror.CodeForbidden},
 				).WithCause(err)
-				if scope.Scope == "" || scope.Source != session.SourceToken {
+				if scope.Source != session.SourceToken || !authn.TokenScope(scope.Scope) {
 					return nil, ae
 				}
 				return nil, withChallenge(connect.CodePermissionDenied, ae, resource, func(r *tokens.Resource) string {

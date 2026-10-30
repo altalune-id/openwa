@@ -24,7 +24,7 @@ func Flash(secret []byte, basePath string, secure bool) web.Middleware {
 				next.ServeHTTP(w, r)
 				return
 			}
-			web.ClearCookie(w, web.FlashCookieName, basePath, secure)
+			web.ClearCookie(w, web.FlashCookieName, basePath, web.SecureCookie(secure, r))
 			raw, err := web.VerifyCookie(secret, c.Value)
 			if err != nil {
 				next.ServeHTTP(w, r)

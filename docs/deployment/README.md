@@ -181,8 +181,10 @@ documents before it accepts a resource server:
    list a retired scope such as `apikeys:write`: key management stays in the console.
 3. Create a web client (confidential) with redirect URI `https://<host><basePath>/oauth/callback`
    and post-logout URI `https://<host><basePath>/`, and a CLI client (native, public) with redirect
-   URI `http://127.0.0.1/callback` (RFC 8252; any port matches). Mark both first-party.
-4. Link both clients to both resource servers with their scopes.
+   URI `http://127.0.0.1/callback` (RFC 8252; any port matches) and refresh tokens on, so
+   `auth login --url` gets `offline_access`. Mark both first-party.
+4. Link the web client to both resource servers, and the CLI client to the control plane, with
+   their scopes. The CLI needs `apikeys:read` for `Whoami`.
 5. Set `oidc.clientID`, `oidc.clientSecret` and `oidc.cliClientID`, and restart.
 6. Optional: to accept `othra_pt_` personal tokens, set `tokens.introspection.*` (and
    `mcp.introspection.*`) to each resource server's public id and introspection secret.
@@ -197,6 +199,11 @@ While Othra or the database is unreachable, a bearer token that cannot be checke
 `Unavailable` (Connect) or `503` (MCP) with code `TKN002` and no `WWW-Authenticate` challenge, so a
 client keeps its token and retries.
 
+Each signed cookie (session, invite, onboarding, sign-in state, last user, flash) uses its own key,
+derived per purpose from `http.stateSecret`; changing the secret signs everyone out. Set
+`OPENWA_HTTP_STATE_SECRET` to a base64url value of at least 32 bytes; left empty, boot uses an
+ephemeral key, so every restart signs everyone out.
+
 ### Cloud mode locally
 
 A throwaway local setup for `mode=cloud`:
@@ -206,10 +213,16 @@ podman run -d --name openwa-pg -e POSTGRES_PASSWORD=dev -p 5432:5432 postgres:18
 export OPENWA_MODE=cloud OPENWA_DB_ALLOW_BYPASS_RLS=true \
   OPENWA_DB_DSN='postgres://postgres:dev@127.0.0.1:5432/postgres?sslmode=disable' \
   OPENWA_SECURITY_ENCRYPTION_KEY="$(openssl rand -hex 32)" \
-  OPENWA_GENESIS_EMAIL=you@example.com OPENWA_HTTP_BASE_URL=http://localhost:5150
+  OPENWA_GENESIS_EMAIL=you@example.com \
+  OPENWA_HTTP_ADDR=:5150 OPENWA_HTTP_BASE_URL=http://localhost:5150 \
+  OPENWA_MCP_ENABLED=true
 ```
 
-Then follow the registration order above (issuer, placeholders, register, real credentials).
+`OPENWA_HTTP_ADDR` and `OPENWA_HTTP_BASE_URL` must name the same port. `OPENWA_MCP_ENABLED` is off by
+default; without it the `/mcp` resource server in step 2 has no document to read.
+`OPENWA_GENESIS_EMAIL` must be the email the first operator signs in with at Othra. Then follow the
+registration order above (issuer, placeholders, register, real credentials); the first `/login`
+lands on `/onboard`, which takes the one-time token from the boot log.
 
 A user is matched by `(issuer, subject)`. A first sign-in from a new issuer relinks an existing
 user only when the issuer marks the email verified and the row is unlinked or linked at another

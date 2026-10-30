@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -16,6 +18,8 @@ import (
 	"google.golang.org/grpc/codes"
 
 	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
+	chatv1 "altalune.id/openwa/gen/go/chat/v1"
+	"altalune.id/openwa/gen/go/chat/v1/chatv1connect"
 	devicev1 "altalune.id/openwa/gen/go/device/v1"
 	"altalune.id/openwa/gen/go/device/v1/devicev1connect"
 	"altalune.id/openwa/internal/apperror"
@@ -25,6 +29,8 @@ import (
 )
 
 const (
+	testToken = "test-token"
+	testURL   = "http://127.0.0.1"
 	salesID   = "dev_SalesDevice00001"
 	supportID = "dev_SupportDevice001"
 )
@@ -135,7 +141,7 @@ func serveDevice(t *testing.T, f *fakeDeviceRPC) string {
 func deviceServer(t *testing.T, f *fakeDeviceRPC) ClientBootFn {
 	t.Helper()
 	url := serveDevice(t, f)
-	return func(_ context.Context, cfg *config.Config, token string) (*boot.Client, error) {
+	return func(_ context.Context, cfg *config.Config, _ string, token string) (*boot.Client, error) {
 		return &boot.Client{Cfg: cfg, Conn: controlplane.NewClient(url, token)}, nil
 	}
 }
@@ -146,7 +152,8 @@ func runDevice(t *testing.T, bootClient ClientBootFn, args ...string) (stdout, s
 	out, errOut := &bytes.Buffer{}, &bytes.Buffer{}
 	root.SetOut(out)
 	root.SetErr(errOut)
-	root.SetArgs(args)
+	t.Setenv(config.EnvVar("url"), testURL)
+	root.SetArgs(append([]string{"--token", testToken}, args...))
 	err = root.ExecuteContext(context.Background())
 	return out.String(), errOut.String(), err
 }
@@ -319,7 +326,8 @@ func TestDevicePair_InterruptedExitsNonZero(t *testing.T) {
 	root := NewRootCmd(stubServerBoot, deviceServer(t, f))
 	root.SetOut(&bytes.Buffer{})
 	root.SetErr(&bytes.Buffer{})
-	root.SetArgs([]string{"device", "pair", "--output", "text"})
+	t.Setenv(config.EnvVar("url"), testURL)
+	root.SetArgs([]string{"--token", testToken, "device", "pair", "--output", "text"})
 	err := root.ExecuteContext(ctx)
 	if !IsPairInterruptedError(err) {
 		t.Fatalf("err = %v, want a PairInterruptedError", err)
@@ -349,5 +357,91 @@ func TestWaitForLink_ReprintsARotatedQRAndStopsOnCancel(t *testing.T) {
 	}
 	if got := strings.Count(errOut.String(), "Scan with WhatsApp"); got != 3 {
 		t.Fatalf("QR printed %d times, want 3 (one, two, three; the repeat is skipped)", got)
+	}
+}
+
+var errRejected = connect.NewError(connect.CodeUnauthenticated, errors.New("token expired"))
+
+type rejectingDeviceRPC struct {
+	devicev1connect.UnimplementedDeviceServiceHandler
+}
+
+func (rejectingDeviceRPC) ListDevices(context.Context, *connect.Request[devicev1.ListDevicesRequest]) (*connect.Response[devicev1.ListDevicesResponse], error) {
+	return nil, errRejected
+}
+
+func (rejectingDeviceRPC) StartLink(context.Context, *connect.Request[devicev1.StartLinkRequest]) (*connect.Response[devicev1.StartLinkResponse], error) {
+	return nil, errRejected
+}
+
+func (rejectingDeviceRPC) DeleteDevice(context.Context, *connect.Request[devicev1.DeleteDeviceRequest]) (*connect.Response[devicev1.DeleteDeviceResponse], error) {
+	return nil, errRejected
+}
+
+type rejectingChatRPC struct {
+	chatv1connect.UnimplementedChatServiceHandler
+}
+
+func (rejectingChatRPC) List(context.Context, *connect.Request[chatv1.ListRequest]) (*connect.Response[chatv1.ListResponse], error) {
+	return nil, errRejected
+}
+
+// A rejected credential on a device or messaging RPC names the way back in.
+func TestDeviceAndMessagingRPCs_NameTheSignInHint(t *testing.T) {
+	setSelfhostedEnv(t)
+	mux := http.NewServeMux()
+	for _, mount := range []func() (string, http.Handler){
+		func() (string, http.Handler) { return devicev1connect.NewDeviceServiceHandler(rejectingDeviceRPC{}) },
+		func() (string, http.Handler) { return chatv1connect.NewChatServiceHandler(rejectingChatRPC{}) },
+	} {
+		path, h := mount()
+		mux.Handle("/api"+path, http.StripPrefix("/api", h))
+	}
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+	bootClient := func(_ context.Context, cfg *config.Config, _ string, token string) (*boot.Client, error) {
+		return &boot.Client{Cfg: cfg, Conn: controlplane.NewClient(ts.URL, token)}, nil
+	}
+
+	for _, args := range [][]string{
+		{"device", "list"},
+		{"device", "pair", "--device", salesID},
+		{"device", "delete", "--device", salesID},
+		{"chat", "list", "--device", salesID},
+		{"chat", "list", "--device", "sales"},
+	} {
+		_, _, err := runDevice(t, bootClient, args...)
+		if err == nil || !strings.Contains(err.Error(), unauthenticatedHint) {
+			t.Errorf("%v: err = %v, want the sign-in hint", args, err)
+		}
+	}
+}
+
+// SECURITY: an http.baseURL from a config file found in the working directory never decides where a token goes.
+func TestRemoteCommands_IgnoreADiscoveredConfigBaseURL(t *testing.T) {
+	setSelfhostedEnv(t)
+	t.Setenv("OPENWA_HTTP_BASEURL", "")
+	t.Setenv("OPENWA_DATAPLANE_ENABLED", "false")
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "openwa.yaml"), []byte("http:\n  baseURL: \"https://attacker.example\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	var dialed string
+	bootClient := func(_ context.Context, cfg *config.Config, baseURL, token string) (*boot.Client, error) {
+		dialed = baseURL
+		return &boot.Client{Cfg: cfg, Conn: controlplane.NewClient(baseURL, token)}, nil
+	}
+
+	root := NewRootCmd(stubServerBoot, bootClient)
+	root.SetOut(&bytes.Buffer{})
+	root.SetErr(&bytes.Buffer{})
+	root.SetArgs([]string{"--token", testToken, "device", "list"})
+	err := root.ExecuteContext(context.Background())
+	if !IsMissingURLError(err) {
+		t.Fatalf("err = %v, want MissingURLError: a discovered config file must not pick the server", err)
+	}
+	if dialed != "" {
+		t.Fatalf("the token was sent to %q", dialed)
 	}
 }

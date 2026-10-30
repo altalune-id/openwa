@@ -15,12 +15,13 @@ type LocalePersister func(ctx context.Context, tag string) error
 
 // SwitcherOpts configures Switcher.
 type SwitcherOpts struct {
-	Bundle       *Bundle
-	CookieSecure bool
-	CookiePath   string
-	Persist      LocalePersister
-	OnSwitched   func(w http.ResponseWriter, r *http.Request)
-	Fallback     string
+	Bundle *Bundle
+	// Secure reports whether the locale cookie set on a request is Secure; nil means never.
+	Secure     func(*http.Request) bool
+	CookiePath string
+	Persist    LocalePersister
+	OnSwitched func(w http.ResponseWriter, r *http.Request)
+	Fallback   string
 }
 
 // Switcher returns an http.Handler that stores the chosen locale in a cookie and redirects.
@@ -58,7 +59,7 @@ func Switcher(opts SwitcherOpts) http.HandlerFunc {
 			MaxAge:   CookieMaxAge,
 			HttpOnly: false,
 			SameSite: http.SameSiteLaxMode,
-			Secure:   opts.CookieSecure,
+			Secure:   opts.Secure != nil && opts.Secure(r),
 		})
 		if opts.Persist != nil {
 			_ = opts.Persist(r.Context(), string(loc))

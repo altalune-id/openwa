@@ -1,6 +1,8 @@
 package boot
 
 import (
+	"context"
+	"encoding/json"
 	"testing"
 
 	"altalune.id/openwa/internal/controlplane"
@@ -49,5 +51,17 @@ func TestEveryMCPToolHasAScope(t *testing.T) {
 		if _, ok := reg.Spec(name); !ok {
 			t.Errorf("mcp.ScopeTable() declares %q but no such tool is registered", name)
 		}
+	}
+}
+
+// SECURITY: the MCP RFC 9728 document offers only scopes an OAuth token may hold, whatever a tool declares.
+func TestRegisteredScopes_OfferOnlyTokenScopes(t *testing.T) {
+	noop := func(context.Context, json.RawMessage) (json.RawMessage, error) { return nil, nil }
+	reg := rootmcp.NewRegistry()
+	reg.Register(rootmcp.ToolSpec{Name: "device_list", Scope: authn.ScopeDevicesRead, Handler: noop}, nil)
+	reg.Register(rootmcp.ToolSpec{Name: "blog_list", Scope: authn.ScopePostsRead, Handler: noop}, nil)
+	got := registeredScopes(reg)
+	if len(got) != 1 || got[0] != authn.ScopeDevicesRead {
+		t.Fatalf("registeredScopes = %v, want only %q", got, authn.ScopeDevicesRead)
 	}
 }

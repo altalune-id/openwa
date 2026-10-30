@@ -38,7 +38,7 @@ type scopeSpec struct {
 }
 
 // NOTE: apikeys:write is retired because only a person may manage keys; keys holding it keep validating.
-// NOTE: the posts scopes belong to the demo blog module: valid and mintable over the wire, never offered in the console.
+// NOTE: the posts scopes belong to the demo blog module: valid and mintable for API keys, never offered in the console or to OAuth tokens.
 var catalog = []scopeSpec{ //nolint:gochecknoglobals // immutable catalog, read only through the functions below.
 	{name: ScopePostsRead, level: LevelProject, demo: true},
 	{name: ScopePostsWrite, level: LevelProject, demo: true},
@@ -77,7 +77,15 @@ func MintableScopes() []string {
 }
 
 // ConsoleScopes returns the scopes the console API-key form offers: mintable, minus the demo scopes.
-func ConsoleScopes() []string {
+func ConsoleScopes() []string { return productScopes() }
+
+// TokenScopes returns the scopes an OAuth token may hold, in catalog order: mintable, minus the demo scopes, which stay API-key only.
+func TokenScopes() []string { return productScopes() }
+
+// TokenScope reports whether an OAuth token may hold scope.
+func TokenScope(scope string) bool { return slices.Contains(TokenScopes(), scope) }
+
+func productScopes() []string {
 	out := make([]string, 0, len(catalog))
 	for _, s := range catalog {
 		if !s.retired && !s.demo {

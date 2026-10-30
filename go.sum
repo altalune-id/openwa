@@ -26,8 +26,12 @@ github.com/agnivade/levenshtein v1.2.1 h1:EHBY3UOn1gwdy/VbFwgo4cxecRznFk7fKWN1KO
 github.com/agnivade/levenshtein v1.2.1/go.mod h1:QVVI16kDrtSuwcpd0p1+xMC6Z/VfhtCyDIjcwga4/DU=
 github.com/altalune-id/oauthrs v0.0.0-20261029230029-52821b6937ec h1:GjvrM8c6qlpAEOESThayfFqnXA/4Gcko5wmw/5o+L7E=
 github.com/altalune-id/oauthrs v0.0.0-20261029230029-52821b6937ec/go.mod h1:scx1owAfXtwk94ZibOM7RhjcSSOaOuPdiCpbKypBkBM=
+github.com/altalune-id/oauthrs v0.0.0-20261030070826-6e5063f3b6ca h1:tKea61n8yfmjGVagwhfzEDTOrOA1k7ANcQ72bUcceuk=
+github.com/altalune-id/oauthrs v0.0.0-20261030070826-6e5063f3b6ca/go.mod h1:poqXURiUA1jEnFK4Han6QYrMchVRM03WLDh/PSpThs8=
 github.com/altalune-id/oidcrp v0.0.0-20261029230018-81e927225965 h1:jKqDXfjkgTunvFsaDk2kovCMN7h4OhDUhYpW7iGHahY=
 github.com/altalune-id/oidcrp v0.0.0-20261029230018-81e927225965/go.mod h1:OV58ZY3u9PZ3apy6RtVsIxQdefRUbZjGJLDYexPErNM=
+github.com/altalune-id/oidcrp v0.0.0-20261030070618-63bfc891ff35 h1:kpCHHP/AyfmgAkVWq34Kyc3kD/dQP2lFymwMOi531Ro=
+github.com/altalune-id/oidcrp v0.0.0-20261030070618-63bfc891ff35/go.mod h1:OV58ZY3u9PZ3apy6RtVsIxQdefRUbZjGJLDYexPErNM=
 github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883 h1:bvNMNQO63//z+xNgfBlViaCIJKLlCJ6/fmUseuG0wVQ=
 github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883/go.mod h1:rCTlJbsFo29Kk6CurOXKm700vrz8f0KW0JNfpkRJY/8=
 github.com/andybalholm/brotli v1.1.1 h1:PR2pgnyFznKEugtsUo0xLdDop5SKXd5Qf5ysW+7XdTA=

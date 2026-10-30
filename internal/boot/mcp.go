@@ -105,6 +105,9 @@ func mcpTokensConfig(cfg *config.Config) tokens.Config {
 	c := cfg.Tokens
 	c.Audience = cfg.MCP.Audience
 	c.Introspection = cfg.MCP.Introspection
+	if c.Introspection.MaxPerMinute == 0 {
+		c.Introspection.MaxPerMinute = cfg.Tokens.Introspection.MaxPerMinute
+	}
 	return c
 }
 
@@ -121,7 +124,7 @@ func registeredScopes(reg *rootmcp.Registry) []string {
 	scopes := map[string]struct{}{}
 	for _, name := range reg.Names() {
 		spec, ok := reg.Spec(name)
-		if !ok || spec.Scope == "" {
+		if !ok || !authn.TokenScope(spec.Scope) {
 			continue
 		}
 		scopes[spec.Scope] = struct{}{}

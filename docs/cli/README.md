@@ -20,14 +20,16 @@ is a procedure, not a contract: [`howto/cli-command.md`](../howto/cli-command.md
 
 R11: the CLI owns no verbs. What a command calls decides which credential it needs.
 
-| Reaches                              | Commands                                                                    | Credential          |
-| ------------------------------------ | --------------------------------------------------------------------------- | ------------------- |
-| in-process services (`ServerBootFn`) | `init`, `serve`, `migrate`, `scheduler`, `auth`, `org`, `project`, `invite` | session file, or DB |
-| control plane (Connect client)       | `device`, `send`, `chat`, `message`, `contact`, `group`                     | bearer token        |
-| nothing but `config.Load`            | `version`, `healthz`, `completion`                                          | none                |
+| Reaches                                    | Commands                                                                                                  | Credential                  |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------- | --------------------------- |
+| in-process services (`ServerBootFn`)       | `init`, `serve`, `migrate`, `scheduler`, `org`, `project`, `invite`, `auth login` (local)                 | local profile, or DB        |
+| control plane S2, Connect (`ClientBootFn`) | `device`, `send`, `chat`, `message`, `contact`, `group`, `auth whoami`, `auth login --url` (its `Whoami`) | profile token, or `--token` |
+| Othra, OAuth 2.0                           | `auth login --url` (RFC 8252 loopback), `auth logout` (RFC 7009), refreshes                               | native public client, PKCE  |
+| nothing but `config.Load`                  | `version`, `healthz`, `completion`                                                                        | none                        |
 
-`org`, `project` and `invite` resolve a principal before doing anything, so they fail with
-`not signed in` without a session or `--token`.
+`org`, `project` and `invite` act as the local profile's principal and fail with exit `2` without
+one; they refuse `--url`, `--token` and `--token-file`. The device and messaging commands fail with
+exit `2` without a remote profile or `--token`. Profiles and precedence: [`resolution`](resolution.md).
 
 ## Command tree
 
@@ -36,7 +38,7 @@ Args, flags and what each command prints: [`commands`](commands.md).
 ```
 openwa
 ├─ Runtime   init · serve · migrate {up,status,down-to} · scheduler {list,run}
-├─ Auth      auth {login,logout,whoami,token mint}
+├─ Auth      auth {login,logout,whoami}
 ├─ Tenancy   org {list,create} · project {list,create} · invite {list,send,revoke}
 ├─ Domain    device {list,get,create,pair,logout,delete}                    control plane S2
 │            send {text,image,document,location}                   control plane S2
@@ -117,11 +119,8 @@ does not depend on them.
 | ----------------------------- | --------------------------------------------------------------- |
 | `--no-interactive`            | never consulted; prompts still appear                           |
 | `--log-level`, `--log-format` | flags ignored; `OPENWA_LOG_LEVEL` / `OPENWA_LOG_FORMAT` do work |
-| `auth login --print-token`    | plumbed into `loginOpts`, never read; no token is printed       |
 | `init --project-slug`         | echoed in the success line; no project is created               |
 | `--org`, `--project`          | ignored; the session principal decides                          |
-
-No command writes a session profile (`saveProfile` has no production caller).
 
 ## Not on this surface
 

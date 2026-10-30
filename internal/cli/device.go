@@ -64,6 +64,12 @@ func IsPairInterruptedError(err error) bool {
 }
 
 func deviceRPCError(err error) error {
+	if _, ok := errors.AsType[*apperror.AppError](err); ok {
+		return err
+	}
+	if connect.CodeOf(err) == connect.CodeUnauthenticated {
+		return withHint(err)
+	}
 	var cerr *connect.Error
 	if !errors.As(err, &cerr) {
 		return err
@@ -344,7 +350,7 @@ func deviceIDFrom(cmd *cobra.Command, conn *controlplane.Client, required bool) 
 	}
 	resp, err := conn.Device.ListDevices(cmd.Context(), connect.NewRequest(&devicev1.ListDevicesRequest{}))
 	if err != nil {
-		return "", err
+		return "", deviceRPCError(err)
 	}
 	for _, d := range resp.Msg.GetDevices() {
 		if strings.EqualFold(d.GetName(), raw) {
