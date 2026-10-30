@@ -16,11 +16,15 @@ import (
 type Option func(*loadOptions)
 
 type loadOptions struct {
-	requireFile bool
+	requireFile  bool
+	skipValidate bool
 }
 
 // WithRequireFile makes Load fail when the config file is missing.
 func WithRequireFile() Option { return func(o *loadOptions) { o.requireFile = true } }
+
+// WithoutValidation makes Load skip Validate, for a client that reads only its own settings and runs no server.
+func WithoutValidation() Option { return func(o *loadOptions) { o.skipValidate = true } }
 
 // Load resolves defaults <- yaml file <- OPENWA_* env vars (last wins) into a typed Config.
 func Load(path string, opts ...Option) (*Config, error) {
@@ -75,6 +79,9 @@ func Load(path string, opts ...Option) (*Config, error) {
 		cfg.HTTP.CookieSecure = strings.HasPrefix(strings.ToLower(cfg.HTTP.BaseURL), "https://")
 	}
 
+	if o.skipValidate {
+		return &cfg, nil
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
