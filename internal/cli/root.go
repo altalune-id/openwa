@@ -70,7 +70,11 @@ func NewRootCmd(bootServer ServerBootFn, bootClient ClientBootFn) *cobra.Command
 		if err := refuseRemoteFlags(cmd); err != nil {
 			return err
 		}
-		cfg, err := config.Load(configPath)
+		var opts []config.Option
+		if cmd.Annotations[operatorAnnotation] != "true" {
+			opts = append(opts, config.WithoutValidation())
+		}
+		cfg, err := config.Load(configPath, opts...)
 		if err != nil {
 			return err
 		}

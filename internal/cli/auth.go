@@ -99,6 +99,9 @@ func refuseLoginToken(cmd *cobra.Command) error {
 }
 
 func localLogin(cmd *cobra.Command, bootServer ServerBootFn, cfg *config.Config, store profileStore, name string, o loginOpts, httpClient *http.Client) error {
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
 	s, err := bootServer(cmd.Context(), cfg)
 	if err != nil {
 		return err

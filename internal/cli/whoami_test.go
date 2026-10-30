@@ -3,11 +3,14 @@ package cli
 import (
 	"bytes"
 	"context"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"altalune.id/openwa/internal/boot"
+	"altalune.id/openwa/internal/controlplane"
 	"altalune.id/openwa/internal/platform/config"
 )
 
@@ -183,5 +186,41 @@ func TestLogin_LocalSavesALocalProfileTheInProcessCommandsUse(t *testing.T) {
 	root.SetArgs([]string{"--profile", "ops", "--output", "json", "org", "list"})
 	if err := root.ExecuteContext(context.Background()); err != nil {
 		t.Fatalf("org list as the local profile: %v (%s)", err, buf.String())
+	}
+}
+
+func TestRemoteCommands_LoadWithoutServerConfig(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv("HOME", dir)
+	clearCLIEnv(t)
+	for _, key := range []string{"db.dsn", "http.baseURL", "security.encryptionKey", "genesis.email", "genesis.password", "mode"} {
+		t.Setenv(config.EnvVar(key), "")
+	}
+	t.Setenv(config.EnvVar("session.path"), filepath.Join(dir, "session.json"))
+	devices := serveDevice(t, &fakeDeviceRPC{})
+	blog := newRecordingServer(t, http.StatusOK, `{"posts":[]}`)
+	bootClient := func(_ context.Context, cfg *config.Config, _ string, token string) (*boot.Client, error) {
+		return &boot.Client{Cfg: cfg, Conn: controlplane.NewClient(devices, token)}, nil
+	}
+
+	for _, args := range [][]string{
+		{"auth", "logout"},
+		{"--url", devices, "--token", "tok", "device", "list", "--output", "json"},
+	} {
+		if _, err := runCLI(t, bootClient, args...); err != nil {
+			t.Errorf("%v: %v", args, err)
+		}
+	}
+	if _, err := runBlog(t, "--url", blog.URL, "--token", "key_secret", "--org", "acme", "--project", "main", "blog", "list", "--output", "json"); err != nil {
+		t.Errorf("blog list: %v", err)
+	}
+	if _, err := runCLI(t, bootClient, "auth", "whoami"); !IsNotSignedInError(err) {
+		t.Errorf("auth whoami: err = %v, want NotSignedInError rather than a config error", err)
+	}
+	for _, args := range [][]string{{"auth", "login", "--email", "a@b.co", "--password-stdin"}, {"org", "list"}} {
+		if _, err := runCLI(t, bootClient, args...); err == nil || !strings.Contains(err.Error(), "DSN") {
+			t.Errorf("%v: err = %v, want the server config validated", args, err)
+		}
 	}
 }
