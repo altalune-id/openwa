@@ -201,8 +201,9 @@ client keeps its token and retries.
 
 Each signed cookie (session, invite, onboarding, sign-in state, last user, flash) uses its own key,
 derived per purpose from `http.stateSecret`; changing the secret signs everyone out. Set
-`OPENWA_HTTP_STATE_SECRET` to a base64url value of at least 32 bytes; left empty, boot uses an
-ephemeral key, so every restart signs everyone out.
+`OPENWA_HTTP_STATE_SECRET` to a base64url value of at least 32 bytes, for example the output of
+`openssl rand -hex 32`. Cloud mode requires it and refuses to start without it; left empty in
+selfhosted, boot uses an ephemeral key, so every restart signs everyone out.
 
 ### Cloud mode locally
 
@@ -213,6 +214,7 @@ podman run -d --name openwa-pg -e POSTGRES_PASSWORD=dev -p 5432:5432 postgres:18
 export OPENWA_MODE=cloud OPENWA_DB_ALLOW_BYPASS_RLS=true \
   OPENWA_DB_DSN='postgres://postgres:dev@127.0.0.1:5432/postgres?sslmode=disable' \
   OPENWA_SECURITY_ENCRYPTION_KEY="$(openssl rand -hex 32)" \
+  OPENWA_HTTP_STATE_SECRET="$(openssl rand -hex 32)" \
   OPENWA_GENESIS_EMAIL=you@example.com \
   OPENWA_HTTP_ADDR=:5150 OPENWA_HTTP_BASE_URL=http://localhost:5150 \
   OPENWA_MCP_ENABLED=true

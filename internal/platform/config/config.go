@@ -398,7 +398,10 @@ func validateCloud(c *Config) error {
 	if err := validateCloudSingletonOrg(c); err != nil {
 		return err
 	}
-	return validateAutoMigrateNeedsMigrator(c)
+	if err := validateAutoMigrateNeedsMigrator(c); err != nil {
+		return err
+	}
+	return validateCloudStateSecret(c)
 }
 
 func validateCloudOIDC(c *Config) error {
@@ -521,6 +524,13 @@ func validateCloudGenesisPasswordBreakGlass(c *Config) error {
 func validateCloudSingletonOrg(c *Config) error {
 	if c.Tenant.SingletonOrg.Name == "" {
 		return errors.New("config: mode=cloud requires tenant.singletonOrg.name — the display name of the first organization (set OPENWA_TENANT_SINGLETON_ORG_NAME)")
+	}
+	return nil
+}
+
+func validateCloudStateSecret(c *Config) error {
+	if c.HTTP.StateSecret == "" {
+		return fmt.Errorf("config: mode=cloud requires http.stateSecret — without it a fresh key is minted every boot and every session stops verifying after a restart; generate one with `openssl rand -hex 32` (set %s)", EnvVar("http.stateSecret"))
 	}
 	return nil
 }

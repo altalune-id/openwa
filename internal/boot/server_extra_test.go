@@ -1,8 +1,10 @@
 package boot
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"io"
 	"log/slog"
 	"net/http"
@@ -87,6 +89,15 @@ func TestResolveStateSecret(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestResolveStateSecret_AcceptsTheDocumentedOpenSSLHex(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{}
+	cfg.HTTP.StateSecret = hex.EncodeToString(bytes.Repeat([]byte{0xA7}, 32))
+	got, err := resolveStateSecret(cfg, discardLogger())
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(got), stateSecretLen)
 }
 
 func TestResolveStateSecret_EmptyMintsAnEphemeralKeyAndWarns(t *testing.T) {

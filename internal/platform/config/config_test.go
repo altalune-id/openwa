@@ -103,6 +103,7 @@ func TestValidate_ModeInvariants(t *testing.T) {
 		}
 		c.Tenant.SingletonOrg.Slug = "default"
 		c.Tenant.SingletonOrg.Name = "Default Organization"
+		c.HTTP.StateSecret = strings.Repeat("cd", 32)
 		return c
 	}
 
@@ -228,6 +229,32 @@ func TestValidate_ModeInvariants(t *testing.T) {
 				c.Tenant.SingletonOrg.Name = ""
 			},
 			wantSub: "singletonOrg.name",
+		},
+		{
+			name: "cloud without a state secret fails",
+			mutate: func(c *Config) {
+				c.Mode = ModeCloud
+				c.OIDC = OIDCConfig{Issuer: "https://iss.example.com", ClientID: "c", ClientSecret: "s"}
+				c.Genesis = GenesisConfig{Email: "root@example.com"}
+				c.HTTP.StateSecret = ""
+			},
+			wantSub: "mode=cloud requires http.stateSecret",
+		},
+		{
+			name: "cloud with a state secret is allowed",
+			mutate: func(c *Config) {
+				c.Mode = ModeCloud
+				c.OIDC = OIDCConfig{Issuer: "https://iss.example.com", ClientID: "c", ClientSecret: "s"}
+				c.Genesis = GenesisConfig{Email: "root@example.com"}
+			},
+			wantSub: "",
+		},
+		{
+			name: "selfhosted without a state secret is allowed: boot mints an ephemeral one",
+			mutate: func(c *Config) {
+				c.HTTP.StateSecret = ""
+			},
+			wantSub: "",
 		},
 		{
 			name: "selfhosted with genesis email alone is allowed",
