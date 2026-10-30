@@ -48,6 +48,9 @@ func TestWhoami_AfterLogoutWithNoServerURLIsNotSignedIn(t *testing.T) {
 	if !IsNotSignedInError(err) || ExitCodeFor(err) != ExitUnauth {
 		t.Fatalf("err = %v (exit %d), want NotSignedInError exiting 2", err, ExitCodeFor(err))
 	}
+	if !strings.Contains(err.Error(), "run `openwa auth login --url <server> --profile prod`") {
+		t.Fatalf("err = %v, want the remote sign-in hint", err)
+	}
 }
 
 func TestWhoami_LocalProfilePrintsTheStoredPrincipal(t *testing.T) {
@@ -221,6 +224,24 @@ func TestRemoteCommands_LoadWithoutServerConfig(t *testing.T) {
 	for _, args := range [][]string{{"auth", "login", "--email", "a@b.co", "--password-stdin"}, {"org", "list"}} {
 		if _, err := runCLI(t, bootClient, args...); err == nil || !strings.Contains(err.Error(), "DSN") {
 			t.Errorf("%v: err = %v, want the server config validated", args, err)
+		}
+	}
+}
+
+func TestNotSignedInError_HintMatchesTheProfile(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  NotSignedInError
+		want string
+	}{
+		{"a known server", NotSignedInError{Profile: "prod", URL: "https://app.example.com"}, "run `openwa auth login --url https://app.example.com --profile prod`"},
+		{"an unknown server", NotSignedInError{Profile: "prod"}, "run `openwa auth login --url <server> --profile prod`"},
+		{"a local command", NotSignedInError{Profile: "ops", Local: true}, "run `openwa auth login --profile ops` without --url"},
+		{"a remote profile on a local command", NotSignedInError{Profile: "prod", RemoteURL: "https://app.example.com"},
+			"profile prod is signed in to https://app.example.com, but this command runs against the local database; run it on that server, signed in there"},
+	} {
+		if got := tc.err.Error(); !strings.Contains(got, tc.want) {
+			t.Errorf("%s: %q does not contain %q", tc.name, got, tc.want)
 		}
 	}
 }
