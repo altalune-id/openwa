@@ -304,12 +304,13 @@ func TestLoad_MCPDefaultsOff(t *testing.T) {
 
 func TestEnvKeys_MCPKeysAreRuntime(t *testing.T) {
 	want := map[string][]string{
-		"OPENWA_MCP_ENABLED":                     nil,
-		"OPENWA_MCP_AUDIENCE":                    nil,
-		"OPENWA_MCP_AUDIENCE_OVERRIDE":           nil,
-		"OPENWA_MCP_APPS_UI":                     nil,
-		"OPENWA_MCP_INTROSPECTION_CLIENT_ID":     nil,
-		"OPENWA_MCP_INTROSPECTION_CLIENT_SECRET": {"secret"},
+		"OPENWA_MCP_ENABLED":                      nil,
+		"OPENWA_MCP_AUDIENCE":                     nil,
+		"OPENWA_MCP_AUDIENCE_OVERRIDE":            nil,
+		"OPENWA_MCP_APPS_UI":                      nil,
+		"OPENWA_MCP_INTROSPECTION_CLIENT_ID":      nil,
+		"OPENWA_MCP_INTROSPECTION_CLIENT_SECRET":  {"secret"},
+		"OPENWA_MCP_INTROSPECTION_MAX_PER_MINUTE": nil,
 	}
 	seen := map[string]bool{}
 	for _, k := range WalkEnvKeys(EnvPrefix) {

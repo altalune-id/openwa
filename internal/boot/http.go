@@ -115,13 +115,14 @@ func buildWebHandler(
 	defaultLoc i18npkg.Locale,
 ) (handler http.Handler, routes []string) { //nolint:nonamedreturns // two return values differ in role
 	deps := newWebDeps(cfg, caps, kernel.Sessions, slogger)
+	deps.Secret = kernel.StateSecret
 	termsSince := termsUpdatedAt(cfg, slogger)
 	deps.TermsUpdatedAt = termsSince
 	deps.Orgs = orgs
 	deps.Projects = projects
 	deps.I18n = bundle
 
-	authHandler := webhandlers.NewAuthHandler(deps, auths, users, orgs, projects, kernel.AltAuth, required).WithStateSecret(kernel.OIDCStateSecret)
+	authHandler := webhandlers.NewAuthHandler(deps, auths, users, orgs, projects, kernel.AltAuth, required)
 	onboardingHandler := webhandlers.NewOnboardingHandler(deps, users)
 	onboardHandler := webhandlers.NewOnboardHandler(deps, users, orgs, projects, onboards, required, onComplete, setupToken)
 	homeHandler := webhandlers.NewHomeHandler(deps, orgs, projects)
@@ -167,7 +168,7 @@ func resourceMetadata(cfg *config.Config, mcp mcpSurface, resource *tokens.Resou
 	if resource == nil {
 		return out
 	}
-	out[resource.MetadataPath] = resource.MetadataHandler(cfg.Tokens.Issuer, apiScopes())
+	out[resource.MetadataPath] = resource.CLIMetadataHandler(cfg.Tokens.Issuer, apiScopes(), cfg.OIDC.CLIClientID)
 	return out
 }
 
@@ -188,7 +189,7 @@ func apiResource(cfg *config.Config, log *slog.Logger) *tokens.Resource {
 func apiScopes() []string {
 	set := map[string]struct{}{}
 	for _, scope := range controlplane.ScopeTable() {
-		if authn.Mintable(scope) {
+		if authn.TokenScope(scope) {
 			set[scope] = struct{}{}
 		}
 	}
@@ -216,11 +217,11 @@ func surfaceChains(
 			webmw.Recover(reporter.Unexpected, nil),
 		}),
 		Console: slices.Concat(edge, []web.Middleware{
-			webmw.CSP(cspOptions(cfg.HTTP.CSP)),
+			webmw.CSP(cspOptions(cfg)),
 			webmw.Recover(reporter.Unexpected, errTmpl),
 			webmw.Session(webmw.SessionConfig{
 				Store:  kernel.Sessions,
-				Secret: []byte(cfg.HTTP.StateSecret),
+				Secret: web.DeriveKey(kernel.StateSecret, web.PurposeSession),
 			}),
 			webmw.Tenant,
 			i18npkg.Middleware(i18npkg.MiddlewareOpts{
@@ -230,7 +231,7 @@ func surfaceChains(
 			}),
 			webhandlers.OnboardingGate(cfg.HTTP.BasePath, required),
 			webhandlers.WelcomeGate(cfg.HTTP.BasePath, cfg.Compliance.RequireAcceptance, termsSince),
-			webmw.Flash([]byte(cfg.HTTP.StateSecret), cfg.HTTP.BasePath, cfg.HTTP.CookieSecure),
+			webmw.Flash(web.DeriveKey(kernel.StateSecret, web.PurposeFlash), cfg.HTTP.BasePath, cfg.HTTP.CookieSecure),
 		}),
 		Control: edge,
 		Data: slices.Concat(edge, []web.Middleware{
@@ -297,12 +298,16 @@ func (w logSlogWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func cspOptions(cfg config.CSPConfig) webmw.CSPOptions {
-	return webmw.CSPOptions{
-		Enabled:    cfg.Enabled,
-		ReportOnly: cfg.ReportOnly,
-		ReportURI:  cfg.ReportURI,
+func cspOptions(cfg *config.Config) webmw.CSPOptions {
+	opts := webmw.CSPOptions{
+		Enabled:    cfg.HTTP.CSP.Enabled,
+		ReportOnly: cfg.HTTP.CSP.ReportOnly,
+		ReportURI:  cfg.HTTP.CSP.ReportURI,
 	}
+	if origin := web.Origin(cfg.OIDC.Issuer); origin != "" && cfg.OIDC.EndSessionOnLogout {
+		opts.ExtraFormAction = []string{origin}
+	}
+	return opts
 }
 
 func termsUpdatedAt(cfg *config.Config, log *slog.Logger) time.Time {

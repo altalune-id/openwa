@@ -94,3 +94,16 @@ func TestFlash_NoCookieIsPassthrough(t *testing.T) {
 	assert.False(t, ok)
 	assert.Empty(t, rr.Header().Get("Set-Cookie"))
 }
+
+// SECURITY: a flash cookie is cleared with Secure over TLS even when http.cookieSecure is off, matching how it was set.
+func TestFlash_ClearIsSecureOverTLS(t *testing.T) {
+	t.Parallel()
+	mw := middleware.Flash(flashSecretBytes(), "", false)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "https://app.example.com/orgs", nil)
+	req.AddCookie(flashCookie(t, web.FlashPayload{Kind: web.FlashOK, Key: "flash.org_created"}))
+	mw(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).ServeHTTP(rr, req)
+	cleared := rr.Result().Cookies()
+	require.Len(t, cleared, 1)
+	assert.True(t, cleared[0].Secure)
+}

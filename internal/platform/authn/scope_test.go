@@ -124,3 +124,21 @@ func TestAllScopes_ContainsTheOpenwaCatalog(t *testing.T) {
 		}
 	}
 }
+
+func TestTokenScopesAreTheMintableNonDemoScopes(t *testing.T) {
+	got := authn.TokenScopes()
+	want := []string{
+		authn.ScopeAPIKeysRead, authn.ScopeMembersRead, authn.ScopeProjectsRead,
+		authn.ScopeDevicesRead, authn.ScopeDevicesWrite, authn.ScopeMessagesRead, authn.ScopeMessagesWrite,
+		authn.ScopeChatsRead, authn.ScopeChatsWrite, authn.ScopeContactsRead,
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("TokenScopes() = %v, want %v", got, want)
+	}
+	if authn.TokenScope(authn.ScopePostsRead) || authn.TokenScope(authn.ScopeAPIKeysWrite) {
+		t.Fatal("a demo or retired scope was offered to OAuth tokens")
+	}
+	if !authn.Mintable(authn.ScopePostsRead) {
+		t.Fatal("posts:read must stay mintable for API keys")
+	}
+}

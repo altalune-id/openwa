@@ -16,6 +16,7 @@ import (
 
 	blogv1 "altalune.id/openwa/gen/go/blog/v1"
 	blogv1connect "altalune.id/openwa/gen/go/blog/v1/blogv1connect"
+	"altalune.id/openwa/gen/go/device/v1/devicev1connect"
 	"altalune.id/openwa/internal/apikey"
 	"altalune.id/openwa/internal/apperror"
 	"altalune.id/openwa/internal/platform"
@@ -300,7 +301,7 @@ func TestServer_HandlerOptions_AnOutageIsUnavailableNotUnauthenticated(t *testin
 	}
 }
 
-// TestServer_HandlerOptions_ChallengesFollowRFC6750 proves the 401 says invalid_token only for a presented credential and the 403 names a scope only to a token missing a real one.
+// TestServer_HandlerOptions_ChallengesFollowRFC6750 proves the 401 says invalid_token only for a presented credential and the 403 names a scope only to a token missing one it may be granted.
 func TestServer_HandlerOptions_ChallengesFollowRFC6750(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	resource, err := tokens.NewResource("https://app.example.com/api")
@@ -328,7 +329,8 @@ func TestServer_HandlerOptions_ChallengesFollowRFC6750(t *testing.T) {
 	}{
 		{"no credential", refused, blogv1connect.BlogServiceDeletePostProcedure, "", connect.CodeUnauthenticated, resource.Challenge()},
 		{"a refused token", refused, blogv1connect.BlogServiceDeletePostProcedure, "aaa.bbb.ccc", connect.CodeUnauthenticated, resource.InvalidToken()},
-		{"a token missing a scope", readToken, blogv1connect.BlogServiceDeletePostProcedure, "aaa.bbb.ccc", connect.CodePermissionDenied, resource.InsufficientScope(authn.ScopePostsAdmin)},
+		{"a token missing a scope it may hold", readToken, devicev1connect.DeviceServiceDeleteDeviceProcedure, "aaa.bbb.ccc", connect.CodePermissionDenied, resource.InsufficientScope(authn.ScopeDevicesWrite)},
+		{"a token missing an API-key-only scope", readToken, blogv1connect.BlogServiceDeletePostProcedure, "aaa.bbb.ccc", connect.CodePermissionDenied, ""},
 		{"a key missing a scope", readToken, blogv1connect.BlogServiceDeletePostProcedure, readPlain, connect.CodePermissionDenied, ""},
 		{"a token on an undeclared procedure", readToken, "/test.UndeclaredService/DoSomething", "aaa.bbb.ccc", connect.CodePermissionDenied, ""},
 	} {

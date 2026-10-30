@@ -94,7 +94,7 @@ func (h *OnboardHandler) tokenOK(r *http.Request) bool {
 	if err != nil {
 		return false
 	}
-	value, err := web.VerifyCookie(h.SecretBytes(), c.Value)
+	value, err := web.VerifyCookie(h.Key(web.PurposeOnboard), c.Value)
 	if err != nil {
 		return false
 	}
@@ -110,15 +110,15 @@ func (h *OnboardHandler) denySetup(w http.ResponseWriter, r *http.Request) {
 	h.ErrorPageKey(w, r, http.StatusForbidden, "error.forbidden", nil)
 }
 
-func (h *OnboardHandler) rememberSetupToken(w http.ResponseWriter) {
+func (h *OnboardHandler) rememberSetupToken(w http.ResponseWriter, r *http.Request) {
 	if h.SetupToken == "" {
 		return
 	}
 	web.SetCookie(w, web.CookieOpts{
 		Name:         SetupCookieName,
-		Value:        web.SignCookie(h.SecretBytes(), h.SetupToken),
+		Value:        web.SignCookie(h.Key(web.PurposeOnboard), h.SetupToken),
 		BasePath:     h.Cfg.HTTP.BasePath,
-		CookieSecure: h.Cfg.HTTP.CookieSecure,
+		CookieSecure: h.SecureCookie(r),
 		MaxAge:       int(setupCookieTTL.Seconds()),
 	})
 }
@@ -133,7 +133,7 @@ func (h *OnboardHandler) GetOnboard(w http.ResponseWriter, r *http.Request) {
 		h.denySetup(w, r)
 		return
 	}
-	h.rememberSetupToken(w)
+	h.rememberSetupToken(w, r)
 	Render(w, r, templates.OnboardLayout(h.Base(r, "First-time setup"), h.defaultView()))
 }
 
@@ -266,7 +266,7 @@ func (h *OnboardHandler) GetOIDCStart(w http.ResponseWriter, r *http.Request) {
 		h.denySetup(w, r)
 		return
 	}
-	h.rememberSetupToken(w)
+	h.rememberSetupToken(w, r)
 	dest := web.Path(h.Cfg.HTTP.BasePath, "/login/oidc") + "?return_to=" + url.QueryEscape(web.Path(h.Cfg.HTTP.BasePath, "/onboard/complete"))
 	http.Redirect(w, r, dest, http.StatusSeeOther)
 }

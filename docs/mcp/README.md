@@ -12,6 +12,10 @@ Rules: [`surfaces`](../surfaces/README.md) · Scope strings: [`scopes`](../scope
 | `{basePath}/mcp`                                      | `MCP`    | bearer     |
 | `/.well-known/oauth-protected-resource{basePath}/mcp` | `Probes` | none       |
 
+The control plane's document, `/.well-known/oauth-protected-resource{basePath}/api`, adds a
+`cli_client_id` member for `auth login --url`; the MCP document never does, as the CLI signs in for
+`/api` only.
+
 Streamable HTTP, stateless, JSON. `MCP` chain = `edge` + `RecoverJSON` — no session, no i18n,
 no SSR gate (R5).
 
@@ -38,14 +42,15 @@ Order is enforced — each step's omission is a boot error:
 Discovery is lazy: a wrong `tokens.issuer` fails the first verified call with a masked 401,
 not boot.
 
-| Key                              | Default                     | Meaning                                     |
-| -------------------------------- | --------------------------- | ------------------------------------------- |
-| `mcp.enabled`                    | `false`                     | Master switch                               |
-| `mcp.audience`                   | `baseURL + basePath + /mcp` | RFC 8707 resource id the verifier pins      |
-| `mcp.audienceOverride`           | `false`                     | Accept an audience ≠ the mounted URL        |
-| `mcp.appsUI`                     | `false`                     | Publish the UI resource, bind `_meta.ui`    |
-| `mcp.introspection.clientID`     | `""`                        | MCP resource server id, for personal tokens |
-| `mcp.introspection.clientSecret` | `""`                        | Its introspection secret (`othra_rs_…`)     |
+| Key                              | Default                             | Meaning                                                  |
+| -------------------------------- | ----------------------------------- | -------------------------------------------------------- |
+| `mcp.enabled`                    | `false`                             | Master switch                                            |
+| `mcp.audience`                   | `baseURL + basePath + /mcp`         | RFC 8707 resource id the verifier pins                   |
+| `mcp.audienceOverride`           | `false`                             | Accept an audience ≠ the mounted URL                     |
+| `mcp.appsUI`                     | `false`                             | Publish the UI resource, bind `_meta.ui`                 |
+| `mcp.introspection.clientID`     | `""`                                | MCP resource server id, for personal tokens              |
+| `mcp.introspection.clientSecret` | `""`                                | Its introspection secret (`othra_rs_…`)                  |
+| `mcp.introspection.maxPerMinute` | `tokens.introspection.maxPerMinute` | Introspection calls per minute, all tokens; `0` inherits |
 
 `mcp.audience` must be absolute, fragment-free, and equal the mounted URL unless
 `mcp.audienceOverride=true`. The override is the only way to widen what the verifier accepts,

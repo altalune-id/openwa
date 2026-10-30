@@ -111,7 +111,7 @@ http:
   # [required] env: OPENWA_HTTP_BASE_URL
   baseURL: ""
   # env: OPENWA_HTTP_COOKIE_SECURE
-  cookieSecure: false
+  cookieSecure: ""
   csp:
     # [required] env: OPENWA_HTTP_CSP_ENABLED
     enabled: true
@@ -176,6 +176,8 @@ mcp:
     clientID: ""
     # [secret] env: OPENWA_MCP_INTROSPECTION_CLIENT_SECRET
     clientSecret: ""
+    # env: OPENWA_MCP_INTROSPECTION_MAX_PER_MINUTE
+    maxPerMinute: ""
 
 media:
   # [bootstrap] env: OPENWA_MEDIA_STORE
@@ -302,6 +304,8 @@ tokens:
     clientID: ""
     # [secret] env: OPENWA_TOKENS_INTROSPECTION_CLIENT_SECRET
     clientSecret: ""
+    # env: OPENWA_TOKENS_INTROSPECTION_MAX_PER_MINUTE
+    maxPerMinute: 0
   # [required, mode:cloud] env: OPENWA_TOKENS_ISSUER
   issuer: ""
 

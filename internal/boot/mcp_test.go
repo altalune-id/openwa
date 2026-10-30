@@ -43,8 +43,13 @@ const (
 	introspectorSecret = "rs-secret"
 	mcpProtocolHeader  = "application/json, text/event-stream"
 
-	todoCreateProcedure = "/api/todo.v1.TodoService/Create"
-	todoListProcedure   = "/api/todo.v1.TodoService/List"
+	cliClientID = "cli-client"
+
+	deviceListProcedure   = "/api/device.v1.DeviceService/ListDevices"
+	deviceCreateProcedure = "/api/device.v1.DeviceService/CreateDevice"
+	todoCreateProcedure   = "/api/todo.v1.TodoService/Create"
+	whoamiProcedure       = "/api/auth.v1.AuthService/Whoami"
+	todoListProcedure     = "/api/todo.v1.TodoService/List"
 )
 
 type tokenIssuer struct {
@@ -91,7 +96,7 @@ func newMCPFixture(t *testing.T, opts mcpOpts) *mcpFixture {
 	issuer := newTokenIssuer(t)
 	cfg := newSmokeCfg(t)
 	cfg.Mode = config.ModeCloud
-	cfg.OIDC = config.OIDCConfig{Issuer: issuer.url, ClientID: "mcp-client", ClientSecret: "mcp-secret"}
+	cfg.OIDC = config.OIDCConfig{Issuer: issuer.url, ClientID: "mcp-client", ClientSecret: "mcp-secret", CLIClientID: cliClientID}
 	cfg.HTTP.CSP.Enabled = true
 	cfg.API.Enabled = true
 	cfg.API.KeyPrefix = apikey.DefaultPrefix
@@ -333,7 +338,7 @@ func mcpIDTokenIsNeverAnAccessToken(t *testing.T, f *mcpFixture) {
 }
 
 func mcpPersonalTokenIsRevokedAtOnce(t *testing.T, f *mcpFixture) {
-	const pt = tokens.PersonalTokenPrefix + "boot-test"
+	const pt = tokens.PersonalTokenPrefix + "boottestboottestboottestboottestboottestboo1qFKHy"
 	f.issuer.idp.Opaque(pt, map[string]any{
 		"aud": controlAudience, "sub": tokenSubject, "scope": authn.ScopePostsRead, "exp": time.Now().Add(time.Hour).Unix(),
 	})
@@ -352,17 +357,21 @@ func mcpAPIKeyIsNeverIntrospected(t *testing.T, f *mcpFixture) {
 }
 
 func mcpControlPlaneEnforcesScopesOnTokens(t *testing.T, f *mcpFixture) {
-	read := f.issuer.mint(t, controlAudience, []string{authn.ScopePostsRead})
+	read := f.issuer.mint(t, controlAudience, []string{authn.ScopeDevicesRead, authn.ScopePostsRead})
 
-	require.Equal(t, http.StatusOK, f.connectRPC(t, read, todoListProcedure, map[string]any{"projectId": f.projectID}).Code)
-	denied := f.connectRPC(t, read, todoCreateProcedure, map[string]any{"projectId": f.projectID, "title": "x"})
-	require.Equal(t, http.StatusForbidden, denied.Code, "a token without posts:write created a todo; body=%s", denied.Body.String())
+	require.Equal(t, http.StatusOK, f.connectRPC(t, read, deviceListProcedure, map[string]any{"projectId": f.projectID}).Code)
+	denied := f.connectRPC(t, read, deviceCreateProcedure, map[string]any{"projectId": f.projectID, "name": "x"})
+	require.Equal(t, http.StatusForbidden, denied.Code, "a token without devices:write created a device; body=%s", denied.Body.String())
 	require.Equal(t,
-		`Bearer resource_metadata="http://127.0.0.1`+apiMetadataPath+`", error="insufficient_scope", scope="`+authn.ScopePostsWrite+`"`,
+		`Bearer resource_metadata="http://127.0.0.1`+apiMetadataPath+`", error="insufficient_scope", scope="`+authn.ScopeDevicesWrite+`"`,
 		denied.Header().Get("WWW-Authenticate"), "a scope denial on Connect must name the scope to ask for")
 	require.Contains(t, denied.Body.String(), apperror.CodeForbidden, "the body keeps the canonical envelope")
 
-	unauth := f.connectRPC(t, "not.a.token", todoListProcedure, map[string]any{"projectId": f.projectID})
+	keyOnly := f.connectRPC(t, read, todoCreateProcedure, map[string]any{"projectId": f.projectID, "title": "x"})
+	require.Equal(t, http.StatusForbidden, keyOnly.Code, "body=%s", keyOnly.Body.String())
+	require.Empty(t, keyOnly.Header().Get("WWW-Authenticate"), "a scope no token may hold is never offered as a step-up")
+
+	unauth := f.connectRPC(t, "not.a.token", deviceListProcedure, map[string]any{"projectId": f.projectID})
 	require.Equal(t, http.StatusUnauthorized, unauth.Code)
 	require.Equal(t, `Bearer resource_metadata="http://127.0.0.1`+apiMetadataPath+`", error="invalid_token"`, unauth.Header().Get("WWW-Authenticate"),
 		"a 401 for a presented token on Connect must say invalid_token and point at the API's RFC 9728 document")
@@ -377,6 +386,7 @@ func mcpEachResourceServesItsOwnMetadata(t *testing.T, f *mcpFixture) {
 			Resource             string   `json:"resource"`
 			AuthorizationServers []string `json:"authorization_servers"`
 			ScopesSupported      []string `json:"scopes_supported"`
+			CLIClientID          string   `json:"cli_client_id"`
 		}
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &doc))
 		require.Equal(t, resource, doc.Resource)
@@ -385,7 +395,32 @@ func mcpEachResourceServesItsOwnMetadata(t *testing.T, f *mcpFixture) {
 		for _, scope := range doc.ScopesSupported {
 			require.True(t, authn.Mintable(scope), "%s advertises %q, which no client may register", path, scope)
 		}
+		if path == apiMetadataPath {
+			require.ElementsMatch(t, []string{
+				authn.ScopeAPIKeysRead, authn.ScopeMembersRead, authn.ScopeProjectsRead,
+				authn.ScopeDevicesRead, authn.ScopeDevicesWrite, authn.ScopeMessagesRead, authn.ScopeMessagesWrite,
+				authn.ScopeChatsRead, authn.ScopeChatsWrite, authn.ScopeContactsRead,
+			}, doc.ScopesSupported, "the API document offers only the scopes an OAuth token may hold; posts:* stay API-key only")
+			require.Equal(t, cliClientID, doc.CLIClientID, "the CLI learns its client id from the API document")
+			require.Contains(t, doc.ScopesSupported, authn.ScopeAPIKeysRead, "the CLI needs apikeys:read for Whoami")
+			continue
+		}
+		require.Empty(t, doc.CLIClientID, "the CLI signs in for the API, never for MCP")
 	}
+}
+
+func mcpWhoamiNamesTheActiveProject(t *testing.T, f *mcpFixture) {
+	tok := f.issuer.mint(t, controlAudience, []string{authn.ScopeAPIKeysRead})
+
+	rec := f.connectRPC(t, tok, whoamiProcedure, map[string]any{})
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	var who struct {
+		Email           string `json:"email"`
+		ActiveProjectID string `json:"activeProjectId"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &who))
+	require.Equal(t, tokenEmail, who.Email)
+	require.Equal(t, f.projectID, who.ActiveProjectID)
 }
 
 func (f *mcpFixture) connectRPC(t *testing.T, credential, procedure string, body any) *httptest.ResponseRecorder {
@@ -641,6 +676,7 @@ func TestMCP_SharedFixture(t *testing.T) {
 		{"APIKeyIsNeverIntrospected", mcpAPIKeyIsNeverIntrospected},
 		{"ControlPlaneEnforcesScopesOnTokens", mcpControlPlaneEnforcesScopesOnTokens},
 		{"EachResourceServesItsOwnMetadata", mcpEachResourceServesItsOwnMetadata},
+		{"WhoamiNamesTheActiveProject", mcpWhoamiNamesTheActiveProject},
 		{"KeyScopeIsCheckedPerTool", mcpKeyScopeIsCheckedPerTool},
 		{"CallWithoutArgumentsDecodes", mcpCallWithoutArgumentsDecodes},
 		{"UnauthenticatedCallIsChallenged", mcpUnauthenticatedCallIsChallenged},

@@ -137,7 +137,7 @@ func messagingServer(t *testing.T) (ClientBootFn, *messagingFakes) {
 	}
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
-	return func(_ context.Context, cfg *config.Config, token string) (*boot.Client, error) {
+	return func(_ context.Context, cfg *config.Config, _ string, token string) (*boot.Client, error) {
 		return &boot.Client{Cfg: cfg, Conn: controlplane.NewClient(ts.URL, token)}, nil
 	}, f
 }

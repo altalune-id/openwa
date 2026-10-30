@@ -35,12 +35,15 @@ func TestSetFlash_RoundTripsIntoLayoutData(t *testing.T) {
 	req = req.WithContext(i18n.TranslatorInto(req.Context(), bundle.For(i18n.EnUS)))
 	req.AddCookie(cookies[0])
 	rr := httptest.NewRecorder()
-	middleware.Flash(f.Deps.SecretBytes(), "", false)(next).ServeHTTP(rr, req)
+	middleware.Flash(web.DeriveKey(f.Deps.Secret, web.PurposeFlash), "", false)(next).ServeHTTP(rr, req)
 
 	require.NotNil(t, got.Flash)
 	assert.Equal(t, web.FlashOK, got.Flash.Kind)
 	assert.Equal(t, "Project Alpha created.", got.Flash.Message)
 	assert.Contains(t, rr.Header().Get("Set-Cookie"), "Max-Age=0")
+
+	_, err := web.VerifyCookie(web.DeriveKey(f.Deps.Secret, web.PurposeSession), cookies[0].Value)
+	assert.Error(t, err, "a flash cookie must not verify under the session key")
 }
 
 func TestSetFlash_OversizeIsDroppedNotWritten(t *testing.T) {

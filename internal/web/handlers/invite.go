@@ -127,9 +127,9 @@ func (h *InviteHandler) GetAccept(w http.ResponseWriter, r *http.Request) {
 	if !authed {
 		web.SetCookie(w, web.CookieOpts{
 			Name:         web.InviteCookieName,
-			Value:        web.SignCookie(h.SecretBytes(), token),
+			Value:        web.SignCookie(h.Key(web.PurposeInvite), token),
 			BasePath:     h.Cfg.HTTP.BasePath,
-			CookieSecure: h.Cfg.HTTP.CookieSecure,
+			CookieSecure: h.SecureCookie(r),
 			MaxAge:       int((15 * time.Minute).Seconds()),
 		})
 		http.Redirect(w, r, web.Path(h.Cfg.HTTP.BasePath, "/login"), http.StatusSeeOther)
@@ -160,7 +160,7 @@ func (h *InviteHandler) GetAccept(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, ResolveReturnTo(h.Cfg.HTTP.BasePath, "/orgs"), http.StatusSeeOther)
 		return
 	}
-	web.ClearCookie(w, web.InviteCookieName, h.Cfg.HTTP.BasePath, h.Cfg.HTTP.CookieSecure)
+	web.ClearCookie(w, web.InviteCookieName, h.Cfg.HTTP.BasePath, h.SecureCookie(r))
 	// Rehydrate the session with the just-joined org so the dashboard renders the new tenant immediately — the pre-invite Principal has ActiveOrgID = uuid.Nil.
 	p.ActiveOrgID = o.ID
 	if h.Projects != nil {
