@@ -1,9 +1,11 @@
 package whatsapp
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"math/rand/v2"
+	"slices"
 	"time"
 
 	"altalune.id/openwa/internal/platform/tenant"
@@ -28,6 +30,8 @@ type SenderConfig struct {
 	SpacingMax       time.Duration
 	TypingBeforeText bool
 	Jitter           func(d time.Duration) time.Duration
+	// IdlePoll is the longest wait between drains with no wake and no retry due; zero means 2s.
+	IdlePoll time.Duration
 }
 
 type sender struct {
@@ -38,26 +42,40 @@ type sender struct {
 	cfg       SenderConfig
 	log       *slog.Logger
 	claimErrs int
+	drainedAt time.Time
+	retries   []time.Time
 }
 
 // NOTE: the runtime runs it and waits for it before closing the session.
 func (s *sender) run(ctx context.Context) {
-	tick := time.NewTicker(senderPoll)
-	defer tick.Stop()
-	for {
+	for s.drain(ctx) {
+		t := time.NewTimer(s.sleep(time.Now()))
 		select {
 		case <-ctx.Done():
+			t.Stop()
 			return
 		case <-s.wake:
-		case <-tick.C:
+		case <-t.C:
 		}
-		if !s.drain(ctx) {
-			return
-		}
+		t.Stop()
 	}
 }
 
+func (s *sender) sleep(now time.Time) time.Duration {
+	d := cmp.Or(s.cfg.IdlePoll, senderPoll)
+	s.retries = slices.DeleteFunc(s.retries, func(at time.Time) bool { return !at.After(s.drainedAt) })
+	if len(s.retries) > 0 {
+		d = min(d, slices.MinFunc(s.retries, time.Time.Compare).Sub(now))
+	}
+	return max(d, senderPoll)
+}
+
+func (s *sender) retryAfter(d time.Duration) {
+	s.retries = append(s.retries, time.Now().Add(d))
+}
+
 func (s *sender) drain(ctx context.Context) bool {
+	s.drainedAt = time.Now()
 	for s.sess.Connected() {
 		row, err := s.out.ClaimNext(s.scoped(ctx), s.ref.DeviceID)
 		if row != nil && ctx.Err() != nil {
@@ -86,6 +104,7 @@ func (s *sender) drain(ctx context.Context) bool {
 // NOTE: warns on the first failed claim, then logs at debug until one succeeds.
 func (s *sender) claimFailed(ctx context.Context, err error) {
 	s.claimErrs++
+	s.retryAfter(senderPoll)
 	level := slog.LevelDebug
 	if s.claimErrs == 1 {
 		level = slog.LevelWarn
@@ -101,6 +120,7 @@ func (s *sender) deliver(ctx context.Context, row *OutboundRow) {
 	case err == nil:
 		s.markSent(ctx, row, res)
 	case sendCtx.Err() != nil && invoked:
+		s.retryAfter(StaleAfter(s.cfg.SpacingMax))
 		s.log.WarnContext(ctx, "whatsapp.sender: send interrupted; left for stale reclaim",
 			slog.String("message_id", row.ID.String()), slog.Any("error", err))
 	case sendCtx.Err() != nil:
@@ -116,6 +136,7 @@ func (s *sender) requeue(ctx context.Context, row *OutboundRow, cause error) {
 	mctx, cancel := context.WithTimeout(s.scoped(context.WithoutCancel(ctx)), markTimeout)
 	defer cancel()
 	if err := s.out.Requeue(mctx, row.ID); err != nil {
+		s.retryAfter(StaleAfter(s.cfg.SpacingMax))
 		s.log.ErrorContext(ctx, "whatsapp.sender: requeue", slog.String("message_id", row.ID.String()), slog.Any("cause", cause), slog.Any("error", err))
 	}
 }
@@ -124,6 +145,7 @@ func (s *sender) markFailed(ctx context.Context, row *OutboundRow, cause error, 
 	mctx, cancel := context.WithTimeout(s.scoped(context.WithoutCancel(ctx)), markTimeout)
 	defer cancel()
 	if err := s.out.MarkFailed(mctx, row.ID, cause, retryable); err != nil {
+		s.retryAfter(StaleAfter(s.cfg.SpacingMax))
 		s.log.ErrorContext(ctx, "whatsapp.sender: mark failed", slog.String("message_id", row.ID.String()), slog.Any("error", err))
 	}
 }
@@ -132,6 +154,7 @@ func (s *sender) markSent(ctx context.Context, row *OutboundRow, res SendResult)
 	mctx, cancel := context.WithTimeout(s.scoped(context.WithoutCancel(ctx)), markTimeout)
 	defer cancel()
 	if err := s.out.MarkSent(mctx, row.ID, res.At, res.Media); err != nil {
+		s.retryAfter(StaleAfter(s.cfg.SpacingMax))
 		s.log.ErrorContext(ctx, "whatsapp.sender: mark sent", slog.String("message_id", row.ID.String()), slog.Any("error", err))
 	}
 }

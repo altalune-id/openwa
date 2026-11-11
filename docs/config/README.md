@@ -121,12 +121,13 @@ one account once and never overwrite it. Boot writes nothing — it reconciles t
 
 ## Machine surfaces
 
-| Key                 | Default | Awareness | Meaning                                                                                                      |
-| ------------------- | ------- | --------- | ------------------------------------------------------------------------------------------------------------ |
-| `api.enabled`       | `true`  | `-`       | Mounts the control plane at `/api/`. Off means no Connect-RPC at all — the CLI's remote mode stops working.  |
-| `api.keyPrefix`     | `key_`  | `-`       | Literal prefix every minted API key carries. It is how `authn.Scheme` tells a key from a JWT by shape alone. |
-| `dataplane.enabled` | `true`  | `-`       | Mounts the REST data plane at `/api/v1/`.                                                                    |
-| `blog.publicReads`  | `false` | `-`       | Lets an uncredentialed caller read **published** posts over the data plane.                                  |
+| Key                 | Default | Awareness | Meaning                                                                                                          |
+| ------------------- | ------- | --------- | ---------------------------------------------------------------------------------------------------------------- |
+| `api.enabled`       | `true`  | `-`       | Mounts the control plane at `/api/`. Off means no Connect-RPC at all — the CLI's remote mode stops working.      |
+| `api.keyPrefix`     | `key_`  | `-`       | Literal prefix every minted API key carries. It is how `authn.Scheme` tells a key from a JWT by shape alone.     |
+| `dataplane.enabled` | `true`  | `-`       | Mounts the REST data plane at `/api/v1/`.                                                                        |
+| `blog.publicReads`  | `false` | `-`       | Lets an uncredentialed caller read **published** posts over the data plane.                                      |
+| `outbox.idlePoll`   | `5s`    | `-`       | Longest wait between webhook dispatch sweeps when no write wakes the worker and no retry is due. Never below 5s. |
 
 - **Changing `api.keyPrefix` after keys exist orphans them.** The shape check runs before any
   lookup, so a key minted under the old prefix fails as an unknown credential shape, not as a bad
@@ -138,14 +139,15 @@ one account once and never overwrite it. Boot writes nothing — it reconciles t
 
 ## Messaging
 
-| Key                         | Default    | Awareness   | Notes                                                                    |
-| --------------------------- | ---------- | ----------- | ------------------------------------------------------------------------ |
-| `retention.messageDays`     | `30`       | `-`         | Days a project keeps messages when it has no setting of its own (1-365). |
-| `media.store`               | `wa`       | `bootstrap` | `wa` fetches media from WhatsApp on demand; nothing is stored.           |
-| `whatsapp.sendSpacingMin`   | `1s`       | `-`         | Shortest pause between two sends of one device.                          |
-| `whatsapp.sendSpacingMax`   | `3s`       | `-`         | Longest pause; each pause is uniform in [min, max]. Not below min.       |
-| `whatsapp.mediaMaxBytes`    | `33554432` | `-`         | Largest attachment accepted for sending (32 MiB).                        |
-| `whatsapp.typingBeforeText` | `true`     | `-`         | Show "typing..." for up to 2 s before each text.                         |
+| Key                         | Default    | Awareness   | Notes                                                                                                     |
+| --------------------------- | ---------- | ----------- | --------------------------------------------------------------------------------------------------------- |
+| `retention.messageDays`     | `30`       | `-`         | Days a project keeps messages when it has no setting of its own (1-365).                                  |
+| `media.store`               | `wa`       | `bootstrap` | `wa` fetches media from WhatsApp on demand; nothing is stored.                                            |
+| `whatsapp.sendSpacingMin`   | `1s`       | `-`         | Shortest pause between two sends of one device.                                                           |
+| `whatsapp.sendSpacingMax`   | `3s`       | `-`         | Longest pause; each pause is uniform in [min, max]. Not below min.                                        |
+| `whatsapp.mediaMaxBytes`    | `33554432` | `-`         | Largest attachment accepted for sending (32 MiB).                                                         |
+| `whatsapp.typingBeforeText` | `true`     | `-`         | Show "typing..." for up to 2 s before each text.                                                          |
+| `whatsapp.senderIdlePoll`   | `2s`       | `-`         | Longest wait between send-queue checks when no send, reconnect or retry wakes the sender. Never below 2s. |
 
 `http.baseURL` is required whenever `dataplane.enabled` is true: webhook media URLs point at the data plane.
 
@@ -176,7 +178,7 @@ one account once and never overwrite it. Boot writes nothing — it reconciles t
 | `db.allowBypassRLS`         | `false`   | `bootstrap`        | Skips `schema.RLSGuard`. Dev only — `true` in production means no tenant isolation.           |
 | `db.connectTimeout`         | `30s`     | `-`                | Total budget for the initial connect-and-ping, retries included. `0` disables retrying.       |
 | `db.connectBackoff`         | `250ms`   | `-`                | Starting backoff between connect attempts; doubles, capped at 5s, never overruns the timeout. |
-| `db.health.interval`        | `30s`     | `-`                | Tick cadence of the `db-health` worker; how stale a `/readyz` answer can be.                  |
+| `db.health.interval`        | `30s`     | `-`                | How long a `/readyz` probe result is reused before the next `/readyz` pings again.            |
 | `db.health.timeout`         | `2s`      | `-`                | Per-handle ping timeout within one probe round.                                               |
 | `tenant.rlsEnforce`         | `true`    | `bootstrap`        | Renders the RLS clauses into the Postgres migration templates.                                |
 | `tenant.tenantScopedTables` | `[]`      | `bootstrap`        | Extra tables `schema.RLSGuard` audits beyond the generated list.                              |
@@ -193,7 +195,7 @@ Boot fails if the runtime role holds `BYPASSRLS` and `db.allowBypassRLS` is `fal
 | `whatsapp.engine`           | `whatsmeow` | `bootstrap` | The WhatsApp engine. `whatsmeow` is the only value.                                                                                                                     |
 | `whatsapp.clientName`       | `OpenWA`    | `-`         | The device name shown under Linked Devices on the phone.                                                                                                                |
 | `whatsapp.leaseTTL`         | `45s`       | `-`         | How long a device lease stays valid without a renewal. Must exceed 2 x `whatsapp.leaseInterval`.                                                                        |
-| `whatsapp.leaseInterval`    | `15s`       | `-`         | How often the runtime renews its leases and claims free ones.                                                                                                           |
+| `whatsapp.leaseInterval`    | `15s`       | `-`         | How often the runtime renews its leases and claims free ones. For `whatsapp.leaseTTL` after start it also claims every 15s while another process holds a lease.         |
 | `whatsapp.linkTimeout`      | `3m`        | `-`         | How long a pairing attempt runs, and how long its outcome stays visible afterwards.                                                                                     |
 | `whatsapp.parkFor`          | `0s`        | `-`         | How long a device stays parked after `stream_replaced`, a temporary ban or a connect failure; `0` means 5 x `whatsapp.leaseTTL`. `client_outdated` parks until restart. |
 | `whatsapp.inboundQueueSize` | `1024`      | `-`         | Per-device buffer between whatsmeow and the sink; when full the engine blocks, it never drops.                                                                          |

@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"strings"
 	"testing"
 
@@ -79,37 +78,7 @@ func TestBootServer_SchedulerDisabled_ReadyzStillTracksSnapshot(t *testing.T) {
 	_ = srv.Health.Probe(context.Background())
 
 	if got := statusOf(t, srv.Web, "/readyz"); got != http.StatusServiceUnavailable {
-		t.Fatalf("GET /readyz on a no-scheduler replica: status=%d, want 503 — the db-health worker runs regardless of the scheduler", got)
-	}
-}
-
-func TestBootServer_HealthWorkerIsRegisteredRegardlessOfScheduler(t *testing.T) {
-	h := pgtest.NewDatabase(t)
-	for _, tc := range []struct {
-		name string
-		opts []boot.Option
-	}{
-		{name: "scheduler-on"},
-		{name: "scheduler-off", opts: []boot.Option{boot.WithScheduler(false)}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := smokeCfgFor(t, h)
-			cfg.Scheduler.Enabled = true
-
-			srv, err := boot.BootServer(context.Background(), cfg, tc.opts...)
-			if err != nil {
-				t.Fatalf("BootServer: %v", err)
-			}
-			t.Cleanup(func() { _ = srv.Close() })
-
-			var names []string
-			for _, w := range srv.Supervisor.Workers() {
-				names = append(names, w.Name())
-			}
-			if !slices.Contains(names, "db-health") {
-				t.Fatalf("supervisor workers = %v, want a db-health worker", names)
-			}
-		})
+		t.Fatalf("GET /readyz on a no-scheduler replica: status=%d, want 503 — the probe runs regardless of the scheduler", got)
 	}
 }
 

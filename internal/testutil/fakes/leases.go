@@ -212,6 +212,23 @@ func (f *LeaseStore) ReleaseAll(ctx context.Context, owner string) error {
 	return nil
 }
 
+func (f *LeaseStore) HeldElsewhere(_ context.Context, owner string) (time.Time, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := time.Now()
+	var latest time.Time
+	held := false
+	for _, l := range f.rows {
+		if l.Owner != "" && l.Owner != owner && l.ExpiresAt != nil && l.ExpiresAt.After(now) {
+			held = true
+			if l.ExpiresAt.After(latest) {
+				latest = *l.ExpiresAt
+			}
+		}
+	}
+	return latest, held, nil
+}
+
 func compareUUID(a, b uuid.UUID) int {
 	switch as, bs := a.String(), b.String(); {
 	case as < bs:

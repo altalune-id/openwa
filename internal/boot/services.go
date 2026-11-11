@@ -118,6 +118,7 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 				SpacingMin:       cfg.WhatsApp.SendSpacingMin,
 				SpacingMax:       cfg.WhatsApp.SendSpacingMax,
 				TypingBeforeText: cfg.WhatsApp.TypingBeforeText,
+				IdlePoll:         cfg.WhatsApp.SenderIdlePoll,
 			},
 		},
 		log,

@@ -13,7 +13,7 @@ factory, one field on `Kernel`.
   `internal/platform/{tenant,capabilities,sealer,authn,publicid,keyset}`. `keyset` is the `(timestamp, id)` cursor codec every keyset-paginated `List` shares (chat, message, contact); predicates stay in each module's `postgres.go` as `ts < $1 OR (ts = $1 AND id < $2)` because jet has no row-value comparison.
 - `internal/platform/publicid` — prefixed nanoid ids (`<prefix>_` + 16 characters) for every id an outside surface sees; the UUID v7 stays the primary key and never leaves the database. Each prefix is a constant of the module that owns the aggregate (`device.PublicIDPrefix`, `whatsapp.LinkIDPrefix`, spec 04's chat and message prefixes).
 - **Long-running loop** — `worker/` (the Supervisor), `scheduler/`, `outbox.Worker`,
-  `db.HealthMonitor`, `queue.Consumer`, `queue.Listen`.
+  `queue.Consumer`, `queue.Listen`.
 - **Public contract** — `internal/platform/events`: the webhook event catalog and payloads.
   Stdlib and uuid only; additive within a version ([`webhooks`](../webhooks/README.md#versioning)).
 - **Not one** — domain logic (`internal/<name>/`), a surface
@@ -95,8 +95,8 @@ one errgroup and returns the first non-nil error.
 1. **Return `nil` on graceful shutdown** (ctx canceled) — never `ctx.Err()`.
 2. **Return non-nil only on unrecoverable failure** — the errgroup cancels every sibling.
 3. **Never block cancellation past the graceful window** — 10s, `worker.HTTP`'s shutdown budget.
-4. **A periodic loop logs per-tick failures instead of returning them.** `db.HealthMonitor` swallows
-   probe errors for exactly this reason: a database blip must not kill the process.
+4. **A periodic loop logs per-tick failures instead of returning them.** `outbox.Worker` logs a
+   failed sweep for exactly this reason: a database blip must not kill the process.
 
 | Choose          | When                                                                                                                                           |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -133,14 +133,14 @@ Reference: `internal/platform/session/`.
 
 ## Shape variants
 
-| Variant             | Reference impl                                  | What differs                                                                                                   |
-| ------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Single primitive    | `reqid/`                                        | One file + test. No config, no I/O, no `Close`                                                                 |
-| Adapter             | `internal/platform/session/`                    | `factory.go` + the contract suite above                                                                        |
-| Worker              | `internal/platform/outbox/`, `db.HealthMonitor` | Implements `worker.Worker`; `sup.Register` in boot                                                             |
-| Worker owning jobs  | `scheduler/`                                    | Many `Job`s; per-job config under `config.SchedulerConfig.Jobs`                                                |
-| Producer + consumer | `internal/platform/outbox/`                     | Producer is a `Store` registered as a Closer; consumer is the `Worker`, delivering through `webhook.Deliverer` |
-| Queue over NATS     | `internal/platform/queue/`                      | `Client.Submit`/`Emit`; `queue.Consumer` and `queue.Listen` workers. Contract: [`queue`](../queue/README.md)   |
+| Variant             | Reference impl               | What differs                                                                                                   |
+| ------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Single primitive    | `reqid/`                     | One file + test. No config, no I/O, no `Close`                                                                 |
+| Adapter             | `internal/platform/session/` | `factory.go` + the contract suite above                                                                        |
+| Worker              | `internal/platform/outbox/`  | Implements `worker.Worker`; `sup.Register` in boot                                                             |
+| Worker owning jobs  | `scheduler/`                 | Many `Job`s; per-job config under `config.SchedulerConfig.Jobs`                                                |
+| Producer + consumer | `internal/platform/outbox/`  | Producer is a `Store` registered as a Closer; consumer is the `Worker`, delivering through `webhook.Deliverer` |
+| Queue over NATS     | `internal/platform/queue/`   | `Client.Submit`/`Emit`; `queue.Consumer` and `queue.Listen` workers. Contract: [`queue`](../queue/README.md)   |
 
 ## Boot — the Kernel
 

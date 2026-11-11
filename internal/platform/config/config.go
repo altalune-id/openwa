@@ -56,6 +56,7 @@ type Config struct {
 	Blog          BlogConfig          `yaml:"blog"          mapstructure:"blog"`
 	DataPlane     DataPlaneConfig     `yaml:"dataplane"     mapstructure:"dataplane"`
 	Webhook       WebhookConfig       `yaml:"webhook"       mapstructure:"webhook"`
+	Outbox        OutboxConfig        `yaml:"outbox"        mapstructure:"outbox"`
 	Retention     RetentionConfig     `yaml:"retention"     mapstructure:"retention"`
 	Media         MediaConfig         `yaml:"media"         mapstructure:"media"`
 }
@@ -81,6 +82,11 @@ type BlogConfig struct {
 type WebhookConfig struct {
 	// SECURITY: self-hosted dev only; allows http:// and loopback/private endpoints. Ignored in cloud mode.
 	AllowInsecure bool `yaml:"allowInsecure" mapstructure:"allowInsecure" awareness:"mode:selfhosted"`
+}
+
+// OutboxConfig tunes the outbox dispatch worker.
+type OutboxConfig struct {
+	IdlePoll time.Duration `yaml:"idlePoll" mapstructure:"idlePoll" awareness:"-" validate:"gte=0"`
 }
 
 // DataPlaneConfig gates S3, the REST data plane.
@@ -145,6 +151,7 @@ type WhatsAppConfig struct {
 	SendSpacingMax   time.Duration `yaml:"sendSpacingMax"   mapstructure:"sendSpacingMax"   awareness:"-" validate:"gte=0"`
 	MediaMaxBytes    int64         `yaml:"mediaMaxBytes"    mapstructure:"mediaMaxBytes"    awareness:"-" validate:"gt=0"`
 	TypingBeforeText bool          `yaml:"typingBeforeText" mapstructure:"typingBeforeText" awareness:"-"`
+	SenderIdlePoll   time.Duration `yaml:"senderIdlePoll"   mapstructure:"senderIdlePoll"   awareness:"-" validate:"gte=0"`
 }
 
 // GenesisConfig configures the built-in admin account.

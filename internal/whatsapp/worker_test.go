@@ -1266,3 +1266,159 @@ func TestRuntime_FailedUnlinkRestoresTheSender(t *testing.T) {
 		require.NoError(t, <-done)
 	})
 }
+
+func TestRuntime_ReconnectWakesTheSender(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		sess := fakes.NewMessagingSession()
+		var sink whatsapp.EventSink
+		engine := fakes.NewEngine()
+		engine.OpenFn = func(_ context.Context, _ whatsapp.SessionRef, s whatsapp.EventSink) (whatsapp.EngineSession, error) {
+			sink = s
+			return sess, nil
+		}
+		leases := fakes.NewLeaseStore()
+		ref := whatsapp.SessionRef{DeviceID: uuid.New(), OrgID: uuid.New(), ProjectID: uuid.New(), JID: "628123456789:1@s.whatsapp.net"}
+		require.NoError(t, leases.Upsert(t.Context(), whatsapp.Lease{DeviceID: ref.DeviceID, OrgID: ref.OrgID, ProjectID: ref.ProjectID, JID: ref.JID}))
+		rt := whatsapp.NewRuntime(engine, leases, whatsapp.RuntimeConfig{
+			Owner: "test/1", LeaseTTL: 45 * time.Second, LeaseInterval: 15 * time.Second, LinkTimeout: time.Minute,
+			Sender: whatsapp.SenderConfig{SpacingMin: time.Second, SpacingMax: time.Second, IdlePoll: time.Hour},
+		}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		rt.Subscribe(&fakes.Sink{})
+		out := &fakes.Outbound{}
+		require.NoError(t, rt.SetOutbound(out))
+
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan error, 1)
+		go func() { done <- rt.Run(ctx) }()
+		synctest.Wait()
+		require.True(t, rt.Live(ref.DeviceID))
+
+		sess.SetConnected(false)
+		out.Push(&whatsapp.OutboundRow{ID: uuid.New(), Message: whatsapp.OutboundMessage{WAID: "A", Kind: whatsapp.KindText, To: "628111@s.whatsapp.net"}})
+		rt.Wake(ref.DeviceID)
+		synctest.Wait()
+		sess.SetConnected(true)
+		sink.OnState(ref, whatsapp.StateConnected, "")
+		synctest.Wait()
+
+		sent, _, _ := out.Snapshot()
+		require.Len(t, sent, 1, "a row queued while disconnected waited for the idle poll after the reconnect")
+		cancel()
+		require.NoError(t, <-done)
+	})
+}
+
+func TestRuntime_ClaimsALeaseReleasedSoonAfterStart(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		leases := fakes.NewLeaseStore()
+		id := uuid.New()
+		exp := time.Now().Add(25 * time.Minute)
+		leases.Seed(whatsapp.Lease{DeviceID: id, OrgID: uuid.New(), ProjectID: uuid.New(), JID: "628123456789:1@s.whatsapp.net", Owner: "old/1", ExpiresAt: &exp})
+		rt := whatsapp.NewRuntime(fakes.NewEngine(), leases, whatsapp.RuntimeConfig{
+			Owner: "new/1", LeaseTTL: 25 * time.Minute, LeaseInterval: 10 * time.Minute, LinkTimeout: time.Minute,
+		}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		rt.Subscribe(&fakes.Sink{})
+
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan error, 1)
+		go func() { done <- rt.Run(ctx) }()
+		synctest.Wait()
+		require.False(t, rt.Live(id), "the old replica still holds the lease")
+
+		require.NoError(t, leases.Release(t.Context(), "old/1", id))
+		time.Sleep(whatsapp.StartupClaimEvery + time.Second)
+		synctest.Wait()
+		require.True(t, rt.Live(id), "a lease released after start waited for the lease interval")
+
+		cancel()
+		require.NoError(t, <-done)
+	})
+}
+
+func TestRuntime_StartupClaimStopsOnceNothingIsHeldElsewhere(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		leases := fakes.NewLeaseStore()
+		var claims atomic.Int32
+		leases.SetClaimFn(func(context.Context, string, time.Duration, int) ([]whatsapp.Lease, error) {
+			claims.Add(1)
+			return nil, nil
+		})
+		rt := whatsapp.NewRuntime(fakes.NewEngine(), leases, whatsapp.RuntimeConfig{
+			Owner: "new/1", LeaseTTL: 25 * time.Minute, LeaseInterval: 10 * time.Minute, LinkTimeout: time.Minute,
+		}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		rt.Subscribe(&fakes.Sink{})
+
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan error, 1)
+		go func() { done <- rt.Run(ctx) }()
+		time.Sleep(9 * time.Minute)
+		synctest.Wait()
+		require.Equal(t, int32(1), claims.Load(), "with no lease held elsewhere only the start tick claims")
+
+		cancel()
+		require.NoError(t, <-done)
+	})
+}
+
+func countingLeases(t *testing.T, owner string, expiresIn time.Duration) (*fakes.LeaseStore, uuid.UUID, *atomic.Int32) {
+	t.Helper()
+	leases := fakes.NewLeaseStore()
+	id := uuid.New()
+	exp := time.Now().Add(expiresIn)
+	leases.Seed(whatsapp.Lease{DeviceID: id, OrgID: uuid.New(), ProjectID: uuid.New(), JID: "628123456789:1@s.whatsapp.net", Owner: owner, ExpiresAt: &exp})
+	return leases, id, &atomic.Int32{}
+}
+
+func runRuntime(t *testing.T, leases whatsapp.LeaseStore, interval, ttl time.Duration) (*whatsapp.Runtime, func()) {
+	t.Helper()
+	rt := whatsapp.NewRuntime(fakes.NewEngine(), leases, whatsapp.RuntimeConfig{
+		Owner: "new/1", LeaseTTL: ttl, LeaseInterval: interval, LinkTimeout: time.Minute,
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	rt.Subscribe(&fakes.Sink{})
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- rt.Run(ctx) }()
+	return rt, func() { cancel(); require.NoError(t, <-done) }
+}
+
+func TestRuntime_NoStartupClaimWhenTheIntervalIsAlreadyThatShort(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		leases, _, claims := countingLeases(t, "old/1", time.Hour)
+		leases.SetClaimFn(func(context.Context, string, time.Duration, int) ([]whatsapp.Lease, error) {
+			claims.Add(1)
+			return nil, nil
+		})
+		_, stop := runRuntime(t, leases, whatsapp.StartupClaimEvery, 45*time.Second)
+		time.Sleep(whatsapp.StartupClaimEvery + time.Second)
+		synctest.Wait()
+		require.Equal(t, int32(2), claims.Load(), "the start tick and one lease tick; a startup claim would double it")
+		stop()
+	})
+}
+
+func TestRuntime_ClaimsALeaseWhoseOwnerDiedWithoutReleasing(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		leases, id, _ := countingLeases(t, "old/1", 25*time.Minute)
+		rt, stop := runRuntime(t, leases, 10*time.Minute, 25*time.Minute)
+		time.Sleep(25*time.Minute + whatsapp.StartupClaimEvery + time.Second)
+		synctest.Wait()
+		require.True(t, rt.Live(id), "a lease left to expire at leaseTTL after start waited for the next lease tick")
+		stop()
+	})
+}
+
+func TestRuntime_StartupClaimSkipsWhileFenced(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		leases, id, _ := countingLeases(t, "old/1", 24*time.Minute)
+		leases.SetRenewErr(errors.New("db down"))
+		_, stop := runRuntime(t, leases, 10*time.Minute, 25*time.Minute)
+		time.Sleep(20*time.Minute + time.Second)
+		synctest.Wait()
+		require.NoError(t, leases.Release(t.Context(), "old/1", id))
+		time.Sleep(whatsapp.StartupClaimEvery + time.Second)
+		synctest.Wait()
+		l, _ := leases.Get(id)
+		require.NotEqual(t, "new/1", l.Owner, "a fenced runtime claimed a lease it cannot renew")
+		stop()
+	})
+}

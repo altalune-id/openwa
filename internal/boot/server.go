@@ -194,6 +194,7 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 	sessions := session.NewStore(cfg.DB, pool, sl, reporter.Unexpected)
 	caps := capabilities.From(cfg)
 
+	outboxWaker := outbox.NewWaker()
 	kernel := &platform.Kernel{
 		Pool:        pool,
 		PgConn:      pgConn,
@@ -210,7 +211,7 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 		Notify:      sinks,
 		Nano:        nanoid.New,
 		Caps:        caps,
-		Outbox:      outbox.NewStore(cfg.DB, pool, pgConn),
+		Outbox:      outbox.WakeOnEnqueue(outbox.NewStore(cfg.DB, pool, pgConn), outboxWaker),
 	}
 	for _, s := range sinks {
 		if c, ok := s.(io.Closer); ok {
@@ -277,9 +278,13 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 	}
 
 	sup := worker.New(log)
-	sup.Register(health)
 	sup.Register(svcs.APIKeyUsage)
-	sup.Register(outbox.NewWorker(kernel.Outbox, dispatchDeliverer(o, cfg, kernel, svcs, log), orgEnumerator(cfg, kernel, log), log, o.dispatch))
+	dispatch := o.dispatch
+	if dispatch.IdlePoll <= 0 {
+		dispatch.IdlePoll = cfg.Outbox.IdlePoll
+	}
+	dispatch.Waker = outboxWaker
+	sup.Register(outbox.NewWorker(kernel.Outbox, dispatchDeliverer(o, cfg, kernel, svcs, log), orgEnumerator(cfg, kernel, log), log, dispatch))
 	if !o.schedulerOnly && !o.consumerOnly {
 		sup.Register(svcs.Runtime)
 	}

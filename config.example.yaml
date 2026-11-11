@@ -217,6 +217,10 @@ onboard:
   # [secret] env: OPENWA_ONBOARD_SETUP_TOKEN
   setupToken: ""
 
+outbox:
+  # env: OPENWA_OUTBOX_IDLE_POLL
+  idlePoll: 5s
+
 queue:
   # env: OPENWA_QUEUE_CONNECT_TIMEOUT
   connectTimeout: 10s
@@ -334,5 +338,7 @@ whatsapp:
   sendSpacingMax: 3s
   # env: OPENWA_WHATSAPP_SEND_SPACING_MIN
   sendSpacingMin: 1s
+  # env: OPENWA_WHATSAPP_SENDER_IDLE_POLL
+  senderIdlePoll: 2s
   # env: OPENWA_WHATSAPP_TYPING_BEFORE_TEXT
   typingBeforeText: true
