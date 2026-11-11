@@ -77,3 +77,57 @@ func TestRunInTx_RejectsNestedUnitOfWork(t *testing.T) {
 	require.ErrorIs(t, outerErr, db.ErrNestedUnitOfWork)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestAfterCommit_RunsAfterCommit(t *testing.T) {
+	t.Parallel()
+	pool, mock := openMockPool(t)
+	mock.ExpectBegin()
+	mock.ExpectCommit()
+
+	ran := 0
+	err := db.RunInTx(t.Context(), pool, func(ctx context.Context) error {
+		db.AfterCommit(ctx, func() { ran++ })
+		if ran != 0 {
+			return errors.New("hook ran before commit")
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, ran)
+}
+
+func TestAfterCommit_SkipsRollback(t *testing.T) {
+	t.Parallel()
+	pool, mock := openMockPool(t)
+	mock.ExpectBegin()
+	mock.ExpectRollback()
+
+	ran := 0
+	_ = db.RunInTx(t.Context(), pool, func(ctx context.Context) error {
+		db.AfterCommit(ctx, func() { ran++ })
+		return errors.New("boom")
+	})
+	require.Zero(t, ran, "hook ran on rollback")
+}
+
+func TestAfterCommit_SkipsFailedCommit(t *testing.T) {
+	t.Parallel()
+	pool, mock := openMockPool(t)
+	mock.ExpectBegin()
+	mock.ExpectCommit().WillReturnError(errors.New("commit refused"))
+
+	ran := 0
+	err := db.RunInTx(t.Context(), pool, func(ctx context.Context) error {
+		db.AfterCommit(ctx, func() { ran++ })
+		return nil
+	})
+	require.Error(t, err)
+	require.Zero(t, ran, "hook ran on a failed commit")
+}
+
+func TestAfterCommit_RunsAtOnceWithoutATx(t *testing.T) {
+	t.Parallel()
+	ran := 0
+	db.AfterCommit(t.Context(), func() { ran++ })
+	require.Equal(t, 1, ran)
+}

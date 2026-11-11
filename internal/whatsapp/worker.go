@@ -28,6 +28,7 @@ const (
 	defaultLeaseTTL    = 45 * time.Second
 	defaultLeaseEvery  = 15 * time.Second
 	defaultLinkTimeout = 3 * time.Minute
+	startupClaimEvery  = 15 * time.Second
 )
 
 // RuntimeConfig tunes the lease loop and link attempts; Owner identifies this process in lease rows.
@@ -138,9 +139,18 @@ func (r *Runtime) Run(ctx context.Context) error {
 	r.verified = time.Now()
 	r.mu.Unlock()
 
+	start := time.Now()
 	r.tick(ctx)
 	t := time.NewTicker(r.cfg.LeaseInterval)
 	defer t.Stop()
+	catchUp := time.NewTicker(startupClaimEvery)
+	defer catchUp.Stop()
+	catchUpC := catchUp.C
+	var until time.Time
+	if r.cfg.LeaseInterval <= startupClaimEvery || !r.catchingUp(ctx, start, &until) {
+		catchUp.Stop()
+		catchUpC = nil
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -148,8 +158,33 @@ func (r *Runtime) Run(ctx context.Context) error {
 			return nil
 		case <-t.C:
 			r.tick(ctx)
+		case <-catchUpC:
+			r.claim(ctx)
+			if !r.catchingUp(ctx, start, &until) {
+				catchUp.Stop()
+				catchUpC = nil
+			}
 		}
 	}
+}
+
+// NOTE: keeps claiming until just after the latest foreign lease expires, so an owner that died without releasing is still taken over; a lookup error keeps it running, and leaseTTL plus one round after start bounds it.
+func (r *Runtime) catchingUp(ctx context.Context, start time.Time, until *time.Time) bool {
+	now := time.Now()
+	if !now.Before(start.Add(r.cfg.LeaseTTL + startupClaimEvery)) {
+		return false
+	}
+	hctx, cancel := context.WithTimeout(ctx, startupClaimEvery)
+	defer cancel()
+	latest, held, err := r.leases.HeldElsewhere(hctx, r.cfg.Owner)
+	if err != nil {
+		r.log.WarnContext(ctx, "whatsapp: lease lookup failed", "err", err)
+		return ctx.Err() == nil
+	}
+	if held && latest.After(*until) {
+		*until = latest
+	}
+	return held || !now.After(*until)
 }
 
 // SetOutbound wires the queue the per-device senders drain; it is set once, before Run.
@@ -532,7 +567,16 @@ func (r *Runtime) tick(ctx context.Context) {
 	for _, l := range retry {
 		r.open(ctx, l)
 	}
+	r.claim(ctx)
+}
 
+func (r *Runtime) claim(ctx context.Context) {
+	r.mu.Lock()
+	fenced := r.fenced
+	r.mu.Unlock()
+	if fenced {
+		return
+	}
 	cctx, ccancel := context.WithTimeout(ctx, r.cfg.LeaseInterval)
 	claimed, err := r.leases.Claim(cctx, r.cfg.Owner, r.cfg.LeaseTTL, claimBatch)
 	ccancel()
@@ -972,6 +1016,9 @@ func (r *Runtime) onEngineState(id uuid.UUID, ref SessionRef, st State, reason s
 		}
 	}
 	r.mu.Unlock()
+	if st == StateConnected {
+		r.Wake(id)
+	}
 	r.subscriber().OnState(ref, st, reason)
 }
 

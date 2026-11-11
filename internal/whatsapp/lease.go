@@ -31,4 +31,6 @@ type LeaseStore interface {
 	Release(ctx context.Context, owner string, deviceID uuid.UUID) error
 	// ReleaseAll frees every lease owner holds.
 	ReleaseAll(ctx context.Context, owner string) error
+	// HeldElsewhere reports whether any unexpired lease is held by an owner other than owner, and the latest such expiry.
+	HeldElsewhere(ctx context.Context, owner string) (time.Time, bool, error)
 }

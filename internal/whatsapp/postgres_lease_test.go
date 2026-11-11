@@ -180,3 +180,29 @@ func TestPostgres_Lease_ConcurrentClaimHasOneWinner(t *testing.T) {
 		require.NoError(t, f.leases.Delete(t.Context(), devID))
 	}
 }
+
+func TestPostgres_Lease_HeldElsewhereSeesOnlyLiveForeignLeases(t *testing.T) {
+	f := newPgFixture(t)
+	seedLease(t, f, "", 0)
+	seedLease(t, f, "A", time.Minute)
+	seedLease(t, f, "B", -time.Minute)
+
+	_, held, err := f.leases.HeldElsewhere(t.Context(), "A")
+	require.NoError(t, err)
+	require.False(t, held, "free, own and expired leases are not held elsewhere")
+
+	_, held, err = f.leases.HeldElsewhere(t.Context(), "C")
+	require.NoError(t, err)
+	require.True(t, held, "A's live lease is held elsewhere for C")
+}
+
+func TestPostgres_Lease_HeldElsewhereReturnsTheLatestForeignExpiry(t *testing.T) {
+	f := newPgFixture(t)
+	seedLease(t, f, "A", time.Minute)
+	seedLease(t, f, "B", time.Hour)
+
+	until, held, err := f.leases.HeldElsewhere(t.Context(), "C")
+	require.NoError(t, err)
+	require.True(t, held)
+	require.WithinDuration(t, time.Now().Add(time.Hour), until, 10*time.Second, "the latest foreign expiry, not the first")
+}

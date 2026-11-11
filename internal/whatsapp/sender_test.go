@@ -93,7 +93,7 @@ func TestSender_TypesBeforeText(t *testing.T) {
 		synctest.Wait()
 		stop()
 		require.Equal(t, []string{"typing:on", "send:A", "typing:off"}, sess.Recorded())
-		require.Equal(t, 2*time.Second+2*time.Second, sess.SendTimes[0].Sub(begin), "the 2 s poll, then min(2 s, spacing) of typing")
+		require.Equal(t, 2*time.Second, sess.SendTimes[0].Sub(begin), "the drain at start, then min(2 s, spacing) of typing")
 	})
 }
 
@@ -197,7 +197,7 @@ func TestSender_CancelBeforeSendRequeues(t *testing.T) {
 		out := &fakes.Outbound{}
 		out.Push(textRow("A"))
 		stop := start(t, newTestSender(sess, out, make(chan struct{}, 1), true))
-		time.Sleep(3 * time.Second)
+		time.Sleep(time.Second)
 		synctest.Wait()
 		stop()
 		_, failed, _ := out.Snapshot()
@@ -287,7 +287,7 @@ func TestSender_RequeueRunsDetachedAndInTheDevicesTenant(t *testing.T) {
 		out.Push(textRow("A"))
 		s := newTestSender(sess, out, make(chan struct{}, 1), true)
 		stop := start(t, s)
-		time.Sleep(3 * time.Second)
+		time.Sleep(time.Second)
 		synctest.Wait()
 		stop()
 		marks := out.MarkCalls()
@@ -371,5 +371,108 @@ func TestSender_SlowMarkSentEndsBeforeTheStaleWindow(t *testing.T) {
 		require.False(t, markEnded.IsZero(), "MarkSent ran and hit its own deadline")
 		require.Less(t, markEnded.Sub(claimedAt), whatsapp.StaleAfter(3*time.Second),
 			"a slow MarkSent must be over before another claim may reclaim the row")
+	})
+}
+
+func newIdleSender(sess whatsapp.EngineSession, out whatsapp.Outbound, wake <-chan struct{}, idle time.Duration) testSender {
+	ref := whatsapp.SessionRef{DeviceID: uuid.New(), OrgID: uuid.New(), ProjectID: uuid.New()}
+	cfg := whatsapp.SenderConfig{SpacingMin: time.Second, SpacingMax: 3 * time.Second, IdlePoll: idle,
+		Jitter: func(d time.Duration) time.Duration { return d }}
+	return testSender{ref: ref, run: whatsapp.NewTestSender(ref, sess, out, wake, cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))}
+}
+
+func TestSender_DrainsOnceAtStart(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		sess := fakes.NewMessagingSession()
+		out := &fakes.Outbound{}
+		out.Push(textRow("A"))
+		stop := start(t, newIdleSender(sess, out, make(chan struct{}, 1), time.Hour))
+		synctest.Wait()
+		sent, _, _ := out.Snapshot()
+		require.Len(t, sent, 1, "a row queued before the sender started waited for the idle poll")
+		stop()
+	})
+}
+
+func TestSender_IdlePollIsTheFallbackWithoutAWake(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		sess := fakes.NewMessagingSession()
+		out := &fakes.Outbound{}
+		stop := start(t, newIdleSender(sess, out, make(chan struct{}, 1), time.Hour))
+		synctest.Wait()
+		out.Push(textRow("A"))
+		time.Sleep(59 * time.Minute)
+		synctest.Wait()
+		sent, _, _ := out.Snapshot()
+		require.Empty(t, sent, "the sender polled before the idle poll with no wake")
+		time.Sleep(2 * time.Minute)
+		synctest.Wait()
+		sent, _, _ = out.Snapshot()
+		require.Len(t, sent, 1, "the idle poll did not pick up the row")
+		stop()
+	})
+}
+
+func TestSender_ClaimErrorRetriesBeforeTheIdlePoll(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		sess := fakes.NewMessagingSession()
+		out := &fakes.Outbound{}
+		out.SetClaimErr(errors.New("db down"))
+		stop := start(t, newIdleSender(sess, out, make(chan struct{}, 1), time.Hour))
+		time.Sleep(5 * time.Second)
+		synctest.Wait()
+		out.SetClaimErr(nil)
+		out.Push(textRow("A"))
+		time.Sleep(3 * time.Second)
+		synctest.Wait()
+		sent, _, _ := out.Snapshot()
+		require.Len(t, sent, 1, "a failed claim waited for the idle poll")
+		stop()
+	})
+}
+
+func TestSender_StaleSendIsReclaimedBeforeTheIdlePoll(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		sess := fakes.NewMessagingSession()
+		sess.SendFn = func(ctx context.Context, _ whatsapp.OutboundMessage) (whatsapp.SendResult, error) {
+			<-ctx.Done()
+			return whatsapp.SendResult{}, &whatsapp.EngineError{Op: "send", Reason: "ack_timeout", Retryable: true, Err: ctx.Err()}
+		}
+		out := &fakes.Outbound{}
+		out.Push(textRow("A"))
+		stop := start(t, newIdleSender(sess, out, make(chan struct{}, 1), time.Hour))
+		time.Sleep(whatsapp.AckTimeout + 5*time.Second)
+		synctest.Wait()
+		_, _, before := out.Snapshot()
+		time.Sleep(whatsapp.StaleAfter(3 * time.Second))
+		synctest.Wait()
+		_, _, after := out.Snapshot()
+		require.Greater(t, after, before, "the row left for stale reclaim waited for the idle poll")
+		stop()
+	})
+}
+
+func TestSender_KeepsEveryRetryTimeNotOnlyTheEarliest(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		sess := fakes.NewMessagingSession()
+		sess.SendFn = func(ctx context.Context, _ whatsapp.OutboundMessage) (whatsapp.SendResult, error) {
+			<-ctx.Done()
+			return whatsapp.SendResult{}, &whatsapp.EngineError{Op: "send", Reason: "ack_timeout", Retryable: true, Err: ctx.Err()}
+		}
+		out := &fakes.Outbound{}
+		out.Push(textRow("A"))
+		stop := start(t, newIdleSender(sess, out, make(chan struct{}, 1), time.Hour))
+		time.Sleep(whatsapp.AckTimeout - 5*time.Second)
+		out.SetClaimErr(errors.New("db down"))
+		time.Sleep(10 * time.Second)
+		out.SetClaimErr(nil)
+		time.Sleep(10 * time.Second)
+		synctest.Wait()
+		_, _, before := out.Snapshot()
+		time.Sleep(whatsapp.StaleAfter(3 * time.Second))
+		synctest.Wait()
+		_, _, after := out.Snapshot()
+		require.Greater(t, after, before, "the stale-reclaim retry was dropped when the earlier claim-error retry fired")
+		stop()
 	})
 }

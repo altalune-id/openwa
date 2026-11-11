@@ -11,5 +11,8 @@ func NewTestSender(ref SessionRef, sess EngineSession, out Outbound, wake <-chan
 	return s.run
 }
 
+// StartupClaimEvery exposes the startup claim cadence to the external tests.
+const StartupClaimEvery = startupClaimEvery
+
 // MarkTimeout exposes the budget of one outcome write to the external tests.
 const MarkTimeout = markTimeout

@@ -158,6 +158,23 @@ func (s *pgLeaseStore) ReleaseAll(ctx context.Context, owner string) error {
 	return nil
 }
 
+func (s *pgLeaseStore) HeldElsewhere(ctx context.Context, owner string) (time.Time, bool, error) {
+	stmt := postgres.SELECT(postgres.MAX(s.t.ExpiresAt).AS("latest")).FROM(s.t).
+		WHERE(s.t.Owner.IS_NOT_NULL().
+			AND(s.t.Owner.NOT_EQ(postgres.String(owner))).
+			AND(s.t.ExpiresAt.GT(postgres.NOW())))
+	var row struct {
+		Latest *time.Time `alias:"latest"`
+	}
+	if err := stmt.QueryContext(ctx, s.db, &row); err != nil {
+		return time.Time{}, false, fmt.Errorf("whatsapp.leases.HeldElsewhere: %w", err)
+	}
+	if row.Latest == nil {
+		return time.Time{}, false, nil
+	}
+	return *row.Latest, true, nil
+}
+
 func nullableString(s string) any {
 	if s == "" {
 		return nil

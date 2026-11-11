@@ -103,6 +103,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("whatsapp.sendSpacingMax", "3s")
 	v.SetDefault("whatsapp.mediaMaxBytes", 33554432)
 	v.SetDefault("whatsapp.typingBeforeText", true)
+	v.SetDefault("whatsapp.senderIdlePoll", "2s")
+	v.SetDefault("outbox.idlePoll", "5s")
 	v.SetDefault("retention.messageDays", 30)
 	v.SetDefault("media.store", "wa")
 	v.SetDefault("http.addr", ":5150")

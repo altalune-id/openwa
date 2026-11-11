@@ -2,6 +2,7 @@ package tenant_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -76,4 +77,38 @@ func TestNewUnitOfWork_Postgres_RejectsNestedUnitOfWork(t *testing.T) {
 		})
 	})
 	require.ErrorIs(t, err, pdb.ErrNestedUnitOfWork)
+}
+
+func TestTenantRunInTx_RunsAfterCommitHooksOnlyOnCommit(t *testing.T) {
+	h := pgtest.New(t)
+	sqlDB := h.OpenDB(t)
+	pc := tenant.NewPgConn(sqlDB)
+	tc := tenant.Context{OrgID: uuid.New(), UserID: uuid.New()}
+
+	cases := []struct {
+		name    string
+		fn      func(ctx context.Context) error
+		wantErr bool
+		wantRun int
+	}{
+		{name: "commit", fn: func(context.Context) error { return nil }, wantRun: 1},
+		{name: "rollback", fn: func(context.Context) error { return errors.New("rolled back") }, wantErr: true},
+		{name: "failed commit", fn: func(ctx context.Context) error {
+			tx, _ := pdb.CurrentTx(ctx)
+			_, _ = tx.ExecContext(ctx, "SELECT 1/0")
+			return nil
+		}, wantErr: true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ran := 0
+			err := tenant.RunInTx(t.Context(), pc, tc, func(ctx context.Context) error {
+				pdb.AfterCommit(ctx, func() { ran++ })
+				require.Zero(t, ran, "a hook ran before the commit")
+				return c.fn(ctx)
+			})
+			require.Equal(t, c.wantErr, err != nil, "err = %v", err)
+			require.Equal(t, c.wantRun, ran)
+		})
+	}
 }
