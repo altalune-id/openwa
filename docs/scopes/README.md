@@ -35,6 +35,8 @@ history besides retiring `apikeys:write` (retired, not removed).
 - **Who manages keys.** Org and project keys: an owner or admin person (`org.Service.RequireManager`),
   on every surface. A personal token: its owner, a member of its org. A key never manages keys.
 - **Every new key expires** within `apikey.MaxLifetime` (a year).
+- **Device binding.** A project key bound to devices holds only `authn.DeviceBindable` scopes:
+  `devices:*`, `messages:*`, `chats:*` and `contacts:read`. Any other scope is refused (`APK014`).
 - **No implication.** `posts:admin` does not grant `posts:write`. The check is
   `slices.Contains`. A key needing read + delete holds both strings.
 - **`posts:*` spans `blog` and `todo`.** A fork splitting them adds its own strings.

@@ -403,6 +403,7 @@ type env struct {
 	posts        *fakePosts
 	devices      *fakeDevices
 	authz        *fakeAuthz
+	keyAuthz     dataplane.Authorizer
 	caps         dataplane.Capabilities
 	messages     *fakeMessages
 	chats        *fakeChats
@@ -461,6 +462,10 @@ func (e *env) logger() *slog.Logger {
 }
 
 func (e *env) handler() http.Handler {
+	var authz dataplane.Authorizer = e.authz
+	if e.keyAuthz != nil {
+		authz = e.keyAuthz
+	}
 	return dataplane.NewHandler(dataplane.HandlerParams{
 		BasePath: "/api/v1",
 		Orgs:     fakeOrgs{"acme": {ID: e.orgID}},
@@ -470,7 +475,7 @@ func (e *env) handler() http.Handler {
 		},
 		Posts:   e.posts,
 		Devices: e.scoped,
-		Authz:   e.authz,
+		Authz:   authz,
 		Caps:    e.caps,
 		Log:     e.logger(),
 

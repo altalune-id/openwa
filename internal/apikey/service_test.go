@@ -446,7 +446,7 @@ func TestResourceIDsResolveDevicePublicIDsAndRenderThemBack(t *testing.T) {
 	assert.Equal(t, []string{categoryID.String()}, labels, "a key with non-device scopes never labels a non-device id dev_deleted")
 }
 
-func TestResourceIDsRefuseADeviceBindingOnNonDeviceScopes(t *testing.T) {
+func TestResourceIDsRefuseADeviceBindingOnProjectWideScopes(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	svc := apikey.NewService(fakes.NewAPIKey(), apikey.Scheme{}, fakes.PermissiveMembers(), fakes.NewOrgProjects(), log, apperror.NewReporter(log, false).Unexpected)
 	devices := fakes.NewDeviceResolver()
@@ -458,12 +458,49 @@ func TestResourceIDsRefuseADeviceBindingOnNonDeviceScopes(t *testing.T) {
 		{authn.ScopeDevicesRead, authn.ScopePostsRead},
 		{authn.ScopePostsRead},
 		{authn.ScopeDevicesWrite, authn.ScopeAPIKeysWrite},
+		{authn.ScopeMessagesWrite, authn.ScopeProjectsRead},
+		{authn.ScopeProjectsRead},
+		{authn.ScopeAPIKeysRead},
+		{authn.ScopeMembersRead},
 	} {
 		_, err := svc.ResourceIDs(ctx, scopes, []string{"dev_V1StGXR8Z5jdHi6B"})
 		require.True(t, apikey.IsDeviceBindingScopeError(err), "%v, got %v", scopes, err)
 	}
 	_, err := svc.ResourceIDs(ctx, []string{authn.ScopePostsRead}, []string{uuid.NewString()})
 	require.NoError(t, err, "a plain resource id on a non-device scope is unaffected")
+}
+
+func TestResourceIDsAllowABotKeyBoundToItsDevice(t *testing.T) {
+	log := slog.New(slog.DiscardHandler)
+	store := fakes.NewAPIKey()
+	svc := apikey.NewService(store, apikey.Scheme{}, fakes.PermissiveMembers(), fakes.NewOrgProjects(), log, apperror.NewReporter(log, false).Unexpected)
+	devices := fakes.NewDeviceResolver()
+	deviceID := uuid.New()
+	devices.Add("dev_V1StGXR8Z5jdHi6B", deviceID)
+	svc.Devices = devices
+	ctx := tenant.Into(t.Context(), tenant.Context{OrgID: uuid.New(), ProjectID: uuid.New(), UserID: uuid.New()})
+
+	for _, scopes := range [][]string{
+		{authn.ScopeMessagesWrite},
+		{authn.ScopeMessagesRead, authn.ScopeMessagesWrite},
+		{authn.ScopeDevicesRead, authn.ScopeDevicesWrite, authn.ScopeMessagesRead, authn.ScopeMessagesWrite, authn.ScopeChatsRead, authn.ScopeChatsWrite, authn.ScopeContactsRead},
+	} {
+		ids, err := svc.ResourceIDs(ctx, scopes, []string{"dev_V1StGXR8Z5jdHi6B"})
+		require.NoError(t, err, "%v", scopes)
+		require.Equal(t, []uuid.UUID{deviceID}, ids)
+
+		expires := time.Now().Add(24 * time.Hour)
+		k, _, err := svc.Mint(ctx, "bot", scopes, ids, &expires)
+		require.NoError(t, err, "%v", scopes)
+		labels, err := svc.ResourceLabels(ctx, k)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"dev_V1StGXR8Z5jdHi6B"}, labels)
+	}
+
+	gone := &apikey.APIKey{Scopes: []string{authn.ScopeMessagesWrite}, ResourceIDs: []uuid.UUID{uuid.New()}}
+	labels, err := svc.ResourceLabels(ctx, gone)
+	require.NoError(t, err)
+	assert.Equal(t, []string{apikey.DeletedDeviceLabel}, labels, "a bound bot key never shows a deleted device's UUID")
 }
 
 type countingMembers struct {

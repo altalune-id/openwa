@@ -51,12 +51,12 @@ the scopes the integration needs, and an expiry. The key is shown once.
 | `chats:write`    | mark a chat read, join and leave groups                     |
 | `contacts:read`  | list contacts                                               |
 
-A **project key** can also be **bound to devices** (org keys and PATs cannot). A bound key
-reaches only those devices, their messages and their chats; any other id answers
-`404 not_found` as if it did not exist. Use one bound key per customer or per bot when several
-share a project. A bound key works on this REST API only: the control plane and MCP enter
-through the project as a whole, which a bound key cannot reach, so they refuse it with
-`permission denied`.
+A **project key** can also be **bound to devices** (org keys and PATs cannot): pick them in the
+key form. A bound key holds only the scopes in the table above, and reaches only those devices,
+their messages, chats and contacts; any other id answers `404 not_found` as if it did not
+exist. Use one bound key per customer or per bot when several share a project. A bound key
+works on this REST API only: the control plane and MCP enter through the project as a whole,
+which a bound key cannot reach, so they refuse it with `permission denied`.
 
 Errors are JSON `{"code": "...", "message": "..."}` with these codes:
 

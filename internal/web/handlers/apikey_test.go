@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/device"
 	"altalune.id/openwa/internal/org"
 	"altalune.id/openwa/internal/platform/authn"
 	"altalune.id/openwa/internal/platform/session"
@@ -39,14 +40,16 @@ func (c projectCatalog) ProjectIDs(ctx context.Context, orgID uuid.UUID) ([]uuid
 
 type apikeyWebFixture struct {
 	*handlerFixture
-	Keys   *apikey.Service
-	Store  *fakes.APIKey
-	Mux    *http.ServeMux
-	owner  uuid.UUID
-	member uuid.UUID
-	org    uuid.UUID
-	alpha  *project.Project
-	beta   *project.Project
+	Keys     *apikey.Service
+	Store    *fakes.APIKey
+	Devices  *device.Service
+	Sessions *fakes.DeviceSessions
+	Mux      *http.ServeMux
+	owner    uuid.UUID
+	member   uuid.UUID
+	org      uuid.UUID
+	alpha    *project.Project
+	beta     *project.Project
 }
 
 func newAPIKeyWebFixture(t *testing.T) *apikeyWebFixture {
@@ -64,9 +67,22 @@ func newAPIKeyWebFixture(t *testing.T) *apikeyWebFixture {
 
 	store := fakes.NewAPIKey()
 	keys := apikey.NewService(store, apikey.Scheme{}, f.Orgs, projectCatalog{svc: f.Projects}, discardLogger(), passthroughUnexpected())
+	sessions := fakes.NewDeviceSessions()
+	devices := device.NewService(fakes.NewDevice(), discardLogger(), passthroughUnexpected(), fakes.UnitOfWork, sessions)
 	mux := http.NewServeMux()
-	handlers.NewAPIKeyHandler(f.Deps, f.Projects, keys).Register(mux)
-	return &apikeyWebFixture{handlerFixture: f, Keys: keys, Store: store, Mux: mux, owner: owner, member: member, org: o.ID, alpha: alpha, beta: beta}
+	handlers.NewAPIKeyHandler(f.Deps, f.Projects, keys, devices).Register(mux)
+	return &apikeyWebFixture{
+		handlerFixture: f, Keys: keys, Store: store, Devices: devices, Sessions: sessions, Mux: mux,
+		owner: owner, member: member, org: o.ID, alpha: alpha, beta: beta,
+	}
+}
+
+func (x *apikeyWebFixture) seedDevice(t *testing.T, projectID uuid.UUID, name string, status device.SessionStatus) *device.Device {
+	t.Helper()
+	d, err := x.Devices.Create(setTenantProject(context.Background(), x.org, projectID, x.owner), name)
+	require.NoError(t, err)
+	x.Sessions.Statuses[d.ID] = status
+	return d
 }
 
 func (x *apikeyWebFixture) as(t *testing.T, userID uuid.UUID, method, target string, form url.Values) *httptest.ResponseRecorder {
@@ -169,16 +185,16 @@ func TestProjectAPIKeys_MintBindsDevicesByPublicID(t *testing.T) {
 	x.Keys.Devices = devices
 
 	page := x.as(t, x.owner, http.MethodGet, "/orgs/acme/projects/alpha/apikeys", nil)
-	assert.Contains(t, page.Body.String(), `name="devices"`, "the project form offers the devices field")
+	assert.Contains(t, page.Body.String(), `id="apikey-devices"`, "the project form offers the device picker")
 	orgPage := x.as(t, x.owner, http.MethodGet, "/orgs/acme/apikeys", nil)
-	assert.NotContains(t, orgPage.Body.String(), `name="devices"`, "an org key cannot be device-bound")
+	assert.NotContains(t, orgPage.Body.String(), `id="apikey-devices"`, "an org key cannot be device-bound")
 
 	rec := x.as(t, x.owner, http.MethodPost, "/orgs/acme/projects/alpha/apikeys", url.Values{
-		"name": {"bot"}, "scopes": {authn.ScopeDevicesRead}, "devices": {"dev_V1StGXR8Z5jdHi6B\n"}, "expires_in": {"30"},
+		"name": {"bot"}, "scopes": {authn.ScopeMessagesWrite, authn.ScopeMessagesRead}, "devices": {"dev_V1StGXR8Z5jdHi6B"}, "expires_in": {"30"},
 	})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	all := x.Store.All()
-	require.Len(t, all, 1)
+	require.Len(t, all, 1, rec.Body.String())
 	assert.Equal(t, []uuid.UUID{deviceID}, all[0].ResourceIDs)
 	assert.NotContains(t, rec.Body.String(), deviceID.String())
 
@@ -191,8 +207,53 @@ func TestProjectAPIKeys_MintBindsDevicesByPublicID(t *testing.T) {
 	mixed := x.as(t, x.owner, http.MethodPost, "/orgs/acme/projects/alpha/apikeys", url.Values{
 		"name": {"bot3"}, "scopes": {authn.ScopeDevicesRead, authn.ScopeProjectsRead}, "devices": {"dev_V1StGXR8Z5jdHi6B"}, "expires_in": {"30"},
 	})
-	assert.Contains(t, mixed.Body.String(), "apikey.error_scope")
-	assert.Len(t, x.Store.All(), 1, "a device binding on a non-device scope mints nothing")
+	assert.Contains(t, mixed.Body.String(), "apikey.error_device_binding_scope")
+	assert.NotContains(t, mixed.Body.String(), "apikey.error_scope", "APK014 has its own message, not the unknown-scope one")
+	assert.Len(t, x.Store.All(), 1, "a device binding on a project-wide scope mints nothing")
+}
+
+func TestProjectAPIKeys_PickerListsTheProjectDevices(t *testing.T) {
+	x := newAPIKeyWebFixture(t)
+	paired := x.seedDevice(t, x.alpha.ID, "Sales", device.SessionStatus{State: device.SessionConnected, Phone: "628111222333"})
+	unpaired := x.seedDevice(t, x.alpha.ID, "Support", device.SessionStatus{})
+	other := x.seedDevice(t, x.beta.ID, "Elsewhere", device.SessionStatus{})
+
+	body := x.as(t, x.owner, http.MethodGet, "/orgs/acme/projects/alpha/apikeys", nil).Body.String()
+	assert.NotContains(t, body, "<textarea", "the free-text device field is gone")
+	for _, want := range []string{
+		`name="devices" value="` + paired.PublicID + `"`, "Sales", "628111222333", "devices.state.connected",
+		`name="devices" value="` + unpaired.PublicID + `"`, "Support", "devices.state.unlinked",
+	} {
+		assert.Contains(t, body, want)
+	}
+	assert.NotContains(t, body, other.PublicID, "another project's device is never offered")
+	assert.Contains(t, body, `hx-get="/orgs/acme/projects/alpha/apikeys/scopes"`, "picking a device reloads the scope field")
+}
+
+func TestProjectAPIKeys_ScopeFieldFollowsTheDeviceChoice(t *testing.T) {
+	x := newAPIKeyWebFixture(t)
+	const base = "/orgs/acme/projects/alpha/apikeys/scopes?"
+
+	free := x.as(t, x.owner, http.MethodGet, base+url.Values{"scopes": {authn.ScopeProjectsRead}}.Encode(), nil)
+	require.Equal(t, http.StatusOK, free.Code)
+	assert.Contains(t, free.Body.String(), `value="`+authn.ScopeProjectsRead+`" checked`, "with no device every project scope stays, ticks kept")
+	assert.Contains(t, free.Body.String(), `value="`+authn.ScopeAPIKeysRead+`"`)
+	assert.NotContains(t, free.Body.String(), "apikey.scopes_bound")
+
+	bound := x.as(t, x.owner, http.MethodGet, base+url.Values{
+		"devices": {"dev_V1StGXR8Z5jdHi6B"}, "scopes": {authn.ScopeProjectsRead, authn.ScopeMessagesWrite},
+	}.Encode(), nil)
+	require.Equal(t, http.StatusOK, bound.Code)
+	body := bound.Body.String()
+	assert.NotContains(t, body, `value="`+authn.ScopeProjectsRead+`"`, "a project-wide scope is removed once a device is picked")
+	assert.NotContains(t, body, `value="`+authn.ScopeAPIKeysRead+`"`)
+	assert.Contains(t, body, `value="`+authn.ScopeMessagesWrite+`" checked`, "a bindable ticked scope stays ticked")
+	assert.Contains(t, body, `value="`+authn.ScopeContactsRead+`"`)
+	assert.Contains(t, body, "apikey.scopes_bound_unticked", "dropping a ticked scope says why")
+
+	clean := x.as(t, x.owner, http.MethodGet, base+url.Values{"devices": {"dev_V1StGXR8Z5jdHi6B"}}.Encode(), nil)
+	assert.Contains(t, clean.Body.String(), "apikey.scopes_bound_note")
+	assert.NotContains(t, clean.Body.String(), "apikey.scopes_bound_unticked")
 }
 
 func TestAPIKeys_ExpiryIsRequiredAndCapped(t *testing.T) {

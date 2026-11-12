@@ -77,6 +77,7 @@ func probeRoutes() []probeRoute {
 		{http.MethodGet, pbase + "/contacts", nil},
 		{http.MethodGet, pbase + "/settings", nil},
 		{http.MethodGet, pbase + "/apikeys", nil},
+		{http.MethodGet, pbase + "/apikeys/scopes", nil},
 		{http.MethodGet, pbase + "/webhooks", nil},
 		{http.MethodGet, pbase + "/webhooks/new", nil},
 		{http.MethodGet, pbase + "/webhooks/" + id, nil},

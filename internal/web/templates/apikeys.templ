@@ -17,11 +17,30 @@ const (
 	APIKeyErrorEmptyGrant    = "empty_grant"
 	APIKeyErrorGrant         = "grant"
 	APIKeyErrorInvalidResource = "invalid_resource"
+	APIKeyErrorDeviceBindingScope = "device_binding_scope"
 )
 
 type APIKeyScopeOption struct {
 	Value    string
 	LabelKey string
+	Checked  bool
+}
+
+// APIKeyScopeFieldView renders the scope picker; ScopesURL is set only on a project form, whose device picker reloads it.
+type APIKeyScopeFieldView struct {
+	ScopesURL string
+	Scopes    []APIKeyScopeOption
+	Bound     bool
+	Dropped   bool
+}
+
+// APIKeyDeviceOption is one project device a project key can be bound to.
+type APIKeyDeviceOption struct {
+	PublicID string
+	Name     string
+	Phone    string
+	StateKey string
+	Tone     Tone
 }
 
 // APIKeyProjectOption is one project an org key or personal token can be granted.
@@ -79,6 +98,7 @@ type APIKeysView struct {
 	Scopes    []APIKeyScopeOption
 	Projects  []APIKeyProjectOption
 	Orgs      []APIKeyOrgOption
+	Devices   []APIKeyDeviceOption
 	Expiries  []APIKeyExpiryOption
 	Minted    *APIKeyMinted
 	Revoked   bool
@@ -99,6 +119,8 @@ templ apikeyBanner(d web.LayoutData, kind, code string) {
 		@ErrorBanner(d, d.Tr("apikey.error_empty_grant"), code)
 	} else if kind == APIKeyErrorGrant {
 		@ErrorBanner(d, d.Tr("apikey.error_grant"), code)
+	} else if kind == APIKeyErrorDeviceBindingScope {
+		@ErrorBanner(d, d.Tr("apikey.error_device_binding_scope"), code)
 	} else if kind == APIKeyErrorInvalidResource {
 		@ErrorBanner(d, d.Tr("apikey.error_invalid_resource"), code)
 	} else if kind == APIKeyErrorFailed {
@@ -314,8 +336,67 @@ templ apikeyOrgField(d web.LayoutData, v APIKeysView) {
 	</div>
 }
 
+func apikeyScopesURL(v APIKeysView) string {
+	if v.OrgLevel || v.Personal {
+		return ""
+	}
+	return v.Base + "/scopes"
+}
+
+// APIKeyScopeField is the scope picker a project form swaps in when its device choice changes.
+templ APIKeyScopeField(d web.LayoutData, v APIKeyScopeFieldView) {
+	<fieldset
+		id="apikey-scopes"
+		if v.ScopesURL != "" {
+			hx-get={ v.ScopesURL }
+			hx-nonce={ d.Nonce }
+			hx-trigger="change from:#apikey-devices, reset from:#apikey-mint-form delay:50ms"
+			hx-include="closest form"
+			hx-target="this"
+			hx-swap="outerHTML"
+		}
+	>
+		<legend class="block text-sm font-medium text-foreground/90">{ d.Tr("apikey.scopes_label") }</legend>
+		<div class="mt-1.5 flex flex-wrap gap-2">
+			for _, opt := range v.Scopes {
+				@Chip(ChipProps{Name: "scopes", Value: opt.Value, Label: d.Tr(opt.LabelKey), Checked: opt.Checked})
+			}
+		</div>
+		if v.Dropped {
+			<p role="status" class="mt-1 text-xs text-warning">{ d.Tr("apikey.scopes_bound_unticked") }</p>
+		} else if v.Bound {
+			<p class="mt-1 text-xs text-muted-foreground">{ d.Tr("apikey.scopes_bound_note") }</p>
+		}
+	</fieldset>
+}
+
+templ apikeyDevicesField(d web.LayoutData, devices []APIKeyDeviceOption) {
+	<fieldset id="apikey-devices" aria-describedby="apikey-devices-help">
+		<legend class="block text-sm font-medium text-foreground/90">{ d.Tr("apikey.devices_label") }</legend>
+		if len(devices) == 0 {
+			<p class="mt-1.5 text-sm text-muted-foreground">{ d.Tr("apikey.devices_empty") }</p>
+		} else {
+			<div class="mt-1.5 flex flex-col gap-2">
+				for _, dev := range devices {
+					<label class="inline-flex max-w-xl cursor-pointer flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground hover:bg-muted">
+						<input type="checkbox" name="devices" value={ dev.PublicID } class="h-3.5 w-3.5 rounded border-border"/>
+						<span class="font-medium">{ dev.Name }</span>
+						if dev.Phone != "" {
+							<span class="text-muted-foreground">{ dev.Phone }</span>
+						}
+						<span class="font-mono text-xs text-muted-foreground">{ dev.PublicID }</span>
+						@Badge(dev.Tone, d.Tr(dev.StateKey))
+					</label>
+				}
+			</div>
+		}
+		<p id="apikey-devices-help" class="mt-1 text-xs text-muted-foreground">{ d.Tr("apikey.devices_help") }</p>
+	</fieldset>
+}
+
 templ apikeyMintForm(d web.LayoutData, v APIKeysView) {
 	<form
+		id="apikey-mint-form"
 		method="post"
 		action={ templ.SafeURL(v.Base) }
 		hx-post={ v.Base }
@@ -350,14 +431,7 @@ templ apikeyMintForm(d web.LayoutData, v APIKeysView) {
 				class={ InputClass() + " max-w-sm" }
 			/>
 		</div>
-		<div>
-			<p class="block text-sm font-medium text-foreground/90">{ d.Tr("apikey.scopes_label") }</p>
-			<div class="mt-1.5 flex flex-wrap gap-2">
-				for _, opt := range v.Scopes {
-					@Chip(ChipProps{Name: "scopes", Value: opt.Value, Label: d.Tr(opt.LabelKey)})
-				}
-			</div>
-		</div>
+		@APIKeyScopeField(d, APIKeyScopeFieldView{ScopesURL: apikeyScopesURL(v), Scopes: v.Scopes})
 		if v.Personal {
 			@apikeyOrgField(d, v)
 		}
@@ -365,10 +439,7 @@ templ apikeyMintForm(d web.LayoutData, v APIKeysView) {
 			@apikeyGrantFields(d, v)
 		}
 		if !v.OrgLevel && !v.Personal {
-			{{ devicesField := FieldProps{ID: "apikey-devices", Label: d.Tr("apikey.devices_label"), Help: d.Tr("apikey.devices_help")} }}
-			@Field(d, devicesField) {
-				<textarea name="devices" rows="2" class={ InputClass() + " max-w-sm font-mono" } { InputAttrs(devicesField)... }></textarea>
-			}
+			@apikeyDevicesField(d, v.Devices)
 		}
 		<div>
 			<label class="block text-sm font-medium text-foreground/90" for="apikey-expires">{ d.Tr("apikey.expires_label") }</label>
