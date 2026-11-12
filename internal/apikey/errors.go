@@ -241,16 +241,16 @@ func IsInvalidResourceError(err error) bool {
 	return ok
 }
 
-// DeviceBindingScopeError reports a key that binds devices but also carries a scope that is not a device scope.
+// DeviceBindingScopeError reports a key that binds devices but also carries a scope a device-bound key may not hold.
 type DeviceBindingScopeError struct{}
 
 func (*DeviceBindingScopeError) Error() string {
-	return "apikey: a device-bound key may carry only device scopes"
+	return "apikey: a device-bound key may hold only device, message, chat and contact scopes"
 }
 
 // ToAppError maps the error to an InvalidArgument envelope.
 func (*DeviceBindingScopeError) ToAppError() *apperror.AppError {
-	return apperror.New(apperror.CodeAPIKeyDeviceBindingScope, "A key bound to devices may carry only device scopes", codes.InvalidArgument,
+	return apperror.New(apperror.CodeAPIKeyDeviceBindingScope, "A key bound to devices can only hold device, message, chat and contact scopes", codes.InvalidArgument,
 		&apperrorv1.ErrorDetail{Code: apperror.CodeAPIKeyDeviceBindingScope, Meta: map[string]string{"field": "scopes"}})
 }
 

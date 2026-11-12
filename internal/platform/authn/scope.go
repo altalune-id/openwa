@@ -35,6 +35,8 @@ type scopeSpec struct {
 	level   ScopeLevel
 	retired bool
 	demo    bool
+	// SECURITY: true only when every route the scope opens confines a device-bound key to its devices' rows.
+	deviceBindable bool
 }
 
 // NOTE: apikeys:write is retired because only a person may manage keys; keys holding it keep validating.
@@ -47,13 +49,13 @@ var catalog = []scopeSpec{ //nolint:gochecknoglobals // immutable catalog, read 
 	{name: ScopeAPIKeysWrite, level: LevelProject, retired: true},
 	{name: ScopeMembersRead, level: LevelOrg},
 	{name: ScopeProjectsRead, level: LevelProject},
-	{name: ScopeDevicesRead, level: LevelProject},
-	{name: ScopeDevicesWrite, level: LevelProject},
-	{name: ScopeMessagesRead, level: LevelProject},
-	{name: ScopeMessagesWrite, level: LevelProject},
-	{name: ScopeChatsRead, level: LevelProject},
-	{name: ScopeChatsWrite, level: LevelProject},
-	{name: ScopeContactsRead, level: LevelProject},
+	{name: ScopeDevicesRead, level: LevelProject, deviceBindable: true},
+	{name: ScopeDevicesWrite, level: LevelProject, deviceBindable: true},
+	{name: ScopeMessagesRead, level: LevelProject, deviceBindable: true},
+	{name: ScopeMessagesWrite, level: LevelProject, deviceBindable: true},
+	{name: ScopeChatsRead, level: LevelProject, deviceBindable: true},
+	{name: ScopeChatsWrite, level: LevelProject, deviceBindable: true},
+	{name: ScopeContactsRead, level: LevelProject, deviceBindable: true},
 }
 
 // AllScopes returns every scope in the catalog, retired ones included.
@@ -98,6 +100,11 @@ func productScopes() []string {
 // Valid reports whether scope is in the catalog.
 func Valid(scope string) bool {
 	return slices.ContainsFunc(catalog, func(s scopeSpec) bool { return s.name == scope })
+}
+
+// DeviceBindable reports whether a key bound to devices may hold scope.
+func DeviceBindable(scope string) bool {
+	return slices.ContainsFunc(catalog, func(s scopeSpec) bool { return s.name == scope && s.deviceBindable })
 }
 
 // Mintable reports whether a new key may be granted scope.

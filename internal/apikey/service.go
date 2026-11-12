@@ -496,7 +496,7 @@ func principalFor(k *APIKey) session.Principal {
 	}
 }
 
-// ResourceIDs turns mint-time resource references into stored ids: a dev_ public id becomes its device's UUID, any other entry must be a UUID. SECURITY: the manager gate runs before any device lookup, and a device binding is refused unless every scope is a device scope.
+// ResourceIDs turns mint-time resource references into stored ids: a dev_ public id becomes its device's UUID, any other entry must be a UUID. SECURITY: the manager gate runs before any device lookup, and a device binding is refused unless every scope is authn.DeviceBindable.
 func (s *Service) ResourceIDs(ctx context.Context, scopes, raw []string) ([]uuid.UUID, error) {
 	ctx, span := tracer.Start(ctx, "apikey.ResourceIDs")
 	defer span.End()
@@ -519,7 +519,7 @@ func (s *Service) ResourceIDs(ctx context.Context, scopes, raw []string) ([]uuid
 			devicesWanted = append(devicesWanted, r)
 		}
 	}
-	if len(devicesWanted) > 0 && hasNonDeviceScope(scopes) {
+	if len(devicesWanted) > 0 && hasUnbindableScope(scopes) {
 		return nil, &DeviceBindingScopeError{}
 	}
 	resolved := map[string]uuid.UUID{}
@@ -553,7 +553,7 @@ func (s *Service) ResourceIDs(ctx context.Context, scopes, raw []string) ([]uuid
 	return out, nil
 }
 
-// ResourceLabels renders a key's stored resource ids for output: a device's UUID becomes its public id; on a key whose scopes are all device scopes an id that is no longer a device renders DeletedDeviceLabel, never the UUID.
+// ResourceLabels renders a key's stored resource ids for output: a device's UUID becomes its public id; on a key whose scopes are all device-bindable an id that is no longer a device renders DeletedDeviceLabel, never the UUID.
 func (s *Service) ResourceLabels(ctx context.Context, k *APIKey) ([]string, error) {
 	ctx, span := tracer.Start(ctx, "apikey.ResourceLabels")
 	defer span.End()
@@ -567,7 +567,7 @@ func (s *Service) ResourceLabels(ctx context.Context, k *APIKey) ([]string, erro
 			return nil, s.unexpected(ctx, "apikey.ResourceLabels: resolve devices", err)
 		}
 	}
-	deviceOnly := len(k.Scopes) > 0 && !hasNonDeviceScope(k.Scopes)
+	deviceOnly := len(k.Scopes) > 0 && !hasUnbindableScope(k.Scopes)
 	for _, id := range k.ResourceIDs {
 		label, ok := names[id]
 		switch {
@@ -582,8 +582,6 @@ func (s *Service) ResourceLabels(ctx context.Context, k *APIKey) ([]string, erro
 	return out, nil
 }
 
-func hasNonDeviceScope(scopes []string) bool {
-	return slices.ContainsFunc(scopes, func(sc string) bool {
-		return sc != authn.ScopeDevicesRead && sc != authn.ScopeDevicesWrite
-	})
+func hasUnbindableScope(scopes []string) bool {
+	return slices.ContainsFunc(scopes, func(sc string) bool { return !authn.DeviceBindable(sc) })
 }

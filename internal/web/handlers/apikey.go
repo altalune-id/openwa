@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"altalune.id/openwa/internal/apikey"
+	"altalune.id/openwa/internal/device"
 	"altalune.id/openwa/internal/org"
 	"altalune.id/openwa/internal/platform/authn"
 	"altalune.id/openwa/internal/project"
@@ -21,13 +22,14 @@ import (
 // APIKeyHandler owns the project, org and personal API key console pages.
 type APIKeyHandler struct {
 	Deps
-	Keys *apikey.Service
+	Keys    *apikey.Service
+	Devices *device.Service
 }
 
 // NewAPIKeyHandler wires the handler.
-func NewAPIKeyHandler(d Deps, projects *project.Service, keys *apikey.Service) *APIKeyHandler {
+func NewAPIKeyHandler(d Deps, projects *project.Service, keys *apikey.Service, devices *device.Service) *APIKeyHandler {
 	d.Projects = projects
-	return &APIKeyHandler{Deps: d, Keys: keys}
+	return &APIKeyHandler{Deps: d, Keys: keys, Devices: devices}
 }
 
 type listWriter func(minted *templates.APIKeyMinted, revoked bool, errKind, code string)
@@ -64,6 +66,20 @@ func (h *APIKeyHandler) PostKeyCreate(w http.ResponseWriter, r *http.Request) {
 		}
 		return h.Keys.Mint(sc.req.Context(), in.name, in.scopes, resourceIDs, in.expiresAt)
 	})
+}
+
+// GetKeyScopes renders the project key form's scope field for the devices picked so far.
+func (h *APIKeyHandler) GetKeyScopes(w http.ResponseWriter, r *http.Request) {
+	sc, ok := h.RequireProject(w, r)
+	if !ok {
+		return
+	}
+	q := sc.req.URL.Query()
+	bound := len(q["devices"]) > 0
+	opts, dropped := boundScopeOptions(projectScopes(scopeOptions()), q["scopes"], bound)
+	Render(w, sc.req, templates.APIKeyScopeField(h.ProjectFragmentBase(sc), templates.APIKeyScopeFieldView{
+		ScopesURL: h.ProjectURL(sc, "/apikeys/scopes"), Scopes: opts, Bound: bound, Dropped: dropped,
+	}))
 }
 
 // PostKeyRevoke revokes a project key and returns the refreshed list fragment.
@@ -163,7 +179,7 @@ func (h *APIKeyHandler) mintInto(w http.ResponseWriter, r *http.Request, write l
 		name:      strings.TrimSpace(r.PostForm.Get("name")),
 		scopes:    selectedScopes(r.PostForm["scopes"]),
 		grant:     formGrant(r),
-		resources: strings.Fields(strings.ReplaceAll(r.PostForm.Get("devices"), ",", " ")),
+		resources: r.PostForm["devices"],
 		expiresAt: expiresAt,
 	}
 	k, plaintext, err := mint(in)
@@ -221,6 +237,11 @@ func (h *APIKeyHandler) projectView(sc ProjectScope, minted *templates.APIKeyMin
 	v := baseView(h.ProjectURL(sc, "/apikeys"), minted, revoked, errKind, code)
 	v.Scopes = projectScopes(v.Scopes)
 	v.CanManage = h.canManage(sc.req, sc.org.ID, sc.principal.UserID)
+	if v.CanManage {
+		if v.Devices, err = h.deviceOptions(sc); err != nil {
+			return templates.APIKeysView{}, err
+		}
+	}
 	for _, k := range items {
 		v.Items = append(v.Items, apiKeyRow(k, v.Base, nil))
 	}
@@ -276,6 +297,7 @@ func (h *APIKeyHandler) listFailed(w http.ResponseWriter, r *http.Request, err e
 func (h *APIKeyHandler) Register(mux web.Mux) {
 	mux.HandleFunc("GET /orgs/{org}/projects/{project}/apikeys", h.GetKeys)
 	mux.HandleFunc("POST /orgs/{org}/projects/{project}/apikeys", h.PostKeyCreate)
+	mux.HandleFunc("GET /orgs/{org}/projects/{project}/apikeys/scopes", h.GetKeyScopes)
 	mux.HandleFunc("POST /orgs/{org}/projects/{project}/apikeys/{id}/revoke", h.PostKeyRevoke)
 	mux.HandleFunc("GET /orgs/{org}/apikeys", h.GetOrgKeys)
 	mux.HandleFunc("POST /orgs/{org}/apikeys", h.PostOrgKeyCreate)
@@ -359,7 +381,7 @@ func apiKeyErrorKind(err error) string {
 	case apikey.IsExpiryRequiredError(err), apikey.IsExpiryInPastError(err), apikey.IsExpiryTooLongError(err):
 		return templates.APIKeyErrorInvalidExpiry
 	case apikey.IsDeviceBindingScopeError(err):
-		return templates.APIKeyErrorScope
+		return templates.APIKeyErrorDeviceBindingScope
 	case apikey.IsInvalidResourceError(err):
 		return templates.APIKeyErrorInvalidResource
 	case apikey.IsEmptyGrantError(err):
@@ -370,6 +392,37 @@ func apiKeyErrorKind(err error) string {
 	default:
 		return templates.APIKeyErrorFailed
 	}
+}
+
+func (h *APIKeyHandler) deviceOptions(sc ProjectScope) ([]templates.APIKeyDeviceOption, error) {
+	views, err := h.Devices.List(sc.req.Context())
+	if err != nil {
+		return nil, err
+	}
+	out := make([]templates.APIKeyDeviceOption, 0, len(views))
+	for _, dv := range views {
+		out = append(out, templates.APIKeyDeviceOption{
+			PublicID: dv.Device.PublicID,
+			Name:     dv.Device.Name,
+			Phone:    dv.Status.Phone,
+			StateKey: deviceStateKey(dv.Status.State),
+			Tone:     deviceTone(dv.Status.State),
+		})
+	}
+	return out, nil
+}
+
+func boundScopeOptions(all []templates.APIKeyScopeOption, ticked []string, bound bool) (opts []templates.APIKeyScopeOption, dropped bool) {
+	opts = make([]templates.APIKeyScopeOption, 0, len(all))
+	for _, opt := range all {
+		opt.Checked = slices.Contains(ticked, opt.Value)
+		if bound && !authn.DeviceBindable(opt.Value) {
+			dropped = dropped || opt.Checked
+			continue
+		}
+		opts = append(opts, opt)
+	}
+	return opts, dropped
 }
 
 func (h *APIKeyHandler) projectOptions(sc OrgScope) ([]templates.APIKeyProjectOption, error) {

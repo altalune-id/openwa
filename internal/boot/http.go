@@ -133,7 +133,7 @@ func buildWebHandler(
 	inboxHandler := webhandlers.NewInboxHandler(deps, projects, chats, messages, devices, cfg.WhatsApp.MediaMaxBytes)
 	contactsHandler := webhandlers.NewContactsHandler(deps, projects, contacts, devices)
 	settingsHandler := webhandlers.NewSettingsHandler(deps, projects, messages)
-	apiKeyHandler := webhandlers.NewAPIKeyHandler(deps, projects, apiKeys)
+	apiKeyHandler := webhandlers.NewAPIKeyHandler(deps, projects, apiKeys, devices)
 	webhookHandler := webhandlers.NewWebhookHandler(deps, projects, webhooks)
 	inviteHandler := webhandlers.NewInviteHandler(deps, orgs, invites)
 	localeHandler := webhandlers.NewLocaleHandler(deps, users)

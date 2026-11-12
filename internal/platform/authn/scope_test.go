@@ -142,3 +142,23 @@ func TestTokenScopesAreTheMintableNonDemoScopes(t *testing.T) {
 		t.Fatal("posts:read must stay mintable for API keys")
 	}
 }
+
+// SECURITY: a scope joins this set only after every route it opens confines a device-bound key to its devices.
+func TestDeviceBindableIsThePerDeviceDataScopes(t *testing.T) {
+	want := []string{
+		authn.ScopeDevicesRead, authn.ScopeDevicesWrite, authn.ScopeMessagesRead, authn.ScopeMessagesWrite,
+		authn.ScopeChatsRead, authn.ScopeChatsWrite, authn.ScopeContactsRead,
+	}
+	var got []string
+	for _, s := range authn.AllScopes() {
+		if authn.DeviceBindable(s) {
+			got = append(got, s)
+		}
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("DeviceBindable scopes = %v, want %v", got, want)
+	}
+	if authn.DeviceBindable("devices:destroy") {
+		t.Fatal("a scope outside the catalog must not be bindable")
+	}
+}
