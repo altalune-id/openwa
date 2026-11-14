@@ -46,6 +46,9 @@ func (s *session) dispatch(evt any) {
 	case *events.PairError:
 		s.log.WarnContext(ctx, "whatsapp: pairing failed locally", "device_id", s.deviceID, "err", v.Error)
 	case *events.Message:
+		if keyOnly(v.Message) {
+			return
+		}
 		s.sink.OnMessage(s.ref, s.inbound(ctx, v))
 	case *events.Receipt:
 		s.sink.OnReceipt(s.ref, receiptOf(v))
@@ -59,6 +62,15 @@ func (s *session) dispatch(evt any) {
 	case *events.HistorySync:
 		s.sink.OnHistory(s.ref, s.history(ctx, v))
 	}
+}
+
+func keyOnly(msg *waE2E.Message) bool {
+	if msg.GetSenderKeyDistributionMessage() == nil {
+		return false
+	}
+	rest := proto.CloneOf(msg)
+	rest.SenderKeyDistributionMessage, rest.MessageContextInfo = nil, nil
+	return proto.Size(rest) == 0
 }
 
 func (s *session) inbound(ctx context.Context, v *events.Message) whatsapp.InboundMessage {

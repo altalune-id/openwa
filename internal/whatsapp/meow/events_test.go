@@ -116,6 +116,38 @@ func TestDispatch_TextMessageResolvesThePhoneFromTheAltJID(t *testing.T) {
 	require.NotEmpty(t, m.Raw)
 }
 
+func TestDispatch_GroupKeyPartDoesNotTakeTheMessageID(t *testing.T) {
+	t.Parallel()
+	s, _, sink := newTestSession(t)
+	info := types.MessageInfo{MessageSource: types.MessageSource{Chat: types.NewJID("1", types.GroupServer), Sender: types.NewJID("77", types.HiddenUserServer), IsGroup: true}, ID: "3A3F"}
+	key := &waE2E.Message{
+		SenderKeyDistributionMessage: &waE2E.SenderKeyDistributionMessage{GroupID: proto.String("1@g.us"), AxolotlSenderKeyDistributionMessage: []byte{1}},
+		MessageContextInfo:           &waE2E.MessageContextInfo{MessageSecret: []byte{2}},
+	}
+	text := &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{Text: proto.String("@eji catat"), ContextInfo: &waE2E.ContextInfo{MentionedJID: []string{"9@lid"}}}}
+	s.dispatch(&events.Message{Info: info, Message: key, RawMessage: key})
+	s.dispatch(&events.Message{Info: info, Message: text, RawMessage: text})
+	calls := sink.Calls()
+	require.Len(t, calls, 1)
+	require.Equal(t, "3A3F", calls[0].Message.ID)
+	require.Equal(t, "text", calls[0].Message.Type)
+	require.Equal(t, "@eji catat", calls[0].Message.Body)
+	require.Equal(t, []string{"9@lid"}, calls[0].Message.Mentions)
+}
+
+func TestDispatch_GroupKeyWithTextIsKept(t *testing.T) {
+	t.Parallel()
+	s, _, sink := newTestSession(t)
+	msg := &waE2E.Message{
+		SenderKeyDistributionMessage: &waE2E.SenderKeyDistributionMessage{GroupID: proto.String("1@g.us")},
+		Conversation:                 proto.String("halo"),
+	}
+	s.dispatch(&events.Message{Info: types.MessageInfo{MessageSource: types.MessageSource{Chat: types.NewJID("1", types.GroupServer), IsGroup: true}, ID: "Y"}, Message: msg})
+	calls := sink.Calls()
+	require.Len(t, calls, 1)
+	require.Equal(t, "halo", calls[0].Message.Body)
+}
+
 func TestDispatch_LIDSenderWithoutAltUsesTheLIDMap(t *testing.T) {
 	t.Parallel()
 	s, fc, sink := newTestSession(t)
