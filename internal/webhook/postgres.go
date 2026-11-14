@@ -177,7 +177,8 @@ func (s *postgresStore) save(ctx context.Context, tx *sql.Tx, tc tenant.Context,
 			).WHERE(s.endpoints.OrgID.EQ(postgres.UUID(tc.OrgID))),
 		)
 	res, err := stmt.ExecContext(ctx, tx)
-	if isPgPolicyViolation(err) {
+	// NOTE: the conflict clause's org guard refuses with zero rows, or with a row-level security refusal on Postgres 17.12+.
+	if pdb.IsRowSecurityViolation(err) {
 		return &NotFoundError{ID: e.ID.String()}
 	}
 	if err != nil {
@@ -385,11 +386,6 @@ func pgSecondary(b []byte) postgres.ByteaExpression {
 		return pgent.NullBytea()
 	}
 	return postgres.Bytea(b)
-}
-
-func isPgPolicyViolation(err error) bool {
-	pgErr, ok := errors.AsType[*pgconn.PgError](err)
-	return ok && pgErr.Code == "42501"
 }
 
 func isPgForeignKeyViolation(err error) bool {

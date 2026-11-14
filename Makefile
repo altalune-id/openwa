@@ -16,7 +16,7 @@ help: ## Show this help
 build: generate ## Build the openwa binary into bin/
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/openwa
 
-test: ## Run every test on Postgres (TEST_PG_DSN from `make compose-up`, or Docker with postgres:17-alpine)
+test: ## Run every test on Postgres (TEST_PG_DSN from `make compose-up`, or Docker with postgres:17.12-alpine)
 	@# NOTE: -p 1 under a shared TEST_PG_DSN stays until two parallel CI runs prove pgtest.CreateRole removed the catalog race (tracker item).
 	$(GO) test $$([ -n "$$TEST_PG_DSN" ] && echo -p 1) ./...
 

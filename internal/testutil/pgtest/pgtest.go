@@ -61,7 +61,7 @@ func New(t *testing.T) *Handle {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
-	c, err := postgres.Run(ctx, "postgres:17-alpine",
+	c, err := postgres.Run(ctx, "postgres:17.12-alpine",
 		postgres.WithDatabase("openwa_test"),
 		postgres.WithUsername("openwa"),
 		postgres.WithPassword("openwa"),
@@ -73,7 +73,7 @@ func New(t *testing.T) *Handle {
 		),
 	)
 	if err != nil {
-		t.Fatalf("pgtest: cannot start Postgres (set TEST_PG_DSN, e.g. from `make compose-up`, or provide a Docker/podman socket with postgres:17-alpine pulled; podman users export TESTCONTAINERS_RYUK_DISABLED=true): %v", err)
+		t.Fatalf("pgtest: cannot start Postgres (set TEST_PG_DSN, e.g. from `make compose-up`, or provide a Docker/podman socket with postgres:17.12-alpine pulled; podman users export TESTCONTAINERS_RYUK_DISABLED=true): %v", err)
 		return nil
 	}
 
