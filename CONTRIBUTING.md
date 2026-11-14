@@ -35,7 +35,7 @@ make test-integration   # alias of `make test`
 
 There is one tier of tests and all of it runs on Postgres. `pgtest.New(t)` uses
 `TEST_PG_DSN` when set (the DSN user needs `CREATEDB`; every test gets its own
-schema) and otherwise starts a `postgres:17-alpine` container through
+schema) and otherwise starts a `postgres:17.12-alpine` container through
 testcontainers, which needs a docker or podman socket. A shared DSN is much
 faster:
 

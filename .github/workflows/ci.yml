@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17.12-alpine
         env:
           POSTGRES_USER: openwa
           POSTGRES_PASSWORD: openwa
@@ -237,7 +237,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17.12-alpine
         env:
           POSTGRES_USER: openwa
           POSTGRES_PASSWORD: openwa
@@ -267,7 +267,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17.12-alpine
         env:
           POSTGRES_USER: openwa
           POSTGRES_PASSWORD: openwa

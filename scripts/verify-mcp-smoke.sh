@@ -102,7 +102,7 @@ if [ -n "${TEST_PG_DSN:-}" ]; then
     SMOKE_DSN=$(printf '%s' "$TEST_PG_DSN" | sed -E "s#(postgres(ql)?://[^/]+)/[^?]*#\1/${SMOKE_DB}#")
 else
     runtime=$(command -v docker || command -v podman) || { echo "need TEST_PG_DSN or docker/podman" >&2; exit 1; }
-    PGC=$("$runtime" run -d --rm -e POSTGRES_USER=openwa -e POSTGRES_PASSWORD=openwa -e POSTGRES_DB="$SMOKE_DB" -p 127.0.0.1::5432 postgres:17-alpine)
+    PGC=$("$runtime" run -d --rm -e POSTGRES_USER=openwa -e POSTGRES_PASSWORD=openwa -e POSTGRES_DB="$SMOKE_DB" -p 127.0.0.1::5432 postgres:17.12-alpine)
     pgport=$("$runtime" port "$PGC" 5432/tcp | sed 's/.*://')
     for _ in $(seq 1 30); do "$runtime" exec "$PGC" pg_isready -U openwa >/dev/null 2>&1 && break; sleep 1; done
     SMOKE_DSN="postgres://openwa:openwa@127.0.0.1:${pgport}/${SMOKE_DB}?sslmode=disable"
