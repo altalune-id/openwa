@@ -97,3 +97,18 @@ func (d Deps) rememberProject(sc ProjectScope) {
 		d.LogErr("web project: update session", err)
 	}
 }
+
+// SECURITY: project configuration writes need an org owner or admin; a failed lookup refuses.
+func (d Deps) canManageProject(sc ProjectScope) bool {
+	ok, err := d.Orgs.IsManager(sc.req.Context(), sc.org.ID, sc.principal.UserID)
+	return err == nil && ok
+}
+
+//i18n:use common.managers_only
+func (d Deps) requireManager(w http.ResponseWriter, sc ProjectScope) bool {
+	if d.canManageProject(sc) {
+		return true
+	}
+	d.ErrorPageKey(w, sc.req, http.StatusForbidden, "common.managers_only", nil)
+	return false
+}

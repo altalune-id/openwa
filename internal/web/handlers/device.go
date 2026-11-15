@@ -185,6 +185,9 @@ func (h *DeviceHandler) PostDeviceRules(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	if !h.requireManager(w, sc) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		h.ErrorPageKey(w, sc.req, http.StatusBadRequest, "error.bad_request", err)
 		return
@@ -309,6 +312,7 @@ func (h *DeviceHandler) writeDetail(w http.ResponseWriter, sc ProjectScope, dv d
 		LastSeen:    dv.Status.LastSeen,
 		RenameValue: d.Name,
 		Pairing:     pairingView(sc, dv, st, ""),
+		CanManage:   h.canManageProject(sc),
 		Rules: templates.DeviceRulesView{
 			GroupMode:      string(rules.GroupMode),
 			AllowedSenders: strings.Join(rules.AllowedSenders, "\n"),

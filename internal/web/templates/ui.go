@@ -114,7 +114,7 @@ func InputAttrs(p FieldProps) templ.Attributes {
 
 // InputClass returns the text input recipe.
 func InputClass() string {
-	return "mt-1.5 block w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground shadow-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+	return "mt-1.5 block w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground shadow-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-70"
 }
 
 // ChipProps configures a checkbox chip.

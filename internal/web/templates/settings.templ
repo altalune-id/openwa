@@ -40,7 +40,7 @@ templ SettingsPage(d web.LayoutData, v SettingsView) {
 			} else {
 				<p class="text-sm text-foreground">{ d.Tr("settings.days_readonly", "Days", v.Days) }</p>
 				<p data-pending class="text-sm text-muted-foreground">{ d.TrN("settings.pending", int(v.Pending)) }</p>
-				<p class="text-sm text-muted-foreground">{ d.Tr("settings.managers_only") }</p>
+				<p class="text-sm text-muted-foreground">{ d.Tr("common.managers_only") }</p>
 			}
 		}
 	</section>

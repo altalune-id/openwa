@@ -59,7 +59,7 @@ func TestSettings_RetentionPostNeedsAnOwnerOrAdmin(t *testing.T) {
 	mux.ServeHTTP(rec, x.authedRequest(t, http.MethodGet, "/orgs/acme/projects/alpha/settings", "", p))
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.NotContains(t, rec.Body.String(), `name="days"`)
-	require.Contains(t, rec.Body.String(), "settings.managers_only")
+	require.Contains(t, rec.Body.String(), "common.managers_only")
 
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, x.authedRequest(t, http.MethodPost, "/orgs/acme/projects/alpha/settings/retention", url.Values{"days": {"1"}}.Encode(), p))

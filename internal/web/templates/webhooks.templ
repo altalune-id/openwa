@@ -20,6 +20,7 @@ type WebhooksView struct {
 	Items       []WebhookRow
 	Limit       int
 	Guide       WebhookGuideView
+	CanManage   bool
 }
 
 // WebhookError is one banner: a message key, its error code, and the limit its copy names.
@@ -53,7 +54,9 @@ templ webhookEventBadges(d web.LayoutData, keys []string) {
 
 templ webhooksActions(d web.LayoutData, v WebhooksView) {
 	<span class="text-xs text-muted-foreground">{ d.Tr("webhooks.count", "Count", len(v.Items), "Limit", v.Limit) }</span>
-	if len(v.Items) < v.Limit {
+	if !v.CanManage {
+		<span class="text-xs text-muted-foreground">{ d.Tr("common.managers_only") }</span>
+	} else if len(v.Items) < v.Limit {
 		@Button(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("webhooks.new"), Href: d.ProjectPath(v.ProjectSlug, "/webhooks/new")})
 	}
 }

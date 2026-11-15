@@ -56,6 +56,7 @@ type DeviceDetailView struct {
 	RenameError string
 	Pairing     DevicePairingView
 	Rules       DeviceRulesView
+	CanManage   bool
 }
 
 templ DeviceDetailPage(d web.LayoutData, v DeviceDetailView) {
@@ -170,46 +171,57 @@ templ DevicePairing(d web.LayoutData, v DevicePairingView) {
 
 templ deviceRulesCard(d web.LayoutData, v DeviceDetailView) {
 	@Card(CardProps{Title: d.Tr("devices.rules_title"), Description: d.Tr("devices.rules_subtitle")}) {
-		<form method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/devices/"+v.ID+"/rules")) } class="space-y-4">
-			if v.Rules.FormError != "" {
-				<p role="alert" class="text-sm text-destructive">{ v.Rules.FormError }</p>
-			}
-			<input type="hidden" name="version" value={ strconv.Itoa(v.Version) }/>
-			<fieldset aria-describedby="group_mode-error">
-				<legend class="text-sm font-medium text-foreground">{ d.Tr("devices.group_mode") }</legend>
-				<p class="mt-1 text-sm text-muted-foreground">{ d.Tr("devices.group_mode_help") }</p>
-				<div class="mt-2 flex flex-wrap gap-2">
-					@groupModeOption(v.Rules.GroupMode, "ignore", d.Tr("devices.group_mode_ignore"))
-					@groupModeOption(v.Rules.GroupMode, "mention", d.Tr("devices.group_mode_mention"))
-					@groupModeOption(v.Rules.GroupMode, "open", d.Tr("devices.group_mode_open"))
-				</div>
-				if e := v.Rules.Errors["group_mode"]; e != "" {
-					<p role="alert" id="group_mode-error" class="mt-1 text-sm text-destructive">{ e }</p>
+		if v.CanManage {
+			<form method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/devices/"+v.ID+"/rules")) } class="space-y-4">
+				if v.Rules.FormError != "" {
+					<p role="alert" class="text-sm text-destructive">{ v.Rules.FormError }</p>
 				}
+				<input type="hidden" name="version" value={ strconv.Itoa(v.Version) }/>
+				@deviceRulesFields(d, v)
+				@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.save_rules")})
+			</form>
+		} else {
+			<fieldset disabled class="space-y-4">
+				@deviceRulesFields(d, v)
 			</fieldset>
-			@Field(d, FieldProps{ID: "allowed_senders", Label: d.Tr("devices.allowed_senders"), Help: d.Tr("devices.allowed_senders_help"), Error: v.Rules.Errors["allowed_senders"]}) {
-				<textarea name="allowed_senders" rows="3" placeholder={ d.Tr("devices.allowed_senders_ph") } class={ InputClass() } { InputAttrs(FieldProps{ID: "allowed_senders", Help: d.Tr("devices.allowed_senders_help"), Error: v.Rules.Errors["allowed_senders"]})... }>{ v.Rules.AllowedSenders }</textarea>
-			}
-			@Field(d, FieldProps{ID: "allowed_groups", Label: d.Tr("devices.allowed_groups"), Help: d.Tr("devices.allowed_groups_help"), Error: v.Rules.Errors["allowed_groups"]}) {
-				<textarea name="allowed_groups" rows="3" placeholder={ d.Tr("devices.allowed_groups_ph") } class={ InputClass() } { InputAttrs(FieldProps{ID: "allowed_groups", Help: d.Tr("devices.allowed_groups_help"), Error: v.Rules.Errors["allowed_groups"]})... }>{ v.Rules.AllowedGroups }</textarea>
-			}
-			@Field(d, FieldProps{ID: "trigger_prefix", Label: d.Tr("devices.trigger_prefix"), Help: d.Tr("devices.trigger_prefix_help"), Error: v.Rules.Errors["trigger_prefix"]}) {
-				<input type="text" name="trigger_prefix" value={ v.Rules.TriggerPrefix } maxlength="16" class={ InputClass() } { InputAttrs(FieldProps{ID: "trigger_prefix", Help: d.Tr("devices.trigger_prefix_help"), Error: v.Rules.Errors["trigger_prefix"]})... }/>
-			}
-			<div>
-				<label class="flex items-center gap-2 text-sm text-foreground">
-					<input type="checkbox" name="ignore_from_me" value="1" checked?={ v.Rules.IgnoreFromMe }/>
-					<span>{ d.Tr("devices.ignore_from_me") }</span>
-				</label>
-				<p class="mt-1 text-sm text-muted-foreground">{ d.Tr("devices.ignore_from_me_help") }</p>
-			</div>
-			@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.save_rules")})
-		</form>
+			<p class="mt-4 text-sm text-muted-foreground">{ d.Tr("common.managers_only") }</p>
+		}
 	}
 }
 
+templ deviceRulesFields(d web.LayoutData, v DeviceDetailView) {
+	<fieldset aria-describedby="group_mode-error">
+		<legend class="text-sm font-medium text-foreground">{ d.Tr("devices.group_mode") }</legend>
+		<p class="mt-1 text-sm text-muted-foreground">{ d.Tr("devices.group_mode_help") }</p>
+		<div class="mt-2 flex flex-wrap gap-2">
+			@groupModeOption(v.Rules.GroupMode, "ignore", d.Tr("devices.group_mode_ignore"))
+			@groupModeOption(v.Rules.GroupMode, "mention", d.Tr("devices.group_mode_mention"))
+			@groupModeOption(v.Rules.GroupMode, "open", d.Tr("devices.group_mode_open"))
+		</div>
+		if e := v.Rules.Errors["group_mode"]; e != "" {
+			<p role="alert" id="group_mode-error" class="mt-1 text-sm text-destructive">{ e }</p>
+		}
+	</fieldset>
+	@Field(d, FieldProps{ID: "allowed_senders", Label: d.Tr("devices.allowed_senders"), Help: d.Tr("devices.allowed_senders_help"), Error: v.Rules.Errors["allowed_senders"]}) {
+		<textarea name="allowed_senders" rows="3" placeholder={ d.Tr("devices.allowed_senders_ph") } class={ InputClass() } { InputAttrs(FieldProps{ID: "allowed_senders", Help: d.Tr("devices.allowed_senders_help"), Error: v.Rules.Errors["allowed_senders"]})... }>{ v.Rules.AllowedSenders }</textarea>
+	}
+	@Field(d, FieldProps{ID: "allowed_groups", Label: d.Tr("devices.allowed_groups"), Help: d.Tr("devices.allowed_groups_help"), Error: v.Rules.Errors["allowed_groups"]}) {
+		<textarea name="allowed_groups" rows="3" placeholder={ d.Tr("devices.allowed_groups_ph") } class={ InputClass() } { InputAttrs(FieldProps{ID: "allowed_groups", Help: d.Tr("devices.allowed_groups_help"), Error: v.Rules.Errors["allowed_groups"]})... }>{ v.Rules.AllowedGroups }</textarea>
+	}
+	@Field(d, FieldProps{ID: "trigger_prefix", Label: d.Tr("devices.trigger_prefix"), Help: d.Tr("devices.trigger_prefix_help"), Error: v.Rules.Errors["trigger_prefix"]}) {
+		<input type="text" name="trigger_prefix" value={ v.Rules.TriggerPrefix } maxlength="16" class={ InputClass() } { InputAttrs(FieldProps{ID: "trigger_prefix", Help: d.Tr("devices.trigger_prefix_help"), Error: v.Rules.Errors["trigger_prefix"]})... }/>
+	}
+	<div>
+		<label class="flex items-center gap-2 text-sm text-foreground">
+			<input type="checkbox" name="ignore_from_me" value="1" checked?={ v.Rules.IgnoreFromMe }/>
+			<span>{ d.Tr("devices.ignore_from_me") }</span>
+		</label>
+		<p class="mt-1 text-sm text-muted-foreground">{ d.Tr("devices.ignore_from_me_help") }</p>
+	</div>
+}
+
 templ groupModeOption(current, value, label string) {
-	<label class="chip inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm">
+	<label class="chip inline-flex cursor-pointer has-[:disabled]:cursor-not-allowed items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm">
 		<input type="radio" name="group_mode" value={ value } checked?={ current == value } class="sr-only"/>
 		<span>{ label }</span>
 	</label>

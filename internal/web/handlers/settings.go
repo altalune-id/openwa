@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"altalune.id/openwa/internal/message"
-	"altalune.id/openwa/internal/platform/session"
 	"altalune.id/openwa/internal/project"
 	"altalune.id/openwa/internal/web"
 	"altalune.id/openwa/internal/web/templates"
@@ -53,7 +52,7 @@ func (h *SettingsHandler) PostRetention(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	if !h.canManage(sc) {
+	if !h.canManageProject(sc) {
 		h.ErrorPageKey(w, sc.req, http.StatusForbidden, "settings.error.forbidden", nil)
 		return
 	}
@@ -91,13 +90,6 @@ func (h *SettingsHandler) render(w http.ResponseWriter, sc ProjectScope, status,
 	if err != nil {
 		h.LogErr("web settings: pending", err)
 	}
-	v := templates.SettingsView{ProjectSlug: sc.project.Slug, Days: days, Pending: pending, Min: message.MinRetentionDays, Max: message.MaxRetentionDays, Error: errKey, CanManage: h.canManage(sc)}
+	v := templates.SettingsView{ProjectSlug: sc.project.Slug, Days: days, Pending: pending, Min: message.MinRetentionDays, Max: message.MaxRetentionDays, Error: errKey, CanManage: h.canManageProject(sc)}
 	RenderStatus(w, sc.req, status, templates.SettingsLayout(h.LayoutForProject(sc.req, "Project settings", sc.org.Slug, sc.project, "settings"), v))
-}
-
-// SECURITY: retention deletes the project's history, so only an org owner or admin may change it; a failed lookup refuses.
-func (h *SettingsHandler) canManage(sc ProjectScope) bool {
-	p := session.PrincipalFrom(sc.req.Context())
-	ok, err := h.Orgs.IsManager(sc.req.Context(), sc.org.ID, p.UserID)
-	return err == nil && ok
 }

@@ -65,6 +65,7 @@ type WebhookDeliveriesView struct {
 	FailedCount int
 	Notice      WebhookNotice
 	Error       WebhookError
+	CanManage   bool
 }
 
 // WebhookDetailView carries Secret only on the response right after Create or Rotate.
@@ -77,6 +78,7 @@ type WebhookDetailView struct {
 	Deliveries  WebhookDeliveriesView
 	Guide       WebhookGuideView
 	Toast       *web.FlashMessage
+	CanManage   bool
 }
 
 func webhookPath(d web.LayoutData, projectSlug, endpointID, suffix string) string {
@@ -157,7 +159,7 @@ templ WebhookDeliveryItem(d web.LayoutData, v WebhookDeliveriesView, row Webhook
 				hx-status:5xx="target:#hx-error swap:innerHTML"
 				class={ ButtonClass(ButtonSecondary) }
 			>{ d.Tr("webhooks.show_details") }</button>
-			if row.Failed {
+			if row.Failed && v.CanManage {
 				<form
 					method="post"
 					action={ templ.SafeURL(webhookPath(d, v.ProjectSlug, v.EndpointID, "/deliveries/"+row.ID+"/retry")) }
@@ -181,7 +183,7 @@ templ WebhookDeliveryItem(d web.LayoutData, v WebhookDeliveriesView, row Webhook
 
 templ webhookRetryAll(d web.LayoutData, v WebhookDeliveriesView) {
 	<span id="webhook-retry-all">
-		if v.FailedCount > 0 {
+		if v.FailedCount > 0 && v.CanManage {
 			<form
 				method="post"
 				action={ templ.SafeURL(webhookPath(d, v.ProjectSlug, v.EndpointID, "/retry-failed")) }
@@ -207,23 +209,25 @@ templ WebhookDeliveries(d web.LayoutData, v WebhookDeliveriesView) {
 			<h2 class="text-base font-semibold text-foreground">{ d.Tr("webhooks.deliveries_heading", "Count", len(v.Items)) }</h2>
 			<div class="flex flex-wrap items-center gap-2">
 				@webhookRetryAll(d, v)
-				<form
-					method="post"
-					action={ templ.SafeURL(webhookPath(d, v.ProjectSlug, v.EndpointID, "/test")) }
-					hx-post={ webhookPath(d, v.ProjectSlug, v.EndpointID, "/test") }
-					hx-nonce={ d.Nonce }
-					hx-target="#webhook-deliveries"
-					hx-swap="outerHTML"
-					hx-disable="find button"
-					hx-status:4xx="target:#hx-error swap:innerHTML"
-					hx-status:5xx="target:#hx-error swap:innerHTML"
-					class="inline"
-				>
-					<button type="submit" disabled?={ !v.Active } class={ ButtonClass(ButtonPrimary) }>
-						@icons.Icon("send", "h-4 w-4")
-						<span>{ d.Tr("webhooks.send_test") }</span>
-					</button>
-				</form>
+				if v.CanManage {
+					<form
+						method="post"
+						action={ templ.SafeURL(webhookPath(d, v.ProjectSlug, v.EndpointID, "/test")) }
+						hx-post={ webhookPath(d, v.ProjectSlug, v.EndpointID, "/test") }
+						hx-nonce={ d.Nonce }
+						hx-target="#webhook-deliveries"
+						hx-swap="outerHTML"
+						hx-disable="find button"
+						hx-status:4xx="target:#hx-error swap:innerHTML"
+						hx-status:5xx="target:#hx-error swap:innerHTML"
+						class="inline"
+					>
+						<button type="submit" disabled?={ !v.Active } class={ ButtonClass(ButtonPrimary) }>
+							@icons.Icon("send", "h-4 w-4")
+							<span>{ d.Tr("webhooks.send_test") }</span>
+						</button>
+					</form>
+				}
 			</div>
 		</div>
 		if v.Notice.Key != "" {
@@ -376,6 +380,8 @@ templ WebhookDetailPage(d web.LayoutData, v WebhookDetailView) {
 				</p>
 				if v.Endpoint.Rotating {
 					<p class="mt-2 text-xs text-muted-foreground">{ d.Tr("webhooks.rotating_help") }</p>
+				}
+				if v.Endpoint.Rotating && v.CanManage {
 					<div class="mt-2">
 						@ConfirmDialog(d, ConfirmProps{
 							ID:           "retire-" + v.Endpoint.ID,
@@ -388,51 +394,59 @@ templ WebhookDetailPage(d web.LayoutData, v WebhookDetailView) {
 						})
 					</div>
 				}
-				<div class="mt-3">
-					@Disclosure(d.Tr("webhooks.rotate")) {
-						<p class="text-xs text-muted-foreground">{ d.Tr("webhooks.rotate_warning") }</p>
-						if v.Endpoint.Rotating {
-							<p class="mt-1 text-xs text-warning">{ d.Tr("webhooks.rotate_replaces_secondary") }</p>
+				if v.CanManage {
+					<div class="mt-3">
+						@Disclosure(d.Tr("webhooks.rotate")) {
+							<p class="text-xs text-muted-foreground">{ d.Tr("webhooks.rotate_warning") }</p>
+							if v.Endpoint.Rotating {
+								<p class="mt-1 text-xs text-warning">{ d.Tr("webhooks.rotate_replaces_secondary") }</p>
+							}
+							<form
+								method="post"
+								action={ templ.SafeURL(webhookPath(d, v.ProjectSlug, v.Endpoint.ID, "/rotate")) }
+								hx-post={ webhookPath(d, v.ProjectSlug, v.Endpoint.ID, "/rotate") }
+								hx-nonce={ d.Nonce }
+								hx-target="#webhook-page"
+								hx-swap="outerHTML"
+								hx-disable="find button"
+								hx-status:4xx="target:#hx-error swap:innerHTML"
+								hx-status:5xx="target:#hx-error swap:innerHTML"
+								class="mt-2"
+							>
+								@Button(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("webhooks.rotate_confirm")})
+							</form>
 						}
-						<form
-							method="post"
-							action={ templ.SafeURL(webhookPath(d, v.ProjectSlug, v.Endpoint.ID, "/rotate")) }
-							hx-post={ webhookPath(d, v.ProjectSlug, v.Endpoint.ID, "/rotate") }
-							hx-nonce={ d.Nonce }
-							hx-target="#webhook-page"
-							hx-swap="outerHTML"
-							hx-disable="find button"
-							hx-status:4xx="target:#hx-error swap:innerHTML"
-							hx-status:5xx="target:#hx-error swap:innerHTML"
-							class="mt-2"
-						>
-							@Button(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("webhooks.rotate_confirm")})
-						</form>
-					}
-				</div>
+					</div>
+				}
 			}
 		</div>
 		@WebhookVerifyPanel(d, v.Guide)
 		<div class="mt-6">
 			<h2 class="mb-2 text-base font-semibold text-foreground">{ d.Tr("webhooks.settings_section") }</h2>
-			@webhookForm(d, v.Form)
+			if v.CanManage {
+				@webhookForm(d, v.Form)
+			} else {
+				<p class="text-sm text-muted-foreground">{ d.Tr("common.managers_only") }</p>
+			}
 		</div>
 		<div class="mt-6">
 			@WebhookDeliveries(d, v.Deliveries)
 		</div>
-		<div class="mt-6">
-			@Card(CardProps{Title: d.Tr("webhooks.delete"), Description: d.Tr("webhooks.delete_warning")}) {
-				@ConfirmDialog(d, ConfirmProps{
-					ID:           "delete-" + v.Endpoint.ID,
-					Title:        d.Tr("webhooks.delete_confirm_title"),
-					Body:         d.Tr("webhooks.delete_confirm_body"),
-					ConfirmLabel: d.Tr("webhooks.delete_confirm"),
-					Kind:         ButtonDanger,
-					Action:       webhookPath(d, v.ProjectSlug, v.Endpoint.ID, "/delete"),
-					Trigger:      ButtonProps{Kind: ButtonDanger, Icon: "trash-2", Label: d.Tr("webhooks.delete")},
-				})
-			}
-		</div>
+		if v.CanManage {
+			<div class="mt-6">
+				@Card(CardProps{Title: d.Tr("webhooks.delete"), Description: d.Tr("webhooks.delete_warning")}) {
+					@ConfirmDialog(d, ConfirmProps{
+						ID:           "delete-" + v.Endpoint.ID,
+						Title:        d.Tr("webhooks.delete_confirm_title"),
+						Body:         d.Tr("webhooks.delete_confirm_body"),
+						ConfirmLabel: d.Tr("webhooks.delete_confirm"),
+						Kind:         ButtonDanger,
+						Action:       webhookPath(d, v.ProjectSlug, v.Endpoint.ID, "/delete"),
+						Trigger:      ButtonProps{Kind: ButtonDanger, Icon: "trash-2", Label: d.Tr("webhooks.delete")},
+					})
+				}
+			</div>
+		}
 		if v.Toast != nil {
 			@OOBToast(d, v.Toast.Kind, v.Toast.Message)
 		}
