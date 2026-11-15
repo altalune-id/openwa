@@ -70,6 +70,7 @@ func (h *WebhookHandler) GetWebhooks(w http.ResponseWriter, r *http.Request) {
 		Items:       rows,
 		Limit:       webhook.MaxEndpointsPerProject,
 		Guide:       webhookGuide(len(rows) == 0),
+		CanManage:   h.canManageProject(sc),
 	}
 	Render(w, sc.req, templates.WebhooksLayout(h.layout(sc, "Webhooks"), v))
 }
@@ -80,6 +81,9 @@ func (h *WebhookHandler) GetWebhookNew(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.requireManager(w, sc) {
+		return
+	}
 	h.writeNewForm(w, sc, webhookForm("", "", "", true, nil), templates.WebhookError{})
 }
 
@@ -87,6 +91,9 @@ func (h *WebhookHandler) GetWebhookNew(w http.ResponseWriter, r *http.Request) {
 func (h *WebhookHandler) PostWebhookCreate(w http.ResponseWriter, r *http.Request) {
 	sc, ok := h.RequireProject(w, r)
 	if !ok {
+		return
+	}
+	if !h.requireManager(w, sc) {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -122,6 +129,9 @@ func (h *WebhookHandler) PostWebhookUpdate(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	if !h.requireManager(w, sc) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		h.ErrorPageKey(w, sc.req, http.StatusBadRequest, "error.bad_request", nil)
 		return
@@ -144,6 +154,9 @@ func (h *WebhookHandler) PostWebhookDelete(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	if !h.requireManager(w, sc) {
+		return
+	}
 	if err := h.Webhooks.Delete(sc.req.Context(), e.ID); err != nil && !webhook.IsNotFoundError(err) {
 		h.logFailure("web webhook: delete", err)
 		h.writeDetail(w, sc, e, detailOpts{err: webhookError(err)})
@@ -157,6 +170,9 @@ func (h *WebhookHandler) PostWebhookDelete(w http.ResponseWriter, r *http.Reques
 func (h *WebhookHandler) PostWebhookRotate(w http.ResponseWriter, r *http.Request) {
 	sc, e, ok := h.requireEndpoint(w, r)
 	if !ok {
+		return
+	}
+	if !h.requireManager(w, sc) {
 		return
 	}
 	secret, err := h.Webhooks.Rotate(sc.req.Context(), e.ID)
@@ -174,6 +190,9 @@ func (h *WebhookHandler) PostWebhookRetire(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	if !h.requireManager(w, sc) {
+		return
+	}
 	if err := h.Webhooks.RetireSecondary(sc.req.Context(), e.ID); err != nil {
 		h.logFailure("web webhook: retire secondary", err)
 		h.writeDetail(w, sc, e, detailOpts{err: webhookError(err)})
@@ -187,6 +206,9 @@ func (h *WebhookHandler) PostWebhookRetire(w http.ResponseWriter, r *http.Reques
 func (h *WebhookHandler) PostWebhookTest(w http.ResponseWriter, r *http.Request) {
 	sc, e, ok := h.requireEndpoint(w, r)
 	if !ok {
+		return
+	}
+	if !h.requireManager(w, sc) {
 		return
 	}
 	if err := h.Webhooks.SendTest(sc.req.Context(), e.ID); err != nil {
@@ -240,6 +262,9 @@ func (h *WebhookHandler) PostWebhookRetry(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
+	if !h.requireManager(w, sc) {
+		return
+	}
 	retryErr := h.Webhooks.Retry(sc.req.Context(), e.ID, did)
 	if retryErr != nil {
 		h.logFailure("web webhook: retry", retryErr)
@@ -271,6 +296,9 @@ func (h *WebhookHandler) PostWebhookRetry(w http.ResponseWriter, r *http.Request
 func (h *WebhookHandler) PostWebhookRetryFailed(w http.ResponseWriter, r *http.Request) {
 	sc, e, ok := h.requireEndpoint(w, r)
 	if !ok {
+		return
+	}
+	if !h.requireManager(w, sc) {
 		return
 	}
 	n, err := h.Webhooks.RetryFailed(sc.req.Context(), e.ID)
@@ -363,6 +391,7 @@ func (h *WebhookHandler) writeDetail(w http.ResponseWriter, sc ProjectScope, e *
 		Form:        form,
 		Deliveries:  deliveries,
 		Guide:       guide,
+		CanManage:   deliveries.CanManage,
 	}
 	if web.IsHTMXRequest(sc.req) {
 		v.Toast = o.flash
@@ -408,6 +437,7 @@ func (h *WebhookHandler) deliveriesView(sc ProjectScope, e *webhook.Endpoint) (t
 		Active:      e.Active,
 		MaxAttempts: outbox.MaxAttempts,
 		Items:       make([]templates.WebhookDeliveryRow, 0, len(items)),
+		CanManage:   h.canManageProject(sc),
 	}
 	for _, d := range items {
 		row := deliveryRow(d)

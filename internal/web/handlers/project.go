@@ -96,6 +96,9 @@ func (h *ProjectHandler) PostRename(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.requireManager(w, sc) {
+		return
+	}
 	o, proj, r := sc.org, sc.project, sc.req
 	if err := r.ParseForm(); err != nil {
 		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.bad_request", nil)

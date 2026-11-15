@@ -113,6 +113,7 @@ func buildWebHandler(
 	resource *tokens.Resource,
 	bundle *i18npkg.Bundle,
 	defaultLoc i18npkg.Locale,
+	crossOrigin *http.CrossOriginProtection,
 ) (handler http.Handler, routes []string) { //nolint:nonamedreturns // two return values differ in role
 	deps := newWebDeps(cfg, caps, kernel.Sessions, slogger)
 	deps.Secret = kernel.StateSecret
@@ -155,7 +156,7 @@ func buildWebHandler(
 		MCPHandler:       mcp.Handler,
 		ResourceMetadata: resourceMetadata(cfg, mcp, resource),
 		RobotsCfg:        &struct{ RobotsTxt string }{RobotsTxt: cfg.HTTP.RobotsTxt},
-		Chains:           surfaceChains(cfg, kernel, slogger, reporter, errTmpl, bundle, defaultLoc, required, termsSince),
+		Chains:           surfaceChains(cfg, kernel, slogger, reporter, errTmpl, bundle, defaultLoc, required, termsSince, crossOrigin),
 	})
 }
 
@@ -206,6 +207,7 @@ func surfaceChains(
 	defaultLoc i18npkg.Locale,
 	required *atomic.Bool,
 	termsSince time.Time,
+	crossOrigin *http.CrossOriginProtection,
 ) web.SurfaceChains {
 	edge := []web.Middleware{
 		webmw.RequestID,
@@ -219,6 +221,7 @@ func surfaceChains(
 		Console: slices.Concat(edge, []web.Middleware{
 			webmw.CSP(cspOptions(cfg)),
 			webmw.Recover(reporter.Unexpected, errTmpl),
+			crossOrigin.Handler,
 			webmw.Session(webmw.SessionConfig{
 				Store:  kernel.Sessions,
 				Secret: web.DeriveKey(kernel.StateSecret, web.PurposeSession),
@@ -244,6 +247,19 @@ func surfaceChains(
 			webmw.RecoverJSON(reporter.Unexpected),
 		}),
 	}
+}
+
+// SECURITY: behind a proxy the Host header is not the public origin, so the configured baseURL origin is trusted explicitly.
+func buildCrossOrigin(baseURL string) (*http.CrossOriginProtection, error) {
+	cop := http.NewCrossOriginProtection()
+	origin := web.Origin(baseURL)
+	if origin == "" {
+		return cop, nil
+	}
+	if err := cop.AddTrustedOrigin(origin); err != nil {
+		return nil, fmt.Errorf("boot: http.baseURL origin: %w", err)
+	}
+	return cop, nil
 }
 
 func healthOnlyHandler(cfg *config.Config, healthOK func() bool) http.Handler {

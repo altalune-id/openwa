@@ -374,9 +374,15 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 		logSetupToken(cfg, log, setup)
 	}
 
+	crossOrigin, copErr := buildCrossOrigin(cfg.HTTP.BaseURL)
+	if copErr != nil {
+		abort()
+		return nil, copErr
+	}
+
 	webHandler, webRoutes := buildWebHandler(cfg, kernel, caps, log, reporter, healthOK,
 		svcs.Auth, svcs.Users, svcs.Orgs, svcs.Projects, svcs.Invites, svcs.Onboards,
-		svcs.APIKeys, svcs.Webhooks, svcs.Devices, svcs.Chats, svcs.Messages, svcs.Contacts, required, gate.Complete, setup, apiHandler, dataHandler, mcpSurf, apiRes, bundle, defaultLoc)
+		svcs.APIKeys, svcs.Webhooks, svcs.Devices, svcs.Chats, svcs.Messages, svcs.Contacts, required, gate.Complete, setup, apiHandler, dataHandler, mcpSurf, apiRes, bundle, defaultLoc, crossOrigin)
 
 	httpHandler := webHandler
 	if o.schedulerOnly || o.consumerOnly {
