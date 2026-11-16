@@ -209,7 +209,13 @@ func (f *Device) Delete(ctx context.Context, id uuid.UUID) error {
 
 func cloneDevice(d *device.Device) *device.Device {
 	cp := *d
-	cp.Rules.AllowedSenders = append([]string{}, d.Rules.AllowedSenders...)
-	cp.Rules.AllowedGroups = append([]string{}, d.Rules.AllowedGroups...)
+	cp.Rules.Items = make([]device.Rule, len(d.Rules.Items))
+	for i, r := range d.Rules.Items {
+		r.Conditions = slices.Clone(r.Conditions)
+		for j := range r.Conditions {
+			r.Conditions[j].Values = slices.Clone(r.Conditions[j].Values)
+		}
+		cp.Rules.Items[i] = r
+	}
 	return &cp
 }

@@ -2,15 +2,18 @@ package handlers_test
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"altalune.id/openwa/internal/device"
 	"altalune.id/openwa/internal/org"
 	"altalune.id/openwa/internal/platform/events"
 	"altalune.id/openwa/internal/platform/session"
@@ -170,7 +173,7 @@ func TestDevices_RulesNeedAManager(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), managersOnlyKey)
 	got, err := x.Devices.Get(setTenantProject(context.Background(), x.org, x.project, x.uid), d.ID)
 	require.NoError(t, err)
-	assert.Empty(t, got.Device.Rules.TriggerPrefix, "the refused post changed the rules")
+	assert.Empty(t, legacyRules(t, got.Device.Rules).TriggerPrefix, "the refused post changed the rules")
 	assert.Equal(t, 1, got.Device.Version)
 
 	admin := addMember(t, x.handlerFixture, x.org, x.uid, org.RoleAdmin)
@@ -199,6 +202,138 @@ func TestDevices_MembersSeeReadOnlyRules(t *testing.T) {
 	mgr := x.do(t, http.MethodGet, path, "", false)
 	assert.Contains(t, mgr.Body.String(), `action="`+path+`/rules"`)
 	assert.NotContains(t, mgr.Body.String(), managersOnlyKey)
+}
+
+type deviceWriteRoute struct {
+	name   string
+	method string
+	suffix string
+	form   string
+	htmx   bool
+	want   int
+}
+
+func deviceWriteRoutes() []deviceWriteRoute {
+	return []deviceWriteRoute{
+		{name: "new form", method: http.MethodGet, suffix: "/new", want: http.StatusOK},
+		{name: "create", method: http.MethodPost, form: "name=Other", want: http.StatusSeeOther},
+		{name: "qr link", method: http.MethodPost, suffix: "/{device}/links", htmx: true, want: http.StatusOK},
+		{name: "phone link", method: http.MethodPost, suffix: "/{device}/phone-links", form: "phone=%2B62+812+3456", htmx: true, want: http.StatusOK},
+		{name: "unlink", method: http.MethodPost, suffix: "/{device}/unlink", want: http.StatusSeeOther},
+		{name: "delete", method: http.MethodPost, suffix: "/{device}/delete", want: http.StatusSeeOther},
+	}
+}
+
+func (x *deviceFixture) doAs(t *testing.T, rt deviceWriteRoute, id string, p session.Principal) *httptest.ResponseRecorder {
+	t.Helper()
+	req := x.authedRequest(t, rt.method, devicesBase+strings.ReplaceAll(rt.suffix, "{device}", id), rt.form, p)
+	if rt.htmx {
+		req.Header.Set("HX-Request", "true")
+	}
+	rec := httptest.NewRecorder()
+	x.Mux.ServeHTTP(rec, req)
+	return rec
+}
+
+// SECURITY: a member is refused every number write and nothing changes.
+func TestDevices_NumberWritesNeedAManager(t *testing.T) {
+	for _, rt := range deviceWriteRoutes() {
+		t.Run(rt.name, func(t *testing.T) {
+			x := newDeviceFixture(t)
+			d := x.seed(t, "Sales")
+			member := addMember(t, x.handlerFixture, x.org, x.uid, org.RoleMember)
+
+			rec := x.doAs(t, rt, d.PublicID, member)
+			require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+			assert.Contains(t, rec.Body.String(), managersOnlyKey)
+			assert.Equal(t, 1, x.Store.Len(), "the refused request created or deleted a device")
+			assert.Empty(t, x.Sessions.Linked, "the refused request started a QR link")
+			assert.Empty(t, x.Sessions.Phones, "the refused request started a phone link")
+			assert.Empty(t, x.Sessions.Unlinked, "the refused request logged the number out")
+			assert.Empty(t, x.Sessions.Forgot, "the refused request forgot the session")
+		})
+	}
+}
+
+func TestDevices_NumberWritesSucceedForAnAdmin(t *testing.T) {
+	for _, rt := range deviceWriteRoutes() {
+		t.Run(rt.name, func(t *testing.T) {
+			x := newDeviceFixture(t)
+			d := x.seed(t, "Sales")
+			admin := addMember(t, x.handlerFixture, x.org, x.uid, org.RoleAdmin)
+
+			rec := x.doAs(t, rt, d.PublicID, admin)
+			require.Equal(t, rt.want, rec.Code, rec.Body.String())
+			assert.NotContains(t, rec.Body.String(), managersOnlyKey)
+		})
+	}
+}
+
+func TestDevices_MembersCanRename(t *testing.T) {
+	x := newDeviceFixture(t)
+	d := x.seed(t, "Sales")
+	member := addMember(t, x.handlerFixture, x.org, x.uid, org.RoleMember)
+
+	rec := x.doAs(t, deviceWriteRoute{method: http.MethodPost, suffix: "/{device}/rename", form: "version=1&name=Support"}, d.PublicID, member)
+	require.Equal(t, http.StatusSeeOther, rec.Code, rec.Body.String())
+	got, err := x.Devices.Get(setTenantProject(context.Background(), x.org, x.project, x.uid), d.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Support", got.Device.Name)
+}
+
+// SECURITY: a member sees the numbers and can rename one, but gets no link, unlink or delete action.
+func TestDevices_MembersSeeReadOnlyNumberPages(t *testing.T) {
+	x := newDeviceFixture(t)
+	member := addMember(t, x.handlerFixture, x.org, x.uid, org.RoleMember)
+	view := func(path string) string {
+		t.Helper()
+		rec := x.doAs(t, deviceWriteRoute{method: http.MethodGet, suffix: path}, "", member)
+		require.Equal(t, http.StatusOK, rec.Code)
+		return rec.Body.String()
+	}
+	newHref := `href="` + devicesBase + `/new"`
+
+	empty := view("")
+	assert.NotContains(t, empty, newHref, "the empty state offers a member no new number")
+	assert.Contains(t, empty, managersOnlyKey)
+
+	d := x.seed(t, "Sales")
+	x.Sessions.State = device.LinkState{Outcome: device.LinkNone}
+	path := devicesBase + "/" + d.PublicID
+	list := view("")
+	assert.Contains(t, list, `id="device-`+d.PublicID+`"`)
+	assert.NotContains(t, list, newHref)
+	assert.Contains(t, list, managersOnlyKey)
+
+	detail := view("/" + d.PublicID)
+	for _, suffix := range []string{"/links", "/phone-links", "/unlink", "/delete"} {
+		assert.NotContains(t, detail, `action="`+path+suffix+`"`, "a member sees the %s form", suffix)
+	}
+	assert.Contains(t, detail, `action="`+path+`/rename"`, "a member keeps rename")
+	assert.Equal(t, 3, strings.Count(detail, managersOnlyKey), "rules, pairing and danger zone each say who can change them")
+
+	fragment := view("/" + d.PublicID + "/links/current")
+	assert.NotContains(t, fragment, `action="`+path+`/links"`, "the polled fragment offers a member no pairing form")
+	assert.Contains(t, fragment, managersOnlyKey)
+
+	x.Sessions.State = device.LinkState{ID: "lnk_FakeDeviceLink001", Method: device.LinkPhone, Outcome: device.LinkPending, PNG: []byte{0x89, 'P', 'N', 'G'}, PairingCode: "ABCD-EFGH"}
+	png := base64.StdEncoding.EncodeToString([]byte{0x89, 'P', 'N', 'G'})
+	for _, page := range []string{view("/" + d.PublicID), view("/" + d.PublicID + "/links/current")} {
+		assert.NotContains(t, page, png, "a member never sees a pending QR")
+		assert.NotContains(t, page, "ABCD-EFGH", "a member never sees a pending pairing code")
+	}
+	mgrPending := x.do(t, http.MethodGet, path+"/links/current", "", false).Body.String()
+	assert.Contains(t, mgrPending, "ABCD-EFGH")
+	x.Sessions.State = device.LinkState{Outcome: device.LinkNone}
+
+	mgrList := x.do(t, http.MethodGet, devicesBase, "", false).Body.String()
+	assert.Contains(t, mgrList, newHref)
+	assert.NotContains(t, mgrList, managersOnlyKey)
+	mgr := x.do(t, http.MethodGet, path, "", false).Body.String()
+	for _, suffix := range []string{"/links", "/phone-links", "/unlink", "/delete", "/rename"} {
+		assert.Contains(t, mgr, `action="`+path+suffix+`"`, "a manager keeps the %s form", suffix)
+	}
+	assert.NotContains(t, mgr, managersOnlyKey)
 }
 
 // SECURITY: renaming a project needs an owner or admin.
@@ -265,7 +400,7 @@ func TestManagerGate_ALookupErrorRefuses(t *testing.T) {
 		assert.Equal(t, before+2, x.OrgStore.MembershipOfCalls(), "the scope gate and the manager lookup each read the membership once")
 		got, err := x.Devices.Get(setTenantProject(context.Background(), x.org, x.project, x.uid), d.ID)
 		require.NoError(t, err)
-		assert.Empty(t, got.Device.Rules.TriggerPrefix)
+		assert.Empty(t, legacyRules(t, got.Device.Rules).TriggerPrefix)
 	})
 	t.Run("project rename", func(t *testing.T) {
 		t.Parallel()

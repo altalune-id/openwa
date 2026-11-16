@@ -537,6 +537,7 @@ devices.error.invalid_allowed_senders: "Use phone numbers with a country code, d
 devices.error.invalid_allowed_groups: "Use group JIDs ending in @g.us."
 devices.error.invalid_trigger_prefix: "Use at most 16 characters."
 devices.error.stale_version: "This device changed since you opened the page. Reload and try again."
+devices.error.rules_shape_conflict: "These rules use options this form can't show, so this form can't change them."
 devices.error.invalid_phone: "Use the international format with a country code."
 devices.error.already_linked: "This device is already paired. Log it out first."
 devices.error.not_owned: "This device is not running on this server right now. Try again in a minute."

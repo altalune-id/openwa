@@ -68,7 +68,7 @@ func newAPIKeyWebFixture(t *testing.T) *apikeyWebFixture {
 	store := fakes.NewAPIKey()
 	keys := apikey.NewService(store, apikey.Scheme{}, f.Orgs, projectCatalog{svc: f.Projects}, discardLogger(), passthroughUnexpected())
 	sessions := fakes.NewDeviceSessions()
-	devices := device.NewService(fakes.NewDevice(), discardLogger(), passthroughUnexpected(), fakes.UnitOfWork, sessions)
+	devices := device.NewService(fakes.NewDevice(), discardLogger(), passthroughUnexpected(), fakes.UnitOfWork, sessions, "")
 	mux := http.NewServeMux()
 	handlers.NewAPIKeyHandler(f.Deps, f.Projects, keys, devices).Register(mux)
 	return &apikeyWebFixture{

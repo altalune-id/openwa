@@ -31,19 +31,50 @@ func newPostgresStore(pool pdb.Pool, pc *tenant.PgConn, schema, tablePrefix stri
 }
 
 type rulesDoc struct {
-	GroupMode      string   `json:"group_mode"`
-	AllowedSenders []string `json:"allowed_senders"`
-	AllowedGroups  []string `json:"allowed_groups"`
-	TriggerPrefix  string   `json:"trigger_prefix"`
-	IgnoreFromMe   bool     `json:"ignore_from_me"`
+	V              int        `json:"v,omitempty"`
+	Items          *[]ruleDoc `json:"items,omitempty"`
+	GroupMode      string     `json:"group_mode"`
+	AllowedSenders []string   `json:"allowed_senders"`
+	AllowedGroups  []string   `json:"allowed_groups"`
+	TriggerPrefix  string     `json:"trigger_prefix"`
+	IgnoreFromMe   bool       `json:"ignore_from_me"`
 }
 
+type ruleDoc struct {
+	ID         string         `json:"id"`
+	Name       string         `json:"name"`
+	Enabled    bool           `json:"enabled"`
+	Action     string         `json:"action"`
+	Conditions []conditionDoc `json:"conditions"`
+}
+
+type conditionDoc struct {
+	Field  string   `json:"field"`
+	Op     string   `json:"op,omitempty"`
+	Values []string `json:"values,omitempty"`
+}
+
+// SECURITY: the legacy keys stay in a v2 document so a rolled-back binary reads the same behavior, or, for rules it cannot express, matches nothing.
 func encodeRules(r Rules) (string, error) {
+	l, ok := r.Legacy()
+	if !ok {
+		l = Legacy{GroupMode: GroupIgnore, AllowedSenders: []string{"0"}}
+	}
+	items := make([]ruleDoc, 0, len(r.Items))
+	for _, it := range r.Items {
+		conds := make([]conditionDoc, 0, len(it.Conditions))
+		for _, c := range it.Conditions {
+			conds = append(conds, conditionDoc{Field: string(c.Field), Op: string(c.Op), Values: c.Values})
+		}
+		items = append(items, ruleDoc{ID: it.ID, Name: it.Name, Enabled: it.Enabled, Action: string(it.Action), Conditions: conds})
+	}
 	doc := rulesDoc{
-		GroupMode:      string(r.GroupMode),
-		AllowedSenders: append([]string{}, r.AllowedSenders...),
-		AllowedGroups:  append([]string{}, r.AllowedGroups...),
-		TriggerPrefix:  r.TriggerPrefix,
+		V:              2,
+		Items:          &items,
+		GroupMode:      string(l.GroupMode),
+		AllowedSenders: append([]string{}, l.AllowedSenders...),
+		AllowedGroups:  append([]string{}, l.AllowedGroups...),
+		TriggerPrefix:  l.TriggerPrefix,
 		IgnoreFromMe:   r.IgnoreFromMe,
 	}
 	b, err := json.Marshal(doc)
@@ -58,18 +89,25 @@ func decodeRules(raw string) (Rules, error) {
 	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
 		return Rules{}, fmt.Errorf("device.postgres: decode rules: %w", err)
 	}
-	out := Rules{
-		GroupMode:      GroupMode(doc.GroupMode),
-		AllowedSenders: doc.AllowedSenders,
-		AllowedGroups:  doc.AllowedGroups,
-		TriggerPrefix:  doc.TriggerPrefix,
-		IgnoreFromMe:   doc.IgnoreFromMe,
+	if doc.V != 2 {
+		return FromLegacy(Legacy{
+			GroupMode:      GroupMode(doc.GroupMode),
+			AllowedSenders: doc.AllowedSenders,
+			AllowedGroups:  doc.AllowedGroups,
+			TriggerPrefix:  doc.TriggerPrefix,
+			IgnoreFromMe:   doc.IgnoreFromMe,
+		}), nil
 	}
-	if out.AllowedSenders == nil {
-		out.AllowedSenders = []string{}
+	out := Rules{IgnoreFromMe: doc.IgnoreFromMe, Items: []Rule{}}
+	if doc.Items == nil {
+		return out, nil
 	}
-	if out.AllowedGroups == nil {
-		out.AllowedGroups = []string{}
+	for _, it := range *doc.Items {
+		conds := make([]Condition, 0, len(it.Conditions))
+		for _, c := range it.Conditions {
+			conds = append(conds, Condition{Field: Field(c.Field), Op: Op(c.Op), Values: c.Values})
+		}
+		out.Items = append(out.Items, Rule{ID: it.ID, Name: it.Name, Enabled: it.Enabled, Action: Action(it.Action), Conditions: conds})
 	}
 	return out, nil
 }

@@ -168,8 +168,8 @@ func TestWAMedia_OpensThroughTheTransport(t *testing.T) {
 
 type failingMatch struct{ *fakes.MessageDevices }
 
-func (failingMatch) Match(context.Context, uuid.UUID, message.MatchInput) (bool, []string, error) {
-	return false, nil, errors.New("rules engine down")
+func (failingMatch) Match(context.Context, uuid.UUID, message.MatchInput) (message.DeviceRef, message.MatchResult, error) {
+	return message.DeviceRef{}, message.MatchResult{}, errors.New("rules engine down")
 }
 
 func TestRecordInbound_RulesErrorKeepsTheMessageAndItsReceivedEvent(t *testing.T) {
@@ -188,6 +188,7 @@ func TestRecordInbound_RulesErrorKeepsTheMessageAndItsReceivedEvent(t *testing.T
 	require.Equal(t, events.MessageReceived, calls[0].Type)
 	require.Nil(t, calls[0].Data.(events.MessageEventV1).Matched)
 	require.Zero(t, e.unexpected.Load())
+	require.Empty(t, e.store.All()[0].MatchOutcome, "a rules error leaves the outcome unset")
 }
 
 func TestClaimNext_StopsWhenTheContextIsDone(t *testing.T) {

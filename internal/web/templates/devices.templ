@@ -25,6 +25,7 @@ type DevicesView struct {
 	Connected   int
 	Attention   int
 	Cards       []DeviceCard
+	CanManage   bool
 }
 
 // DeviceFormView is the new-device form.
@@ -39,7 +40,7 @@ templ DevicesPage(d web.LayoutData, v DevicesView) {
 		@PageHeader(d, PageHeaderProps{
 			Title:    d.Tr("devices.title"),
 			Subtitle: d.Tr("devices.subtitle"),
-			Actions:  Button(ButtonProps{Kind: ButtonPrimary, Label: d.Tr("devices.new"), Icon: "plus", Href: d.ProjectPath(v.ProjectSlug, "/devices/new")}),
+			Actions:  devicesActions(d, v),
 		})
 		<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
 			@StatCard(d.Tr("devices.stat_total"), strconv.Itoa(v.Total))
@@ -51,7 +52,7 @@ templ DevicesPage(d web.LayoutData, v DevicesView) {
 				Icon:  "smartphone",
 				Title: d.Tr("devices.empty_title"),
 				Body:  d.Tr("devices.empty_body"),
-				CTA:   &ButtonProps{Kind: ButtonPrimary, Label: d.Tr("devices.new"), Href: d.ProjectPath(v.ProjectSlug, "/devices/new")},
+				CTA:   devicesEmptyCTA(d, v),
 			})
 		} else {
 			<ul id="device-list" class="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -63,6 +64,21 @@ templ DevicesPage(d web.LayoutData, v DevicesView) {
 			</ul>
 		}
 	</section>
+}
+
+templ devicesActions(d web.LayoutData, v DevicesView) {
+	if v.CanManage {
+		@Button(ButtonProps{Kind: ButtonPrimary, Label: d.Tr("devices.new"), Icon: "plus", Href: d.ProjectPath(v.ProjectSlug, "/devices/new")})
+	} else {
+		<span class="text-xs text-muted-foreground">{ d.Tr("common.managers_only") }</span>
+	}
+}
+
+func devicesEmptyCTA(d web.LayoutData, v DevicesView) *ButtonProps {
+	if !v.CanManage {
+		return nil
+	}
+	return &ButtonProps{Kind: ButtonPrimary, Label: d.Tr("devices.new"), Href: d.ProjectPath(v.ProjectSlug, "/devices/new")}
 }
 
 templ deviceCard(d web.LayoutData, projectSlug string, c DeviceCard) {

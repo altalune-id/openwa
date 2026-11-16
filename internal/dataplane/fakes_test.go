@@ -263,15 +263,16 @@ func (f *fakeAuthz) tenant(ctx context.Context, raw, scope string, orgID, projec
 }
 
 type fakeDevices struct {
-	mu       sync.Mutex
-	rows     map[uuid.UUID]dataplane.DeviceRef
-	link     dataplane.LinkRef
-	linkErr  error
-	creates  int
-	resolves int
-	unlinked []uuid.UUID
-	deleted  []uuid.UUID
-	phones   []string
+	mu        sync.Mutex
+	rows      map[uuid.UUID]dataplane.DeviceRef
+	link      dataplane.LinkRef
+	linkErr   error
+	updateErr error
+	creates   int
+	resolves  int
+	unlinked  []uuid.UUID
+	deleted   []uuid.UUID
+	phones    []string
 }
 
 func newFakeDevices(seed ...dataplane.DeviceRef) *fakeDevices {
@@ -342,6 +343,9 @@ func (f *fakeDevices) Update(_ context.Context, id uuid.UUID, name *string, rule
 	}
 	if ifVersion != 0 && ifVersion != d.Version {
 		return dataplane.DeviceRef{}, &device.StaleVersionError{Want: ifVersion, Got: d.Version}
+	}
+	if f.updateErr != nil {
+		return dataplane.DeviceRef{}, f.updateErr
 	}
 	if name != nil {
 		d.Name = *name

@@ -31,7 +31,7 @@ func newSvcFixture(t *testing.T) *svcFixture {
 	unexpected := func(_ context.Context, msg string, cause error, _ ...any) *apperror.AppError {
 		return apperror.New("GEN900", msg, codes.Internal).WithCause(cause)
 	}
-	f.svc = device.NewService(f.store, slog.New(slog.NewTextHandler(io.Discard, nil)), unexpected, fakes.UnitOfWork, f.sessions)
+	f.svc = device.NewService(f.store, slog.New(slog.NewTextHandler(io.Discard, nil)), unexpected, fakes.UnitOfWork, f.sessions, "62")
 	return f
 }
 
@@ -192,24 +192,60 @@ func TestService_UpdateIsOneConditionalWrite(t *testing.T) {
 	counting := &countingDeviceStore{Device: f.store}
 	svc := device.NewService(counting, slog.New(slog.NewTextHandler(io.Discard, nil)), func(_ context.Context, msg string, cause error, _ ...any) *apperror.AppError {
 		return apperror.New("GEN900", msg, codes.Internal).WithCause(cause)
-	}, fakes.UnitOfWork, f.sessions)
+	}, fakes.UnitOfWork, f.sessions, "")
 
 	name := "B"
-	rules := device.Rules{GroupMode: device.GroupOpen, IgnoreFromMe: true}
-	got, err := svc.Update(f.ctx(t), d.ID, device.Update{Name: &name, Rules: &rules}, 1)
+	rules := device.Legacy{GroupMode: device.GroupOpen, IgnoreFromMe: true}
+	got, err := svc.Update(f.ctx(t), d.ID, device.Update{Name: &name, Legacy: &rules}, 1)
 	require.NoError(t, err)
 	require.Equal(t, 1, counting.saves)
 	require.Equal(t, "B", got.Name)
-	require.Equal(t, device.GroupOpen, got.Rules.GroupMode)
+	l, ok := got.Rules.Legacy()
+	require.True(t, ok)
+	require.Equal(t, device.GroupOpen, l.GroupMode)
 	require.Equal(t, 2, got.Version)
 
 	_, err = svc.Rename(f.ctx(t), d.ID, "C", 1)
 	require.True(t, device.IsStaleVersionError(err))
-	_, err = svc.UpdateRules(f.ctx(t), d.ID, device.Rules{GroupMode: "loud"}, 0)
+	_, err = svc.UpdateLegacyRules(f.ctx(t), d.ID, device.Legacy{GroupMode: "loud"}, 0)
 	require.True(t, device.IsInvalidRulesError(err))
 	renamed, err := svc.Rename(f.ctx(t), d.ID, "C", 0)
 	require.NoError(t, err, "ifVersion 0 guards on the loaded version")
 	require.Equal(t, 3, renamed.Version)
+}
+
+func TestService_UpdateNormalizesPhonesWithTheDefaultCountryCode(t *testing.T) {
+	f := newSvcFixture(t)
+	d, err := f.svc.Create(f.ctx(t), "A")
+	require.NoError(t, err)
+
+	got, err := f.svc.UpdateLegacyRules(f.ctx(t), d.ID, device.Legacy{GroupMode: device.GroupOpen, AllowedSenders: []string{"+62 811-1122-2333", "0811 4455 6677"}}, 0)
+	require.NoError(t, err)
+	l, ok := got.Rules.Legacy()
+	require.True(t, ok)
+	require.Equal(t, []string{"6281111222333", "6281144556677"}, l.AllowedSenders)
+
+	items := device.Rules{Items: []device.Rule{{ID: "a", Enabled: true, Conditions: []device.Condition{
+		{Field: device.FieldChatKind, Op: device.OpIs, Values: []string{"dm"}},
+		{Field: device.FieldSender, Op: device.OpIs, Values: []string{"phone:0811-1122-2333", "12345678901234@lid"}},
+	}}}}
+	got, err = f.svc.Update(f.ctx(t), d.ID, device.Update{Rules: &items}, 0)
+	require.NoError(t, err)
+	require.Equal(t, []string{"phone:6281111222333", "12345678901234@lid"}, got.Rules.Items[0].Conditions[1].Values)
+
+	_, err = f.svc.UpdateLegacyRules(f.ctx(t), d.ID, device.Legacy{GroupMode: device.GroupOpen}, 0)
+	require.True(t, device.IsRulesShapeConflictError(err), "got %v", err)
+}
+
+func TestService_ItemsWinOverLegacy(t *testing.T) {
+	f := newSvcFixture(t)
+	d, err := f.svc.Create(f.ctx(t), "A")
+	require.NoError(t, err)
+	items := device.Rules{Items: []device.Rule{}}
+	legacy := device.Legacy{GroupMode: device.GroupOpen}
+	got, err := f.svc.Update(f.ctx(t), d.ID, device.Update{Rules: &items, Legacy: &legacy}, 0)
+	require.NoError(t, err)
+	require.Empty(t, got.Rules.Items)
 }
 
 type countingDeviceStore struct {

@@ -52,16 +52,26 @@ type MatchInput struct {
 	IsGroup      bool
 	ChatJID      string
 	SenderPhone  string
+	SenderJID    string
+	SenderLID    string
 	FromMe       bool
 	Body         string
 	Mentions     []string
 	QuotedSender string
 }
 
+// MatchResult is the deciding rule of the device's inbound rules; RuleID is empty for MatchNone.
+type MatchResult struct {
+	Outcome  MatchOutcome
+	RuleID   string
+	RuleName string
+	Reasons  []string
+}
+
 // Devices resolves devices and evaluates their inbound rules.
 type Devices interface {
 	Ref(ctx context.Context, id uuid.UUID) (DeviceRef, error)
-	Match(ctx context.Context, id uuid.UUID, in MatchInput) (bool, []string, error)
+	Match(ctx context.Context, id uuid.UUID, in MatchInput) (DeviceRef, MatchResult, error)
 }
 
 // ChatRef is the chat a message belongs to.
@@ -760,6 +770,20 @@ func (s *Service) PendingDeletion(ctx context.Context) (int64, error) {
 		return 0, s.unexpected(ctx, "message.PendingDeletion: count", err)
 	}
 	return n, nil
+}
+
+// RuleHits returns, per rule id, how many of the device's retained messages the rule decided and when it last did.
+func (s *Service) RuleHits(ctx context.Context, deviceID uuid.UUID) (map[string]RuleHit, error) {
+	ctx, span := tracer.Start(ctx, "message.RuleHits")
+	defer span.End()
+	if _, err := tenant.From(ctx); err != nil {
+		return nil, err
+	}
+	hits, err := s.store.RuleHits(ctx, deviceID)
+	if err != nil {
+		return nil, s.unexpected(ctx, "message.RuleHits: query", err, "device_id", deviceID)
+	}
+	return hits, nil
 }
 
 // CountToday counts the caller's project's messages since midnight UTC.

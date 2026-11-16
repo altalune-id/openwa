@@ -324,7 +324,7 @@ The full contract is [`webhooks`](../webhooks/README.md).
 }
 ```
 
-`data` of `message.matched` (the same shape plus `matched.reasons`):
+`data` of `message.matched` (the same shape plus `matched`: the reasons and the deciding rule):
 
 <!-- prettier-ignore -->
 ```json golden=message_matched_v1
@@ -373,7 +373,9 @@ The full contract is [`webhooks`](../webhooks/README.md).
   "matched": {
     "reasons": [
       "group_mention"
-    ]
+    ],
+    "rule_id": "legacy-group",
+    "rule_name": "Groups"
   }
 }
 ```
@@ -446,7 +448,33 @@ curl -sS -X PATCH "$BASE/devices/$DEVICE" -H "Authorization: Bearer $KEY" -H "If
   -d '{"rules":{"group_mode":"mention","allowed_senders":[],"allowed_groups":[],"trigger_prefix":"","ignore_from_me":true}}'
 ```
 
-| Rule              | Effect                                                                                                                        |
+Rules are an ordered list, `items`. The first enabled rule whose conditions all hold decides:
+`match` emits `message.matched`, `ignore` stops without it. No rule holding means not sent, and
+an empty list sends nothing. A direct message is sent only by a rule with a `chat_kind` condition
+that admits `dm`.
+
+```bash
+curl -sS -X PATCH "$BASE/devices/$DEVICE" -H "Authorization: Bearer $KEY" -H "If-Match: $ETAG" \
+  -H 'Content-Type: application/json' \
+  -d '{"rules":{"items":[{"id":"orders","name":"Orders","enabled":true,"action":"match","conditions":[{"field":"chat_kind","op":"is","values":["dm"]},{"field":"text","op":"contains","values":["order"]}]}]}}'
+```
+
+| Field       | Ops                                 | Values                                                                |
+| ----------- | ----------------------------------- | --------------------------------------------------------------------- |
+| `chat_kind` | `is`, `is_not`                      | `dm`, `group`                                                         |
+| `chat`      | `is`, `is_not`                      | group JIDs ending in `@g.us`                                          |
+| `sender`    | `is`, `is_not`                      | `phone:<digits>`, or a full JID ending in `@s.whatsapp.net` or `@lid` |
+| `text`      | `contains`, `starts_with`, `equals` | text, case-insensitive on the trimmed body, at most 256 characters    |
+| `mention`   | none                                | none; holds when the account is @mentioned or replied to              |
+
+Conditions are AND, values are OR. Limits: 50 rules, 20 conditions per rule, 100 values per
+condition, 64 KiB in all. A rule `id` is up to 64 letters, digits, `-` or `_`; omit it to have
+one minted.
+
+The legacy fields still work. A write that carries `items` ignores them. A write of only legacy
+fields converts to the rules `legacy-dm` and `legacy-group`:
+
+| Legacy field      | Effect                                                                                                                        |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `group_mode`      | `ignore`: no group message matches; `mention`: only when the account is @mentioned or replied to; `open`: every group message |
 | `allowed_senders` | when set, only these phone numbers match, in chats and groups                                                                 |
@@ -454,8 +482,13 @@ curl -sS -X PATCH "$BASE/devices/$DEVICE" -H "Authorization: Bearer $KEY" -H "If
 | `trigger_prefix`  | when set, the text must start with it (case-insensitive, after trimming spaces)                                               |
 | `ignore_from_me`  | messages from the account itself never match                                                                                  |
 
-`matched.reasons` names what passed: `dm`, `sender_allowed`, `prefix`, `group_mention`,
-`group_reply`, `group_open`. Direct messages always pass `group_mode`.
+When `items` say something the legacy fields cannot, reads return `group_mode: "custom"` without
+`allowed_senders` and `allowed_groups`, and a write of only legacy fields answers `409 conflict`
+(RPC `FailedPrecondition`, code `DEV006`) and changes nothing.
+
+`matched.reasons` names what passed: `dm`, `sender_allowed`, `sender_excluded`, `chat`, `prefix`,
+`text`, `group_mention`, `group_reply`, `group_open`, and in a direct message `mention` or
+`reply`. `matched.rule_id` and `matched.rule_name` name the deciding rule.
 
 ## Rate and anti-ban
 

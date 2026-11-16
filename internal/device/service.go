@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"context"
 	"log/slog"
+	"slices"
+	"strings"
 
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
@@ -11,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/phone"
 	"altalune.id/openwa/internal/platform/publicid"
 	"altalune.id/openwa/internal/platform/tenant"
 )
@@ -25,11 +28,12 @@ type Service struct {
 	unexpected apperror.UnexpectedFunc
 	uow        tenant.UnitOfWork
 	sessions   Sessions
+	defaultCC  string
 }
 
-// NewService binds the service to its dependencies.
-func NewService(store Store, log *slog.Logger, unexpected apperror.UnexpectedFunc, uow tenant.UnitOfWork, sessions Sessions) *Service {
-	return &Service{store: store, log: log.With("module", "device"), unexpected: unexpected, uow: uow, sessions: sessions}
+// NewService binds the service to its dependencies; defaultCC replaces the leading 0 of a national phone number in rules.
+func NewService(store Store, log *slog.Logger, unexpected apperror.UnexpectedFunc, uow tenant.UnitOfWork, sessions Sessions, defaultCC string) *Service {
+	return &Service{store: store, log: log.With("module", "device"), unexpected: unexpected, uow: uow, sessions: sessions, defaultCC: defaultCC}
 }
 
 // Create adds a device to the caller's project.
@@ -210,8 +214,15 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, u Update, ifVersion 
 			return nil, record(span, err)
 		}
 	}
-	if u.Rules != nil {
-		if err := d.SetRules(*u.Rules); err != nil {
+	switch {
+	case u.Rules != nil:
+		if err := d.SetRules(s.normalizeRulePhones(*u.Rules)); err != nil {
+			return nil, record(span, err)
+		}
+	case u.Legacy != nil:
+		l := *u.Legacy
+		l.AllowedSenders = s.normalizePhones(l.AllowedSenders, "")
+		if err := d.SetLegacyRules(l); err != nil {
 			return nil, record(span, err)
 		}
 	}
@@ -231,9 +242,37 @@ func (s *Service) Rename(ctx context.Context, id uuid.UUID, name string, ifVersi
 	return s.Update(ctx, id, Update{Name: &name}, ifVersion)
 }
 
-// UpdateRules replaces the inbound rules only.
-func (s *Service) UpdateRules(ctx context.Context, id uuid.UUID, rules Rules, ifVersion int) (*Device, error) {
-	return s.Update(ctx, id, Update{Rules: &rules}, ifVersion)
+// UpdateLegacyRules replaces the inbound rules from the legacy shape only.
+func (s *Service) UpdateLegacyRules(ctx context.Context, id uuid.UUID, rules Legacy, ifVersion int) (*Device, error) {
+	return s.Update(ctx, id, Update{Legacy: &rules}, ifVersion)
+}
+
+func (s *Service) normalizeRulePhones(r Rules) Rules {
+	items := slices.Clone(r.Items)
+	for i := range items {
+		conds := slices.Clone(items[i].Conditions)
+		for j, c := range conds {
+			if c.Field == FieldSender {
+				conds[j].Values = s.normalizePhones(c.Values, PhoneSenderPrefix)
+			}
+		}
+		items[i].Conditions = conds
+	}
+	r.Items = items
+	return r
+}
+
+// NOTE: a value phone.Normalize refuses is passed on unchanged; the domain refuses it too, with its usual field and reason.
+func (s *Service) normalizePhones(values []string, prefix string) []string {
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		raw, ok := strings.CutPrefix(strings.TrimSpace(v), prefix)
+		if n, err := phone.Normalize(raw, s.defaultCC); ok && err == nil {
+			v = prefix + n
+		}
+		out = append(out, v)
+	}
+	return out
 }
 
 // Delete forgets the WhatsApp session outside any transaction, then deletes the device; a Forget failure keeps the device.
@@ -269,9 +308,9 @@ func (s *Service) StartLink(ctx context.Context, id uuid.UUID) (LinkState, error
 }
 
 // LinkWithPhone starts or reuses a pairing attempt and returns its pairing code.
-func (s *Service) LinkWithPhone(ctx context.Context, id uuid.UUID, phone string) (LinkState, error) {
+func (s *Service) LinkWithPhone(ctx context.Context, id uuid.UUID, number string) (LinkState, error) {
 	return s.linkVerb(ctx, "device.LinkWithPhone", id, func(ctx context.Context) (LinkState, error) {
-		return s.sessions.LinkWithPhone(ctx, id, phone)
+		return s.sessions.LinkWithPhone(ctx, id, number)
 	})
 }
 

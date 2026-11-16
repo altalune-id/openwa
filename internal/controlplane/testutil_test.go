@@ -88,7 +88,7 @@ func newHarnessOpts(t *testing.T, p session.Principal, verr error) *harness {
 	tagSvc := tag.NewService(tags, log, reporter.Unexpected)
 	devs := fakes.NewDevice()
 	sessions := fakes.NewDeviceSessions()
-	deviceSvc := device.NewService(devs, log, reporter.Unexpected, fakes.UnitOfWork, sessions)
+	deviceSvc := device.NewService(devs, log, reporter.Unexpected, fakes.UnitOfWork, sessions, "")
 
 	kernel := &platform.Kernel{
 		Log:      log,

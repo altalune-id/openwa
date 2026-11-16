@@ -36,7 +36,7 @@ func newDeviceFixture(t *testing.T) *deviceFixture {
 	f := newFixture(t)
 	store := fakes.NewDevice()
 	sessions := fakes.NewDeviceSessions()
-	devices := device.NewService(store, discardLogger(), passthroughUnexpected(), fakes.UnitOfWork, sessions)
+	devices := device.NewService(store, discardLogger(), passthroughUnexpected(), fakes.UnitOfWork, sessions, "")
 
 	uid := uuid.New()
 	o := f.seedOrg(t, "acme", uid)
@@ -208,7 +208,7 @@ func TestDevices_RulesAndRename(t *testing.T) {
 	require.Equal(t, http.StatusSeeOther, rec.Code, rec.Body.String())
 	got, err := x.Devices.Get(setTenantProject(context.Background(), x.org, x.project, x.uid), d.ID)
 	require.NoError(t, err)
-	require.Equal(t, []string{"628123456789", "628111111111"}, got.Device.Rules.AllowedSenders)
+	require.Equal(t, []string{"628123456789", "628111111111"}, legacyRules(t, got.Device.Rules).AllowedSenders)
 	require.True(t, got.Device.Rules.IgnoreFromMe)
 
 	rec = x.do(t, http.MethodPost, path+"/rules", "version=2&group_mode=open&allowed_groups=nope", false)
@@ -223,6 +223,30 @@ func TestDevices_RulesAndRename(t *testing.T) {
 	rec = x.do(t, http.MethodPost, path+"/rename", "version=3&name=%20", false)
 	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 	require.Contains(t, rec.Body.String(), `id="rename-name-error"`)
+}
+
+func TestDevices_RulesFormRefusesToOverwriteCustomRules(t *testing.T) {
+	x := newDeviceFixture(t)
+	d := x.seed(t, "Sales")
+	ctx := setTenantProject(context.Background(), x.org, x.project, x.uid)
+	custom := device.Rules{Items: []device.Rule{{ID: "orders", Enabled: true, Action: device.ActionMatch, Conditions: []device.Condition{
+		{Field: device.FieldChatKind, Op: device.OpIs, Values: []string{"dm"}},
+		{Field: device.FieldText, Op: device.OpContains, Values: []string{"order"}},
+	}}}}
+	_, err := x.Devices.Update(ctx, d.ID, device.Update{Rules: &custom}, 0)
+	require.NoError(t, err)
+	path := devicesBase + "/" + d.PublicID
+
+	rec := x.do(t, http.MethodGet, path, "", false)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), "devices.error.rules_shape_conflict")
+
+	rec = x.do(t, http.MethodPost, path+"/rules", "version=2&group_mode=open", false)
+	require.Equal(t, http.StatusConflict, rec.Code)
+	require.Contains(t, rec.Body.String(), "devices.error.rules_shape_conflict")
+	got, err := x.Devices.Get(ctx, d.ID)
+	require.NoError(t, err)
+	require.Equal(t, "orders", got.Device.Rules.Items[0].ID, "the custom rules are untouched")
 }
 
 func TestDevices_ADeviceOfASiblingProjectIsNotFound(t *testing.T) {
@@ -261,7 +285,7 @@ func TestDevices_AMissingOrGarbledVersionIsRefusedNotWrittenUnconditionally(t *t
 	got, err := x.Devices.Get(setTenantProject(context.Background(), x.org, x.project, x.uid), d.ID)
 	require.NoError(t, err)
 	require.Equal(t, "Sales", got.Device.Name)
-	require.Empty(t, got.Device.Rules.TriggerPrefix)
+	require.Empty(t, legacyRules(t, got.Device.Rules).TriggerPrefix)
 	require.Equal(t, d.Version, got.Device.Version)
 }
 
@@ -272,4 +296,11 @@ func TestDevices_PendingPairingShowsAVisibleWaitingLine(t *testing.T) {
 	body := x.do(t, http.MethodGet, devicesBase+"/"+d.PublicID+"/links/current", "", true).Body.String()
 	require.Contains(t, body, "data-pairing-wait")
 	require.NotContains(t, body, "htmx-indicator")
+}
+
+func legacyRules(t *testing.T, r device.Rules) device.Legacy {
+	t.Helper()
+	l, ok := r.Legacy()
+	require.True(t, ok)
+	return l
 }

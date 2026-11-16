@@ -143,7 +143,7 @@ func newMsgHarnessAs(t *testing.T, key *apiKeyAs, deviceNames ...string) *msgHar
 		keyPlain = plain
 	}
 	kernel := &platform.Kernel{Log: log, Reporter: reporter, Verifier: stubVerifier{principal: fullTokenGrant(p)}}
-	deviceSvc := device.NewService(devStore, log, reporter.Unexpected, fakes.UnitOfWork, fakes.NewDeviceSessions())
+	deviceSvc := device.NewService(devStore, log, reporter.Unexpected, fakes.UnitOfWork, fakes.NewDeviceSessions(), "")
 	srv := controlplane.New(nil, kernel, nil, nil, orgSvc, projectSvc, nil, nil, nil, nil, nil, nil, deviceSvc)
 	srv.Authn = authn.Chain{apikey.NewAuthenticator(keyStore, nil, apikey.Scheme{}, fakes.NewMembers()), tokens.NewAuthenticator(kernel.Verifier, authn.Scheme{Prefix: apikey.DefaultPrefix})}
 	srv.Messages, srv.Chats, srv.Contacts = msgs, chats, contacts

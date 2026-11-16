@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"altalune.id/openwa/internal/dataplane"
+	"altalune.id/openwa/internal/device"
 	"altalune.id/openwa/internal/platform/authn"
 	"altalune.id/openwa/internal/whatsapp"
 )
@@ -220,6 +221,39 @@ func TestDevices_PatchRulesMergesOmittedFields(t *testing.T) {
 	require.False(t, got.IgnoreFromMe, "an explicit false is applied")
 	require.Equal(t, []string{"g1@g.us"}, got.AllowedGroups)
 	require.Equal(t, "!", got.TriggerPrefix)
+}
+
+func TestDevices_RulesItemsAndCustomReads(t *testing.T) {
+	e := newEnv(true)
+	sales := e.deviceNamed("Sales")
+	sales.Rules = dataplane.RulesRef{GroupMode: "custom", IgnoreFromMe: true, Items: []dataplane.RuleRef{{ID: "orders", Enabled: true, Action: "match", Conditions: []dataplane.ConditionRef{{Field: "chat_kind", Op: "is", Values: []string{"dm"}}}}}}
+	e.devices.rows[sales.ID] = sales
+	path := devBase + "/" + sales.PublicID
+
+	rec := send(t, e.handler(), http.MethodGet, path, "", nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"group_mode":"custom"`)
+	require.NotContains(t, rec.Body.String(), "allowed_senders", "a custom read never shows an empty, permissive allow-list")
+	require.Contains(t, rec.Body.String(), `"items":[{"id":"orders"`)
+
+	rec = send(t, e.handler(), http.MethodPatch, path, `{"rules":{"allowed_senders":["628111222333"]}}`, jsonHeader("If-Match", `W/"3"`))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	got := e.devices.rows[sales.ID].Rules
+	require.Nil(t, got.Items, "a legacy-only patch reaches the port on the legacy path")
+	require.Equal(t, "custom", got.GroupMode, "so the domain sees the custom shape and refuses")
+
+	e.devices.rows[sales.ID] = sales
+	rec = send(t, e.handler(), http.MethodPatch, path, `{"rules":{"group_mode":"open","items":[]}}`, jsonHeader("If-Match", `W/"3"`))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	got = e.devices.rows[sales.ID].Rules
+	require.NotNil(t, got.Items, "items present, even empty, take the items path")
+	require.Empty(t, got.Items)
+	require.Empty(t, got.GroupMode, "legacy fields beside items are ignored")
+
+	e.devices.updateErr = &device.RulesShapeConflictError{}
+	rec = send(t, e.handler(), http.MethodPatch, path, `{"rules":{"group_mode":"open"}}`, jsonHeader("If-Match", `W/"4"`))
+	require.Equal(t, http.StatusConflict, rec.Code)
+	require.Contains(t, rec.Body.String(), "conflict")
 }
 
 func TestDevices_UnauthorizedKeyNeverResolvesTheDevice(t *testing.T) {

@@ -47,7 +47,9 @@ func TestNew_Invariants(t *testing.T) {
 			require.Equal(t, tc.want, d.Name)
 			require.Equal(t, 1, d.Version)
 			require.Equal(t, device.DefaultRules(), d.Rules)
-			require.Equal(t, device.GroupMention, d.Rules.GroupMode)
+			l, ok := d.Rules.Legacy()
+			require.True(t, ok)
+			require.Equal(t, device.GroupMention, l.GroupMode)
 			require.True(t, d.Rules.IgnoreFromMe)
 			require.NotEqual(t, uuid.Nil, d.ID)
 			require.Equal(t, pub, d.PublicID)
@@ -69,25 +71,26 @@ func TestRename(t *testing.T) {
 	require.False(t, d.UpdatedAt.Before(before))
 }
 
-func TestSetRules_ValidatesEveryField(t *testing.T) {
+func TestSetLegacyRules_ValidatesEveryField(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name  string
-		rules device.Rules
+		rules device.Legacy
 		field string
 	}{
-		{"bad group mode", device.Rules{GroupMode: "loud"}, "group_mode"},
-		{"sender with plus", device.Rules{GroupMode: device.GroupOpen, AllowedSenders: []string{"+62812"}}, "allowed_senders"},
-		{"sender too short", device.Rules{GroupMode: device.GroupOpen, AllowedSenders: []string{"1234567"}}, "allowed_senders"},
-		{"group not g.us", device.Rules{GroupMode: device.GroupOpen, AllowedGroups: []string{"628@s.whatsapp.net"}}, "allowed_groups"},
-		{"prefix too long", device.Rules{GroupMode: device.GroupOpen, TriggerPrefix: strings.Repeat("!", 17)}, "trigger_prefix"},
+		{"bad group mode", device.Legacy{GroupMode: "loud"}, "group_mode"},
+		{"sender with plus", device.Legacy{GroupMode: device.GroupOpen, AllowedSenders: []string{"+62812"}}, "allowed_senders"},
+		{"sender too short", device.Legacy{GroupMode: device.GroupOpen, AllowedSenders: []string{"1234567"}}, "allowed_senders"},
+		{"national sender", device.Legacy{GroupMode: device.GroupOpen, AllowedSenders: []string{"08123456789"}}, "allowed_senders"},
+		{"group not g.us", device.Legacy{GroupMode: device.GroupOpen, AllowedGroups: []string{"628@s.whatsapp.net"}}, "allowed_groups"},
+		{"prefix too long", device.Legacy{GroupMode: device.GroupOpen, TriggerPrefix: strings.Repeat("!", 17)}, "trigger_prefix"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			d, err := device.New(uuid.New(), uuid.New(), testPublicID(t), "x")
 			require.NoError(t, err)
-			err = d.SetRules(tc.rules)
+			err = d.SetLegacyRules(tc.rules)
 			require.True(t, device.IsInvalidRulesError(err), "got %v", err)
 			var ir *device.InvalidRulesError
 			require.ErrorAs(t, err, &ir)
@@ -96,20 +99,23 @@ func TestSetRules_ValidatesEveryField(t *testing.T) {
 	}
 }
 
-func TestSetRules_NormalizesLists(t *testing.T) {
+func TestSetLegacyRules_NormalizesLists(t *testing.T) {
 	t.Parallel()
 	d, err := device.New(uuid.New(), uuid.New(), testPublicID(t), "x")
 	require.NoError(t, err)
-	require.NoError(t, d.SetRules(device.Rules{
+	require.NoError(t, d.SetLegacyRules(device.Legacy{
 		GroupMode:      device.GroupOpen,
 		AllowedSenders: []string{" 628123456789 ", "", "628123456789", "6281111111111"},
 		AllowedGroups:  []string{"120363@g.us", "120363@g.us"},
 		TriggerPrefix:  "  !bot ",
 		IgnoreFromMe:   false,
 	}))
-	require.Equal(t, []string{"628123456789", "6281111111111"}, d.Rules.AllowedSenders)
-	require.Equal(t, []string{"120363@g.us"}, d.Rules.AllowedGroups)
-	require.Equal(t, "!bot", d.Rules.TriggerPrefix)
+	l, ok := d.Rules.Legacy()
+	require.True(t, ok)
+	require.Equal(t, []string{"628123456789", "6281111111111"}, l.AllowedSenders)
+	require.Equal(t, []string{"120363@g.us"}, l.AllowedGroups)
+	require.Equal(t, "!bot", l.TriggerPrefix)
+	require.False(t, l.IgnoreFromMe)
 	require.False(t, d.Rules.IgnoreFromMe)
 }
 

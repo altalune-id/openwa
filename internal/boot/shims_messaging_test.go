@@ -55,19 +55,32 @@ func TestDevicesForMessage_MatchDetectsMentionsAndRepliesToTheOwnAccount(t *test
 	shim, id := seededDevice(t, tc, rules, whatsapp.StateConnected)
 	ctx := tenant.Into(t.Context(), tc)
 
-	ok, reasons, err := shim.Match(ctx, id, message.MatchInput{IsGroup: true, ChatJID: "1203@g.us", Mentions: []string{"99@lid"}})
+	ref, res, err := shim.Match(ctx, id, message.MatchInput{IsGroup: true, ChatJID: "1203@g.us", Mentions: []string{"99@lid"}})
 	require.NoError(t, err)
-	require.True(t, ok)
-	require.Contains(t, reasons, "group_mention")
+	require.Equal(t, message.MatchMatched, res.Outcome)
+	require.Equal(t, "legacy-group", res.RuleID)
+	require.Contains(t, res.Reasons, "group_mention")
+	require.Equal(t, "sales-01", ref.Name, "one load returns the device ref too")
 
-	ok, reasons, err = shim.Match(ctx, id, message.MatchInput{IsGroup: true, ChatJID: "1203@g.us", QuotedSender: "628123456789@s.whatsapp.net"})
+	_, res, err = shim.Match(ctx, id, message.MatchInput{IsGroup: true, ChatJID: "1203@g.us", QuotedSender: "628123456789@s.whatsapp.net"})
 	require.NoError(t, err)
-	require.True(t, ok)
-	require.Contains(t, reasons, "group_reply")
+	require.Equal(t, message.MatchMatched, res.Outcome)
+	require.Contains(t, res.Reasons, "group_reply")
 
-	ok, _, err = shim.Match(ctx, id, message.MatchInput{IsGroup: true, ChatJID: "1203@g.us", Mentions: []string{"628999@s.whatsapp.net"}})
+	_, res, err = shim.Match(ctx, id, message.MatchInput{IsGroup: true, ChatJID: "1203@g.us", Mentions: []string{"628999@s.whatsapp.net"}})
 	require.NoError(t, err)
-	require.False(t, ok, "mentioning someone else does not match mention mode")
+	require.Equal(t, message.MatchNone, res.Outcome, "mentioning someone else does not match mention mode")
+}
+
+func TestDevicesForMessage_MatchPassesTheSenderLID(t *testing.T) {
+	tc := tenant.Context{OrgID: uuid.New(), ProjectID: uuid.New()}
+	rules := device.Rules{Items: []device.Rule{{ID: "vip", Enabled: true, Action: device.ActionMatch, Conditions: []device.Condition{
+		{Field: device.FieldSender, Op: device.OpIs, Values: []string{"12345678901234@lid"}},
+	}}}}
+	shim, id := seededDevice(t, tc, rules, whatsapp.StateConnected)
+	_, res, err := shim.Match(tenant.Into(t.Context(), tc), id, message.MatchInput{IsGroup: true, ChatJID: "1203@g.us", SenderLID: "12345678901234@lid"})
+	require.NoError(t, err)
+	require.Equal(t, "vip", res.RuleID)
 }
 
 func TestInboundInput_MapsEveryField(t *testing.T) {

@@ -157,18 +157,22 @@ func (s devicesForMessage) Ref(ctx context.Context, id uuid.UUID) (message.Devic
 	if err != nil {
 		return message.DeviceRef{}, err
 	}
+	return messageDeviceRef(d, sess), nil
+}
+
+func messageDeviceRef(d *device.Device, sess *whatsapp.Session) message.DeviceRef {
 	ref := message.DeviceRef{ID: d.ID, PublicID: d.PublicID, Name: d.Name}
 	if sess != nil {
 		ref.Phone = sess.Phone
 		ref.Linked = sess.JID != "" && (sess.State == whatsapp.StateConnected || sess.State == whatsapp.StateDisconnected)
 	}
-	return ref, nil
+	return ref
 }
 
-func (s devicesForMessage) Match(ctx context.Context, id uuid.UUID, in message.MatchInput) (matched bool, reasons []string, err error) {
+func (s devicesForMessage) Match(ctx context.Context, id uuid.UUID, in message.MatchInput) (message.DeviceRef, message.MatchResult, error) {
 	d, sess, err := s.load(ctx, id)
 	if err != nil {
-		return false, nil, err
+		return message.DeviceRef{}, message.MatchResult{}, err
 	}
 	own := map[string]bool{}
 	if sess != nil {
@@ -182,11 +186,11 @@ func (s devicesForMessage) Match(ctx context.Context, id uuid.UUID, in message.M
 	for _, m := range in.Mentions {
 		mentioned = mentioned || own[jidUser(m)]
 	}
-	matched, reasons = d.Rules.Match(device.MatchInput{
-		IsGroup: in.IsGroup, ChatJID: in.ChatJID, SenderPhone: in.SenderPhone, FromMe: in.FromMe, Body: in.Body,
-		MentionedMe: mentioned, RepliedToMe: in.QuotedSender != "" && own[jidUser(in.QuotedSender)],
+	res := d.Rules.Match(device.MatchInput{
+		IsGroup: in.IsGroup, ChatJID: in.ChatJID, SenderPhone: in.SenderPhone, SenderJID: in.SenderJID, SenderLID: in.SenderLID,
+		FromMe: in.FromMe, Body: in.Body, MentionedMe: mentioned, RepliedToMe: in.QuotedSender != "" && own[jidUser(in.QuotedSender)],
 	})
-	return matched, reasons, nil
+	return messageDeviceRef(d, sess), message.MatchResult{Outcome: message.MatchOutcome(res.Outcome), RuleID: res.RuleID, RuleName: res.RuleName, Reasons: res.Reasons}, nil
 }
 
 func jidUser(j string) string {

@@ -49,7 +49,7 @@ func newContactsFixture(t *testing.T) *contactsFixture {
 	d2, err := device.New(o.ID, proj.ID, fakes.DevicePublicID(), "support-02")
 	require.NoError(t, err)
 	require.NoError(t, devStore.Save(ctx, d2, 0))
-	devices := device.NewService(devStore, discardLogger(), passthroughUnexpected(), fakes.UnitOfWork, &fakes.DeviceSessions{})
+	devices := device.NewService(devStore, discardLogger(), passthroughUnexpected(), fakes.UnitOfWork, &fakes.DeviceSessions{}, "")
 
 	store := fakes.NewContact()
 	contacts := contact.NewService(store, discardLogger(), passthroughUnexpected())

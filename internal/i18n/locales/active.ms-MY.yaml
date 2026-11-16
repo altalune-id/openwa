@@ -529,6 +529,7 @@ devices.error.invalid_allowed_senders: "Gunakan nombor telefon dengan kod negara
 devices.error.invalid_allowed_groups: "Gunakan JID kumpulan yang berakhir dengan @g.us."
 devices.error.invalid_trigger_prefix: "Gunakan paling banyak 16 aksara."
 devices.error.stale_version: "Peranti ini telah berubah sejak halaman dibuka. Muat semula dan cuba lagi."
+devices.error.rules_shape_conflict: "Peraturan ini menggunakan pilihan yang tidak dapat dipaparkan oleh borang ini, jadi borang ini tidak dapat mengubahnya."
 devices.error.invalid_phone: "Gunakan format antarabangsa dengan kod negara."
 devices.error.already_linked: "Peranti ini sudah dipautkan. Log keluar dahulu."
 devices.error.not_owned: "Peranti ini tidak berjalan pada pelayan ini sekarang. Cuba lagi sebentar lagi."

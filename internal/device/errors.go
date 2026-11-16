@@ -111,6 +111,25 @@ func IsInvalidRulesError(err error) bool {
 	return ok
 }
 
+// RulesShapeConflictError reports a legacy rules write to a device whose rules the legacy shape cannot express.
+type RulesShapeConflictError struct{}
+
+func (e *RulesShapeConflictError) Error() string {
+	return "device: rules: legacy write refused: the stored rules are not expressible in the legacy shape"
+}
+
+// ToAppError converts the typed error into the wire envelope.
+func (e *RulesShapeConflictError) ToAppError() *apperror.AppError {
+	return apperror.New(apperror.CodeDeviceRulesShapeConflict, "The device rules use items the legacy fields cannot express; send items instead", codes.FailedPrecondition,
+		&apperrorv1.ErrorDetail{Code: apperror.CodeDeviceRulesShapeConflict})
+}
+
+// IsRulesShapeConflictError reports whether err's tree contains a *RulesShapeConflictError.
+func IsRulesShapeConflictError(err error) bool {
+	_, ok := errors.AsType[*RulesShapeConflictError](err)
+	return ok
+}
+
 // StaleVersionError reports a conditional write whose expected version no longer matches.
 type StaleVersionError struct{ Want, Got int }
 

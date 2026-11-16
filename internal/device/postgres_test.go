@@ -2,6 +2,7 @@ package device_test
 
 import (
 	"database/sql"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -70,7 +71,7 @@ func TestPostgres_Device_SaveRoundTripsRules(t *testing.T) {
 	ctx := tenant.Into(t.Context(), f.tc)
 	d, err := device.New(f.tc.OrgID, f.tc.ProjectID, testPublicID(t), "Sales")
 	require.NoError(t, err)
-	require.NoError(t, d.SetRules(device.Rules{GroupMode: device.GroupOpen, AllowedSenders: []string{"628111111111"}, AllowedGroups: []string{"1@g.us"}, TriggerPrefix: "!", IgnoreFromMe: false}))
+	require.NoError(t, d.SetLegacyRules(device.Legacy{GroupMode: device.GroupOpen, AllowedSenders: []string{"628111111111"}, AllowedGroups: []string{"1@g.us"}, TriggerPrefix: "!", IgnoreFromMe: false}))
 	require.NoError(t, f.store.Save(ctx, d, 0))
 
 	got, err := f.store.ByID(ctx, d.ID)
@@ -85,6 +86,83 @@ func TestPostgres_Device_SaveRoundTripsRules(t *testing.T) {
 	require.Equal(t, d.ID, byPub.ID)
 	_, err = f.store.ByPublicID(ctx, testPublicID(t))
 	require.True(t, device.IsNotFoundError(err))
+}
+
+func (f pgFixture) rawRules(t *testing.T, id uuid.UUID) map[string]any {
+	t.Helper()
+	var raw string
+	require.NoError(t, f.sqlDB.QueryRowContext(t.Context(), "SELECT rules::text FROM "+f.prefix+"devices WHERE id = $1", id).Scan(&raw))
+	var doc map[string]any
+	require.NoError(t, json.Unmarshal([]byte(raw), &doc))
+	return doc
+}
+
+func TestPostgres_Device_V1RowDecodesThroughTheLegacyAdapter(t *testing.T) {
+	f := newPgFixture(t)
+	ctx := tenant.Into(t.Context(), f.tc)
+	d, err := device.New(f.tc.OrgID, f.tc.ProjectID, testPublicID(t), "Sales")
+	require.NoError(t, err)
+	require.NoError(t, f.store.Save(ctx, d, 0))
+	_, err = f.sqlDB.ExecContext(t.Context(), "UPDATE "+f.prefix+"devices SET rules = $2::jsonb WHERE id = $1", d.ID,
+		`{"group_mode":"open","allowed_senders":["628111111111"],"allowed_groups":["1@g.us"],"trigger_prefix":"!b","ignore_from_me":true}`)
+	require.NoError(t, err)
+
+	got, err := f.store.ByID(ctx, d.ID)
+	require.NoError(t, err)
+	want := device.Legacy{GroupMode: device.GroupOpen, AllowedSenders: []string{"628111111111"}, AllowedGroups: []string{"1@g.us"}, TriggerPrefix: "!b", IgnoreFromMe: true}
+	require.Equal(t, device.FromLegacy(want), got.Rules)
+}
+
+func TestPostgres_Device_V2KeepsLegacyKeysForARollback(t *testing.T) {
+	f := newPgFixture(t)
+	ctx := tenant.Into(t.Context(), f.tc)
+	d, err := device.New(f.tc.OrgID, f.tc.ProjectID, testPublicID(t), "Sales")
+	require.NoError(t, err)
+	require.NoError(t, d.SetLegacyRules(device.Legacy{GroupMode: device.GroupMention, AllowedSenders: []string{"628111111111"}, TriggerPrefix: "!b", IgnoreFromMe: true}))
+	require.NoError(t, f.store.Save(ctx, d, 0))
+
+	doc := f.rawRules(t, d.ID)
+	require.InDelta(t, 2, doc["v"], 0)
+	require.Equal(t, "mention", doc["group_mode"])
+	require.Equal(t, []any{"628111111111"}, doc["allowed_senders"])
+	require.Equal(t, []any{}, doc["allowed_groups"])
+	require.Equal(t, "!b", doc["trigger_prefix"])
+	require.Equal(t, true, doc["ignore_from_me"])
+	require.Len(t, doc["items"], 2)
+}
+
+func TestPostgres_Device_CustomRulesRoundTripAndFailClosedForALegacyReader(t *testing.T) {
+	f := newPgFixture(t)
+	ctx := tenant.Into(t.Context(), f.tc)
+	d, err := device.New(f.tc.OrgID, f.tc.ProjectID, testPublicID(t), "Sales")
+	require.NoError(t, err)
+	require.NoError(t, d.SetRules(device.Rules{Items: []device.Rule{{
+		ID: "orders", Name: "Orders", Enabled: true, Action: device.ActionIgnore,
+		Conditions: []device.Condition{{Field: device.FieldChatKind, Op: device.OpIs, Values: []string{"dm"}}, {Field: device.FieldMention}},
+	}}}))
+	require.NoError(t, f.store.Save(ctx, d, 0))
+
+	got, err := f.store.ByID(ctx, d.ID)
+	require.NoError(t, err)
+	require.Equal(t, d.Rules, got.Rules)
+
+	doc := f.rawRules(t, d.ID)
+	require.Equal(t, "ignore", doc["group_mode"])
+	require.Equal(t, []any{"0"}, doc["allowed_senders"], "an old binary must match nothing")
+}
+
+func TestPostgres_Device_EmptyItemsStayEmpty(t *testing.T) {
+	f := newPgFixture(t)
+	ctx := tenant.Into(t.Context(), f.tc)
+	d, err := device.New(f.tc.OrgID, f.tc.ProjectID, testPublicID(t), "Sales")
+	require.NoError(t, err)
+	require.NoError(t, d.SetRules(device.Rules{Items: []device.Rule{}}))
+	require.NoError(t, f.store.Save(ctx, d, 0))
+
+	got, err := f.store.ByID(ctx, d.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.Rules.Items)
+	require.Empty(t, got.Rules.Items)
 }
 
 func TestPostgres_Device_BatchIDReadsAreProjectScoped(t *testing.T) {

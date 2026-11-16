@@ -320,6 +320,8 @@ webhook:
 whatsapp:
   # env: OPENWA_WHATSAPP_CLIENT_NAME
   clientName: OpenWA
+  # env: OPENWA_WHATSAPP_DEFAULT_COUNTRY_CODE
+  defaultCountryCode: ""
   # [bootstrap] env: OPENWA_WHATSAPP_ENGINE
   engine: whatsmeow
   # env: OPENWA_WHATSAPP_INBOUND_QUEUE_SIZE

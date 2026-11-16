@@ -15,12 +15,11 @@ import (
 
 // MessageDevices is a scripted message.Devices.
 type MessageDevices struct {
-	mu      sync.Mutex
-	Refs    map[uuid.UUID]message.DeviceRef
-	Matched bool
-	Reasons []string
-	Inputs  []message.MatchInput
-	Err     error
+	mu     sync.Mutex
+	Refs   map[uuid.UUID]message.DeviceRef
+	Result message.MatchResult
+	Inputs []message.MatchInput
+	Err    error
 }
 
 var _ message.Devices = (*MessageDevices)(nil)
@@ -38,11 +37,20 @@ func (f *MessageDevices) Ref(_ context.Context, id uuid.UUID) (message.DeviceRef
 	return r, nil
 }
 
-func (f *MessageDevices) Match(_ context.Context, _ uuid.UUID, in message.MatchInput) (matched bool, reasons []string, err error) {
+func (f *MessageDevices) Match(ctx context.Context, id uuid.UUID, in message.MatchInput) (message.DeviceRef, message.MatchResult, error) {
+	ref, err := f.Ref(ctx, id)
+	if err != nil {
+		return message.DeviceRef{}, message.MatchResult{}, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.Inputs = append(f.Inputs, in)
-	return f.Matched, slices.Clone(f.Reasons), f.Err
+	res := f.Result
+	if res.Outcome == "" {
+		res.Outcome = message.MatchNone
+	}
+	res.Reasons = slices.Clone(res.Reasons)
+	return ref, res, nil
 }
 
 // ChatTouch is one recorded MessageChats.Touch.

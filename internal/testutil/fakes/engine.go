@@ -172,6 +172,7 @@ type EngineSession struct {
 	closes     int
 	unlinks    int
 	phoneCalls int
+	lastPhone  string
 	connected  atomic.Bool
 	closed     atomic.Bool
 }
@@ -203,9 +204,10 @@ func (s *EngineSession) Link(context.Context) (<-chan whatsapp.LinkEvent, error)
 	return s.LinkCh, nil
 }
 
-func (s *EngineSession) LinkWithPhone(ctx context.Context, _ string) (string, error) {
+func (s *EngineSession) LinkWithPhone(ctx context.Context, phone string) (string, error) {
 	s.mu.Lock()
 	s.phoneCalls++
+	s.lastPhone = phone
 	gate := s.phoneGate
 	s.mu.Unlock()
 	if gate != nil {
@@ -261,4 +263,11 @@ func (s *EngineSession) PhoneCalls() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.phoneCalls
+}
+
+// LastPhone returns the digits the last LinkWithPhone call received.
+func (s *EngineSession) LastPhone() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastPhone
 }

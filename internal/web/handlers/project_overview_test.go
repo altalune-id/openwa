@@ -98,7 +98,7 @@ func TestOverview_CopyScriptCarriesNonce(t *testing.T) {
 func TestProjectOverview_DevicesTileShowsTotalAndConnected(t *testing.T) {
 	x := newOverviewFixture(t)
 	sessions := fakes.NewDeviceSessions()
-	devices := device.NewService(fakes.NewDevice(), discardLogger(), passthroughUnexpected(), fakes.UnitOfWork, sessions)
+	devices := device.NewService(fakes.NewDevice(), discardLogger(), passthroughUnexpected(), fakes.UnitOfWork, sessions, "")
 	ctx := setTenantProject(context.Background(), x.org, x.project, x.uid)
 	up, err := devices.Create(ctx, "Sales")
 	require.NoError(t, err)

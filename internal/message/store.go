@@ -30,6 +30,8 @@ type Store interface {
 	// DeleteOlderThan deletes at most limit settled rows of the project older than before, returning the chats they belonged to.
 	DeleteOlderThan(ctx context.Context, projectID uuid.UUID, before time.Time, limit int) (int64, []uuid.UUID, error)
 	CountOlderThan(ctx context.Context, projectID uuid.UUID, before time.Time) (int64, error)
+	// RuleHits counts, per deciding rule id, the caller's project's messages of deviceID and the newest one's time.
+	RuleHits(ctx context.Context, deviceID uuid.UUID) (map[string]RuleHit, error)
 	// CountToday counts the caller's project's messages since since.
 	CountToday(ctx context.Context, since time.Time) (int64, error)
 	CountUnreadInbound(ctx context.Context, chatID uuid.UUID) (int, error)

@@ -43,6 +43,8 @@
   "matched": {
     "reasons": [
       "group_mention"
-    ]
+    ],
+    "rule_id": "legacy-group",
+    "rule_name": "Groups"
   }
 }

@@ -20,6 +20,7 @@ type DevicePairingView struct {
 	ErrorKey    string
 	PhoneValue  string
 	PhoneError  string
+	CanManage   bool
 }
 
 func (v DevicePairingView) pending() bool { return v.Outcome == "pending" }
@@ -147,6 +148,8 @@ templ DevicePairing(d web.LayoutData, v DevicePairingView) {
 					<p class="font-mono text-sm text-foreground">{ "+" + v.Phone }</p>
 				}
 			</div>
+		} else if !v.CanManage {
+			<p class="text-sm text-muted-foreground">{ d.Tr("common.managers_only") }</p>
 		} else {
 			if v.ErrorKey != "" {
 				<p role="status" class="mb-3 text-sm text-muted-foreground">{ d.Tr(v.ErrorKey) }</p>
@@ -243,26 +246,30 @@ templ deviceRenameCard(d web.LayoutData, v DeviceDetailView) {
 
 templ deviceDangerZone(d web.LayoutData, v DeviceDetailView) {
 	@Card(CardProps{Title: d.Tr("devices.danger_title")}) {
-		<div class="flex flex-wrap gap-3">
-			@ConfirmDialog(d, ConfirmProps{
-				ID:           "device-logout",
-				Title:        d.Tr("devices.logout_title"),
-				Body:         d.Tr("devices.logout_body"),
-				ConfirmLabel: d.Tr("devices.logout"),
-				Kind:         ButtonSecondary,
-				Action:       d.ProjectPath(v.ProjectSlug, "/devices/"+v.ID+"/unlink"),
-				Trigger:      ButtonProps{Kind: ButtonSecondary, Type: "button", Label: d.Tr("devices.logout"), Icon: "log-out"},
-			})
-			@ConfirmDialog(d, ConfirmProps{
-				ID:           "device-delete",
-				Title:        d.Tr("devices.delete_title"),
-				Body:         d.Tr("devices.delete_body"),
-				ConfirmLabel: d.Tr("devices.delete"),
-				Kind:         ButtonDanger,
-				Action:       d.ProjectPath(v.ProjectSlug, "/devices/"+v.ID+"/delete"),
-				Trigger:      ButtonProps{Kind: ButtonDanger, Type: "button", Label: d.Tr("devices.delete"), Icon: "trash-2"},
-			})
-		</div>
+		if !v.CanManage {
+			<p class="text-sm text-muted-foreground">{ d.Tr("common.managers_only") }</p>
+		} else {
+			<div class="flex flex-wrap gap-3">
+				@ConfirmDialog(d, ConfirmProps{
+					ID:           "device-logout",
+					Title:        d.Tr("devices.logout_title"),
+					Body:         d.Tr("devices.logout_body"),
+					ConfirmLabel: d.Tr("devices.logout"),
+					Kind:         ButtonSecondary,
+					Action:       d.ProjectPath(v.ProjectSlug, "/devices/"+v.ID+"/unlink"),
+					Trigger:      ButtonProps{Kind: ButtonSecondary, Type: "button", Label: d.Tr("devices.logout"), Icon: "log-out"},
+				})
+				@ConfirmDialog(d, ConfirmProps{
+					ID:           "device-delete",
+					Title:        d.Tr("devices.delete_title"),
+					Body:         d.Tr("devices.delete_body"),
+					ConfirmLabel: d.Tr("devices.delete"),
+					Kind:         ButtonDanger,
+					Action:       d.ProjectPath(v.ProjectSlug, "/devices/"+v.ID+"/delete"),
+					Trigger:      ButtonProps{Kind: ButtonDanger, Type: "button", Label: d.Tr("devices.delete"), Icon: "trash-2"},
+				})
+			</div>
+		}
 	}
 }
 

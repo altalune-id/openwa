@@ -146,9 +146,27 @@ type Message struct {
 	Version           int
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+	MatchOutcome      MatchOutcome
+	MatchedRuleID     string
 
 	rawDropped bool
 }
+
+// MatchOutcome is what the device's rules decided for a live inbound message; empty means not evaluated.
+type MatchOutcome string
+
+// RuleHit is how many stored messages a rule decided and when it last did.
+type RuleHit struct {
+	Count  int64
+	LastAt time.Time
+}
+
+// MatchOutcome values.
+const (
+	MatchMatched MatchOutcome = "matched"
+	MatchIgnored MatchOutcome = "ignored"
+	MatchNone    MatchOutcome = "none"
+)
 
 // RawDropped reports whether a transition released the queued bytes, which the store then clears; a row loaded without them keeps them.
 func (m *Message) RawDropped() bool { return m.rawDropped }
