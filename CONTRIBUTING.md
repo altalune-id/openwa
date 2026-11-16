@@ -46,6 +46,10 @@ TEST_PG_DSN='postgres://openwa:openwa@localhost:5432/openwa_test?sslmode=disable
 
 Podman users export `TESTCONTAINERS_RYUK_DISABLED=true`.
 
+CI runs the full race suite with the coverage gate, and `main` takes only green
+PRs. The pre-push hook tests only the packages changed against `origin/main`;
+`PREPUSH_FULL=1 git push` runs every test. See [`.husky/README.md`](.husky/README.md).
+
 Store tests live beside the store (`postgres_test.go` next to `postgres.go`);
 the full per-module file set is [`modules`](docs/modules/README.md).
 
