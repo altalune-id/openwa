@@ -207,15 +207,18 @@ unmapped `GEN900` incident.
 
 ## DEV — Devices
 
-| Code     | Constant                          | Status            | Meaning              |
-| -------- | --------------------------------- | ----------------- | -------------------- |
-| `DEV001` | `apperror.CodeDeviceNotFound`     | `NotFound`        | Device Not Found     |
-| `DEV002` | `apperror.CodeDeviceNameTaken`    | `AlreadyExists`   | Device Name Taken    |
-| `DEV003` | `apperror.CodeDeviceInvalidName`  | `InvalidArgument` | Device Invalid Name  |
-| `DEV004` | `apperror.CodeDeviceInvalidRules` | `InvalidArgument` | Device Invalid Rules |
-| `DEV005` | `apperror.CodeDeviceStaleVersion` | `Aborted`         | Device Stale Version |
+| Code     | Constant                                | Status               | Meaning                     |
+| -------- | --------------------------------------- | -------------------- | --------------------------- |
+| `DEV001` | `apperror.CodeDeviceNotFound`           | `NotFound`           | Device Not Found            |
+| `DEV002` | `apperror.CodeDeviceNameTaken`          | `AlreadyExists`      | Device Name Taken           |
+| `DEV003` | `apperror.CodeDeviceInvalidName`        | `InvalidArgument`    | Device Invalid Name         |
+| `DEV004` | `apperror.CodeDeviceInvalidRules`       | `InvalidArgument`    | Device Invalid Rules        |
+| `DEV005` | `apperror.CodeDeviceStaleVersion`       | `Aborted`            | Device Stale Version        |
+| `DEV006` | `apperror.CodeDeviceRulesShapeConflict` | `FailedPrecondition` | Device Rules Shape Conflict |
 
 `DEV005` is the optimistic-concurrency outcome of `device.StaleVersionError`. On the data plane it answers `412 Precondition Failed`.
+
+`DEV006` is `device.RulesShapeConflictError`: a write of the legacy rules fields to a device whose rules only `items` can express. On the data plane it answers `409 Conflict`.
 
 ## WAS — WhatsApp sessions
 

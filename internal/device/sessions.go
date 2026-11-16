@@ -81,6 +81,7 @@ type DeviceView struct {
 
 // Update names the fields one conditional write changes; nil leaves a field alone.
 type Update struct {
-	Name  *string
-	Rules *Rules
+	Name   *string
+	Rules  *Rules
+	Legacy *Legacy
 }

@@ -176,6 +176,37 @@ func (s *postgresStore) CountOlderThan(ctx context.Context, projectID uuid.UUID,
 	})
 }
 
+type pgRuleHitRow struct {
+	RuleID string    `alias:"hits.rule_id"`
+	Count  int64     `alias:"hits.count"`
+	LastAt time.Time `alias:"hits.last_at"`
+}
+
+func (s *postgresStore) RuleHits(ctx context.Context, deviceID uuid.UUID) (map[string]RuleHit, error) {
+	tx, tc, done, err := s.readTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer done()
+	var rows []pgRuleHitRow
+	stmt := postgres.SELECT(
+		s.t.MatchedRuleID.AS("hits.rule_id"),
+		postgres.COUNT(postgres.STAR).AS("hits.count"),
+		postgres.MAX(s.t.WATimestamp).AS("hits.last_at"),
+	).FROM(s.t).
+		WHERE(s.t.OrgID.EQ(postgres.UUID(tc.OrgID)).AND(s.t.ProjectID.EQ(postgres.UUID(tc.ProjectID))).
+			AND(s.t.DeviceID.EQ(postgres.UUID(deviceID))).AND(s.t.MatchedRuleID.IS_NOT_NULL())).
+		GROUP_BY(s.t.MatchedRuleID)
+	if qErr := stmt.QueryContext(ctx, tx, &rows); qErr != nil && !errors.Is(qErr, qrm.ErrNoRows) {
+		return nil, fmt.Errorf("message.postgres.RuleHits: %w", qErr)
+	}
+	out := make(map[string]RuleHit, len(rows))
+	for _, r := range rows {
+		out[r.RuleID] = RuleHit{Count: r.Count, LastAt: r.LastAt.UTC()}
+	}
+	return out, nil
+}
+
 func (s *postgresStore) CountToday(ctx context.Context, since time.Time) (int64, error) {
 	return s.count(ctx, "CountToday", func(tc tenant.Context) postgres.BoolExpression {
 		return s.t.OrgID.EQ(postgres.UUID(tc.OrgID)).AND(s.t.ProjectID.EQ(postgres.UUID(tc.ProjectID))).

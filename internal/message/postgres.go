@@ -89,6 +89,8 @@ type pgMessageRow struct {
 	Version           int        `alias:"messages.version"`
 	CreatedAt         time.Time  `alias:"messages.created_at"`
 	UpdatedAt         time.Time  `alias:"messages.updated_at"`
+	MatchOutcome      *string    `alias:"messages.match_outcome"`
+	MatchedRuleID     *string    `alias:"messages.matched_rule_id"`
 }
 
 func (r *pgMessageRow) toMessage() (*Message, error) {
@@ -100,6 +102,12 @@ func (r *pgMessageRow) toMessage() (*Message, error) {
 		Error: r.Error, Attempts: r.Attempts, WATimestamp: r.WATimestamp.UTC(), SentAt: utcPtr(r.SentAt),
 		DeliveredAt: utcPtr(r.DeliveredAt), ReadAt: utcPtr(r.ReadAt), Raw: r.Raw, Version: r.Version,
 		CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(), Mentions: []string{},
+	}
+	if r.MatchOutcome != nil {
+		m.MatchOutcome = MatchOutcome(*r.MatchOutcome)
+	}
+	if r.MatchedRuleID != nil {
+		m.MatchedRuleID = *r.MatchedRuleID
 	}
 	if err := json.Unmarshal([]byte(r.Mentions), &m.Mentions); err != nil {
 		return nil, fmt.Errorf("message.postgres: mentions: %w", err)
@@ -199,8 +207,15 @@ func (s *postgresStore) values(m *Message, withRaw bool) ([]any, error) {
 		m.SenderJID, m.SenderLID, m.SenderPhone, m.SenderName, m.FromMe, string(m.Type), m.Body,
 		media, loc, m.QuotedWAMessageID, ment, m.TargetWAMessageID, string(m.Status), m.Error, m.Attempts,
 		m.WATimestamp.UTC(), timeOrNil(m.SentAt), timeOrNil(m.DeliveredAt), timeOrNil(m.ReadAt), raw,
-		m.Version, m.CreatedAt.UTC(), m.UpdatedAt.UTC(),
+		m.Version, m.CreatedAt.UTC(), m.UpdatedAt.UTC(), textOrNull(string(m.MatchOutcome)), textOrNull(m.MatchedRuleID),
 	}, nil
+}
+
+func textOrNull(s string) postgres.StringExpression {
+	if s == "" {
+		return pgent.NullText()
+	}
+	return postgres.String(s)
 }
 
 func (s *postgresStore) txAcquire(ctx context.Context) (*sql.Tx, bool, tenant.Context, error) {

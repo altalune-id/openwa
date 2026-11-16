@@ -94,33 +94,6 @@ func PhoneFromJID(s string) string {
 	return j.User
 }
 
-// NormalizePhone turns "+62 812-3456" into "628123456"; a national number (leading 0) or a non-number is an *InvalidPhoneError.
-func NormalizePhone(raw string) (string, error) {
-	trimmed := strings.TrimSpace(raw)
-	trimmed = strings.TrimPrefix(trimmed, "+")
-	var b strings.Builder
-	for _, c := range trimmed {
-		switch {
-		case c >= '0' && c <= '9':
-			b.WriteRune(c)
-		case c == ' ' || c == '-' || c == '.' || c == '(' || c == ')':
-		default:
-			return "", &InvalidPhoneError{Reason: "contains a character that is not a digit"}
-		}
-	}
-	digits := b.String()
-	if digits == "" {
-		return "", &InvalidPhoneError{Reason: "empty"}
-	}
-	if strings.HasPrefix(digits, "0") {
-		return "", &InvalidPhoneError{Reason: "national number; use the international form with a country code"}
-	}
-	if len(digits) < 8 || len(digits) > 15 {
-		return "", &InvalidPhoneError{Reason: "must be 8 to 15 digits"}
-	}
-	return digits, nil
-}
-
 // ResolvePhone applies the umbrella rule: a phone-number sender is its phone; a LID sender resolves through the alt JID, then lookup; otherwise "".
 func ResolvePhone(sender, senderAlt string, lookup func(lid string) string) string {
 	if !IsLID(sender) {

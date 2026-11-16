@@ -550,6 +550,23 @@ func TestRuntime_LinkWithPhoneReusesTheAttemptAndItsCode(t *testing.T) {
 	})
 }
 
+func TestRuntime_LinkWithPhoneAppliesTheDefaultCountryCode(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newRuntimeFixture()
+		f.cfg.DefaultCountryCode = "62"
+		f.rt = whatsapp.NewRuntime(f.eng, f.leases, f.cfg, discard())
+		f.rt.Subscribe(f.sink)
+		f.eng.SetLinkScript(codeEvent())
+		stop := f.start(t)
+		defer stop()
+
+		id := uuid.New()
+		_, err := f.rt.LinkWithPhone(t.Context(), f.ref(id), "0812-3456-789")
+		require.NoError(t, err)
+		require.Equal(t, "628123456789", f.eng.Last(id).LastPhone())
+	})
+}
+
 func TestRuntime_ConcurrentLinkWithPhoneCallsPairOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := newRuntimeFixture()

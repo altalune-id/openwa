@@ -128,15 +128,20 @@ func (s deviceServiceForDataplane) Create(ctx context.Context, name string) (dat
 func (s deviceServiceForDataplane) Update(ctx context.Context, id uuid.UUID, name *string, rules *dataplane.RulesRef, ifVersion int) (dataplane.DeviceRef, error) {
 	var u device.Update
 	u.Name = name
-	if rules != nil {
-		r := device.Rules{
+	switch {
+	case rules == nil:
+	case rules.Items != nil:
+		r := rulesFromRef(*rules)
+		u.Rules = &r
+	default:
+		l := device.Legacy{
 			GroupMode:      device.GroupMode(rules.GroupMode),
 			AllowedSenders: rules.AllowedSenders,
 			AllowedGroups:  rules.AllowedGroups,
 			TriggerPrefix:  rules.TriggerPrefix,
 			IgnoreFromMe:   rules.IgnoreFromMe,
 		}
-		u.Rules = &r
+		u.Legacy = &l
 	}
 	if _, err := s.svc.Update(ctx, id, u, ifVersion); err != nil {
 		return dataplane.DeviceRef{}, err
@@ -174,22 +179,44 @@ func deviceRefOf(v device.DeviceView) dataplane.DeviceRef {
 		state = string(device.SessionUnlinked)
 	}
 	return dataplane.DeviceRef{
-		ID:       d.ID,
-		PublicID: d.PublicID,
-		Name:     d.Name,
-		Rules: dataplane.RulesRef{
-			GroupMode:      string(d.Rules.GroupMode),
-			AllowedSenders: d.Rules.AllowedSenders,
-			AllowedGroups:  d.Rules.AllowedGroups,
-			TriggerPrefix:  d.Rules.TriggerPrefix,
-			IgnoreFromMe:   d.Rules.IgnoreFromMe,
-		},
+		ID:         d.ID,
+		PublicID:   d.PublicID,
+		Name:       d.Name,
+		Rules:      rulesRefOf(d.Rules),
 		Version:    d.Version,
 		State:      state,
 		Phone:      v.Status.Phone,
 		PushName:   v.Status.PushName,
 		LastSeenAt: v.Status.LastSeen,
 	}
+}
+
+func rulesRefOf(r device.Rules) dataplane.RulesRef {
+	l := r.LegacyView()
+	out := dataplane.RulesRef{
+		GroupMode: string(l.GroupMode), AllowedSenders: l.AllowedSenders, AllowedGroups: l.AllowedGroups, TriggerPrefix: l.TriggerPrefix,
+		IgnoreFromMe: r.IgnoreFromMe, Items: make([]dataplane.RuleRef, 0, len(r.Items)),
+	}
+	for _, it := range r.Items {
+		rr := dataplane.RuleRef{ID: it.ID, Name: it.Name, Enabled: it.Enabled, Action: string(it.Action), Conditions: make([]dataplane.ConditionRef, 0, len(it.Conditions))}
+		for _, c := range it.Conditions {
+			rr.Conditions = append(rr.Conditions, dataplane.ConditionRef{Field: string(c.Field), Op: string(c.Op), Values: c.Values})
+		}
+		out.Items = append(out.Items, rr)
+	}
+	return out
+}
+
+func rulesFromRef(r dataplane.RulesRef) device.Rules {
+	out := device.Rules{IgnoreFromMe: r.IgnoreFromMe, Items: make([]device.Rule, 0, len(r.Items))}
+	for _, it := range r.Items {
+		rule := device.Rule{ID: it.ID, Name: it.Name, Enabled: it.Enabled, Action: device.Action(it.Action), Conditions: make([]device.Condition, 0, len(it.Conditions))}
+		for _, c := range it.Conditions {
+			rule.Conditions = append(rule.Conditions, device.Condition{Field: device.Field(c.Field), Op: device.Op(c.Op), Values: c.Values})
+		}
+		out.Items = append(out.Items, rule)
+	}
+	return out
 }
 
 func linkRefOf(st device.LinkState) dataplane.LinkRef {

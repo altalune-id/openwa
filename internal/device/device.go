@@ -2,6 +2,7 @@
 package device
 
 import (
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -24,15 +25,16 @@ const MaxTriggerPrefixRunes = 16
 // GroupMode says which group messages a device treats as matched.
 type GroupMode string
 
-// GroupMode values.
+// GroupMode values; GroupCustom is read-only and marks rules the legacy shape cannot express.
 const (
 	GroupIgnore  GroupMode = "ignore"
 	GroupMention GroupMode = "mention"
 	GroupOpen    GroupMode = "open"
+	GroupCustom  GroupMode = "custom"
 )
 
-// Rules is the inbound-message filter attached to a device.
-type Rules struct {
+// Legacy is the pre-builder rules shape that REST, RPC and the console form still read and write.
+type Legacy struct {
 	GroupMode      GroupMode
 	AllowedSenders []string
 	AllowedGroups  []string
@@ -58,7 +60,7 @@ type ListOpts struct{}
 
 // DefaultRules returns the rules a new device starts with.
 func DefaultRules() Rules {
-	return Rules{GroupMode: GroupMention, AllowedSenders: []string{}, AllowedGroups: []string{}, IgnoreFromMe: true}
+	return FromLegacy(Legacy{GroupMode: GroupMention, AllowedSenders: []string{}, AllowedGroups: []string{}, IgnoreFromMe: true})
 }
 
 // New enforces creation invariants and returns a device carrying DefaultRules; the caller mints publicID.
@@ -92,7 +94,7 @@ func (d *Device) Rename(name string) error {
 	return nil
 }
 
-// SetRules validates every field, normalises the lists and replaces the rules.
+// SetRules validates every rule, normalises the values and replaces the rules.
 func (d *Device) SetRules(r Rules) error {
 	normalised, err := normalizeRules(r)
 	if err != nil {
@@ -101,6 +103,24 @@ func (d *Device) SetRules(r Rules) error {
 	d.Rules = normalised
 	d.UpdatedAt = time.Now().UTC()
 	return nil
+}
+
+// SetLegacyRules converts a legacy write; it refuses with *RulesShapeConflictError when the stored rules are not legacy-expressible.
+func (d *Device) SetLegacyRules(l Legacy) error {
+	if _, ok := d.Rules.Legacy(); !ok || l.GroupMode == GroupCustom {
+		return &RulesShapeConflictError{}
+	}
+	normalised, err := normalizeLegacy(l)
+	if err != nil {
+		return err
+	}
+	next := FromLegacy(normalised)
+	for i := range next.Items {
+		if j := slices.IndexFunc(d.Rules.Items, func(r Rule) bool { return r.ID == next.Items[i].ID }); j >= 0 {
+			next.Items[i].Name = d.Rules.Items[j].Name
+		}
+	}
+	return d.SetRules(next)
 }
 
 func validateName(name string) (string, error) {
@@ -122,25 +142,25 @@ func looksLikePublicID(name string) bool {
 	return strings.HasPrefix(name, PublicIDPrefix+"_") && len(name) == len(PublicIDPrefix)+1+publicIDLength
 }
 
-func normalizeRules(r Rules) (Rules, error) {
+func normalizeLegacy(r Legacy) (Legacy, error) {
 	switch r.GroupMode {
 	case GroupIgnore, GroupMention, GroupOpen:
 	default:
-		return Rules{}, &InvalidRulesError{Field: "group_mode", Reason: "must be ignore, mention or open"}
+		return Legacy{}, &InvalidRulesError{Field: "group_mode", Reason: "must be ignore, mention or open"}
 	}
 	senders, err := normalizeList(r.AllowedSenders, "allowed_senders", isPhoneDigits, "must be E.164 digits without a plus, 8 to 15 long")
 	if err != nil {
-		return Rules{}, err
+		return Legacy{}, err
 	}
 	groups, err := normalizeList(r.AllowedGroups, "allowed_groups", isGroupJID, "must be a group JID ending in @g.us")
 	if err != nil {
-		return Rules{}, err
+		return Legacy{}, err
 	}
 	prefix := strings.TrimSpace(r.TriggerPrefix)
 	if utf8.RuneCountInString(prefix) > MaxTriggerPrefixRunes {
-		return Rules{}, &InvalidRulesError{Field: "trigger_prefix", Reason: "over 16 characters"}
+		return Legacy{}, &InvalidRulesError{Field: "trigger_prefix", Reason: "over 16 characters"}
 	}
-	return Rules{
+	return Legacy{
 		GroupMode:      r.GroupMode,
 		AllowedSenders: senders,
 		AllowedGroups:  groups,
@@ -170,7 +190,7 @@ func normalizeList(in []string, field string, valid func(string) bool, reason st
 }
 
 func isPhoneDigits(s string) bool {
-	if len(s) < 8 || len(s) > 15 {
+	if len(s) < 8 || len(s) > 15 || s[0] == '0' {
 		return false
 	}
 	for _, c := range s {

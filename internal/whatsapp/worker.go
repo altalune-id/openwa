@@ -3,6 +3,7 @@ package whatsapp
 import (
 	"cmp"
 	"context"
+	"errors"
 	"log/slog"
 	"maps"
 	"slices"
@@ -14,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 
+	"altalune.id/openwa/internal/phone"
 	"altalune.id/openwa/internal/platform/publicid"
 )
 
@@ -33,12 +35,13 @@ const (
 
 // RuntimeConfig tunes the lease loop and link attempts; Owner identifies this process in lease rows.
 type RuntimeConfig struct {
-	Owner         string
-	LeaseTTL      time.Duration
-	LeaseInterval time.Duration
-	LinkTimeout   time.Duration
-	ParkFor       time.Duration
-	Sender        SenderConfig
+	Owner              string
+	LeaseTTL           time.Duration
+	LeaseInterval      time.Duration
+	LinkTimeout        time.Duration
+	ParkFor            time.Duration
+	Sender             SenderConfig
+	DefaultCountryCode string
 }
 
 type held struct {
@@ -289,9 +292,12 @@ func (r *Runtime) Link(ctx context.Context, ref SessionRef) (LinkState, error) {
 }
 
 // LinkWithPhone reuses the pending attempt or starts one, then asks the engine for a pairing code once per attempt.
-func (r *Runtime) LinkWithPhone(ctx context.Context, ref SessionRef, phone string) (LinkState, error) {
-	digits, err := NormalizePhone(phone)
+func (r *Runtime) LinkWithPhone(ctx context.Context, ref SessionRef, raw string) (LinkState, error) {
+	digits, err := phone.Normalize(raw, r.cfg.DefaultCountryCode)
 	if err != nil {
+		if pe, ok := errors.AsType[*phone.InvalidError](err); ok {
+			return LinkState{}, &InvalidPhoneError{Reason: pe.Reason}
+		}
 		return LinkState{}, err
 	}
 	a, err := r.phoneAttempt(ctx, ref)

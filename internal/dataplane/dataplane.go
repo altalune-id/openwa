@@ -44,13 +44,30 @@ type Devices interface {
 	Unlink(ctx context.Context, id uuid.UUID) error
 }
 
-// RulesRef is a device's inbound rules as this surface carries them.
+// RulesRef is a device's inbound rules as this surface carries them; on a write, nil Items means the legacy fields carry the rules.
 type RulesRef struct {
 	GroupMode      string
 	AllowedSenders []string
 	AllowedGroups  []string
 	TriggerPrefix  string
 	IgnoreFromMe   bool
+	Items          []RuleRef
+}
+
+// RuleRef is one ordered rule.
+type RuleRef struct {
+	ID         string
+	Name       string
+	Enabled    bool
+	Action     string
+	Conditions []ConditionRef
+}
+
+// ConditionRef is one rule condition.
+type ConditionRef struct {
+	Field  string
+	Op     string
+	Values []string
 }
 
 // DeviceRef is the device this surface needs, with its session status; only PublicID is ever written to a response.

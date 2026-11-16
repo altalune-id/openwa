@@ -529,6 +529,7 @@ devices.error.invalid_allowed_senders: "国番号付きの電話番号を数字�
 devices.error.invalid_allowed_groups: "@g.us で終わるグループ JID を入力してください。"
 devices.error.invalid_trigger_prefix: "16 文字以内で入力してください。"
 devices.error.stale_version: "ページを開いた後にこのデバイスが変更されました。再読み込みしてもう一度お試しください。"
+devices.error.rules_shape_conflict: "このルールにはこのフォームで表示できない設定が含まれているため、このフォームでは変更できません。"
 devices.error.invalid_phone: "国番号付きの国際形式で入力してください。"
 devices.error.already_linked: "このデバイスはすでにリンクされています。先にログアウトしてください。"
 devices.error.not_owned: "このデバイスは現在このサーバーで稼働していません。しばらくしてからお試しください。"

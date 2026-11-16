@@ -152,6 +152,8 @@ type WhatsAppConfig struct {
 	MediaMaxBytes    int64         `yaml:"mediaMaxBytes"    mapstructure:"mediaMaxBytes"    awareness:"-" validate:"gt=0"`
 	TypingBeforeText bool          `yaml:"typingBeforeText" mapstructure:"typingBeforeText" awareness:"-"`
 	SenderIdlePoll   time.Duration `yaml:"senderIdlePoll"   mapstructure:"senderIdlePoll"   awareness:"-" validate:"gte=0"`
+
+	DefaultCountryCode string `yaml:"defaultCountryCode" mapstructure:"defaultCountryCode" awareness:"-" validate:"omitempty,number,max=3,startsnotwith=0"`
 }
 
 // GenesisConfig configures the built-in admin account.
