@@ -569,6 +569,7 @@ devices.error.invalid_allowed_senders: "استخدم أرقام هواتف بر�
 devices.error.invalid_allowed_groups: "استخدم معرّفات مجموعات تنتهي بـ @g.us."
 devices.error.invalid_trigger_prefix: "استخدم 16 حرفًا على الأكثر."
 devices.error.stale_version: "تغيّر هذا الجهاز منذ فتح الصفحة. أعد التحميل وحاول مرة أخرى."
+devices.error.rules_shape_conflict: "تستخدم هذه القواعد خيارات لا يستطيع هذا النموذج عرضها، لذا لا يمكنه تغييرها."
 devices.error.invalid_phone: "استخدم الصيغة الدولية مع رمز الدولة."
 devices.error.already_linked: "هذا الجهاز مرتبط بالفعل. سجّل خروجه أولًا."
 devices.error.not_owned: "هذا الجهاز لا يعمل على هذا الخادم الآن. حاول بعد دقيقة."

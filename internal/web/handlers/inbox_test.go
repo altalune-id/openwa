@@ -85,7 +85,7 @@ func newInboxFixture(t *testing.T) *inboxFixture {
 	d, err := device.New(o.ID, proj.ID, fakes.DevicePublicID(), "sales-01")
 	require.NoError(t, err)
 	require.NoError(t, devStore.Save(tenant.Into(context.Background(), tc), d, 0))
-	devices := device.NewService(devStore, discardLogger(), passthroughUnexpected(), fakes.UnitOfWork, &fakes.DeviceSessions{})
+	devices := device.NewService(devStore, discardLogger(), passthroughUnexpected(), fakes.UnitOfWork, &fakes.DeviceSessions{}, "")
 
 	chatStore := fakes.NewChat()
 	chats := chat.NewService(chatStore, discardLogger(), passthroughUnexpected(), fakes.UnitOfWork, &fakes.Groups{})

@@ -122,6 +122,52 @@ func TestDevice_UpdateIsConditional(t *testing.T) {
 	require.Equal(t, connect.CodeInvalidArgument, connectCode(err))
 }
 
+func TestDevice_RulesCompatibility(t *testing.T) {
+	f := newDeviceCP(t)
+	d := f.seed(t, "Sales")
+	c := f.h.deviceClient()
+	update := func(r *devicev1.Rules) (*devicev1.Device, error) {
+		resp, err := c.UpdateDevice(context.Background(), devReq(&devicev1.UpdateDeviceRequest{DeviceId: d.PublicID, Rules: r}))
+		if err != nil {
+			return nil, err
+		}
+		return resp.Msg.GetDevice(), nil
+	}
+
+	got, err := update(&devicev1.Rules{GroupMode: "open", AllowedSenders: []string{"+62 811-1122-2333"}, IgnoreFromMe: true})
+	require.NoError(t, err, "an old client writes legacy fields to a legacy device")
+	require.Equal(t, "open", got.GetRules().GetGroupMode())
+	require.Equal(t, []string{"6281111222333"}, got.GetRules().GetAllowedSenders())
+	require.Len(t, got.GetRules().GetItems().GetRules(), 2)
+	require.Equal(t, "legacy-dm", got.GetRules().GetItems().GetRules()[0].GetId())
+
+	custom := &devicev1.Rules{IgnoreFromMe: true, Items: &devicev1.RuleList{Rules: []*devicev1.Rule{{
+		Id: "orders", Name: "Orders", Enabled: true, Action: "match",
+		Conditions: []*devicev1.Condition{{Field: "chat_kind", Op: "is", Values: []string{"dm"}}, {Field: "text", Op: "contains", Values: []string{"order"}}},
+	}}}}
+	got, err = update(custom)
+	require.NoError(t, err, "a new client writes items")
+	require.Equal(t, "custom", got.GetRules().GetGroupMode())
+	require.Empty(t, got.GetRules().GetAllowedSenders())
+	require.Equal(t, "orders", got.GetRules().GetItems().GetRules()[0].GetId())
+
+	readBack := got.GetRules()
+	readBack.Items = nil
+	_, err = update(readBack)
+	require.Equal(t, connect.CodeFailedPrecondition, connectCode(err), "an old client writing back a custom read is refused, not a wipe")
+	_, err = update(&devicev1.Rules{GroupMode: "open", AllowedSenders: []string{"628111222333"}})
+	require.Equal(t, connect.CodeFailedPrecondition, connectCode(err))
+
+	after, err := c.GetDevice(context.Background(), devReq(&devicev1.GetDeviceRequest{DeviceId: d.PublicID}))
+	require.NoError(t, err)
+	require.Equal(t, "orders", after.Msg.GetDevice().GetRules().GetItems().GetRules()[0].GetId(), "items unchanged")
+
+	got, err = update(&devicev1.Rules{GroupMode: "open", Items: &devicev1.RuleList{}})
+	require.NoError(t, err, "items win over legacy fields, and an empty list sends nothing")
+	require.Empty(t, got.GetRules().GetItems().GetRules())
+	require.Equal(t, "custom", got.GetRules().GetGroupMode())
+}
+
 func TestDevice_LinkVerbsResolveTheOnlyDevice(t *testing.T) {
 	f := newDeviceCP(t)
 	c := f.h.deviceClient()

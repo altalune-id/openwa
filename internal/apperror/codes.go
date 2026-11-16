@@ -105,11 +105,12 @@ const (
 	CodeWebhookEndpointInactive     = "WHK007"
 	CodeWebhookSecretConflict       = "WHK008"
 
-	CodeDeviceNotFound     = "DEV001"
-	CodeDeviceNameTaken    = "DEV002"
-	CodeDeviceInvalidName  = "DEV003"
-	CodeDeviceInvalidRules = "DEV004"
-	CodeDeviceStaleVersion = "DEV005"
+	CodeDeviceNotFound           = "DEV001"
+	CodeDeviceNameTaken          = "DEV002"
+	CodeDeviceInvalidName        = "DEV003"
+	CodeDeviceInvalidRules       = "DEV004"
+	CodeDeviceStaleVersion       = "DEV005"
+	CodeDeviceRulesShapeConflict = "DEV006"
 
 	CodeWhatsAppSessionNotFound = "WAS001"
 	CodeWhatsAppNotOwned        = "WAS002"

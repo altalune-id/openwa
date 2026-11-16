@@ -2,10 +2,12 @@ package message_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
 
 	"altalune.id/openwa/internal/message"
@@ -536,4 +538,70 @@ func TestPostgres_Message_SaveRetentionStampsTheCallersOrg(t *testing.T) {
 	require.NotNil(t, got, "the row carries the caller's org, not the aggregate's")
 	require.Equal(t, f.tc.OrgID, got.OrgID)
 	require.Equal(t, 5, got.Days)
+}
+
+func (f pgFixture) decided(t *testing.T, tc tenant.Context, deviceID, chatID uuid.UUID, waid string, outcome message.MatchOutcome, ruleID string, at time.Time) {
+	t.Helper()
+	ref := message.Ref{DeviceID: deviceID, OrgID: tc.OrgID, ProjectID: tc.ProjectID}
+	m := message.NewInbound(ref, chatID, fakes.MessagePublicID(), message.InboundInput{WAID: waid, Type: "text", Body: waid, Timestamp: at})
+	m.MatchOutcome, m.MatchedRuleID = outcome, ruleID
+	ok, err := f.store.InsertInbound(tenant.Into(t.Context(), tc), m)
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+func TestPostgres_Message_MatchColumnsRoundTripAndStayNullUnevaluated(t *testing.T) {
+	f := newPgFixture(t)
+	f.decided(t, f.tc, f.device, f.chat, "M1", message.MatchIgnored, "spam", time.Now())
+	plain := f.inbound(t, "M2", time.Now())
+
+	got, err := f.store.ByWAID(f.ctx(t), f.device, "M1")
+	require.NoError(t, err)
+	require.Equal(t, message.MatchIgnored, got.MatchOutcome)
+	require.Equal(t, "spam", got.MatchedRuleID)
+
+	var outcome, rule *string
+	require.NoError(t, f.seed.SQL.QueryRowContext(t.Context(),
+		"SELECT match_outcome, matched_rule_id FROM "+f.seed.Prefix+"messages WHERE id = $1", plain.ID).Scan(&outcome, &rule))
+	require.Nil(t, outcome, "not evaluated is NULL, not an empty string")
+	require.Nil(t, rule)
+}
+
+func TestPostgres_Message_CheckRefusesAnUnknownOutcome(t *testing.T) {
+	f := newPgFixture(t)
+	m := message.NewInbound(f.ref(), f.chat, fakes.MessagePublicID(), message.InboundInput{WAID: "X1", Type: "text", Timestamp: time.Now()})
+	m.MatchOutcome = "bogus"
+	_, err := f.store.InsertInbound(f.ctx(t), m)
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	require.True(t, ok, "got %v", err)
+	require.Equal(t, "23514", pgErr.Code)
+}
+
+func TestPostgres_Message_RuleHitsAreDeviceAndProjectScoped(t *testing.T) {
+	f := newPgFixture(t)
+	base := time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)
+	f.decided(t, f.tc, f.device, f.chat, "A1", message.MatchMatched, "legacy-dm", base)
+	f.decided(t, f.tc, f.device, f.chat, "A2", message.MatchMatched, "legacy-dm", base.Add(time.Hour))
+	f.decided(t, f.tc, f.device, f.chat, "A3", message.MatchIgnored, "spam", base)
+	f.decided(t, f.tc, f.device, f.chat, "A4", message.MatchNone, "", base)
+
+	otherDevice := f.seed.Device(t, f.tc)
+	otherChat := f.seed.Chat(t, f.tc, otherDevice, "628333@s.whatsapp.net")
+	f.decided(t, f.tc, otherDevice, otherChat, "B1", message.MatchMatched, "legacy-dm", base.Add(2*time.Hour))
+
+	sibling := f.seed.Project(t, f.tc)
+	sibDevice := f.seed.Device(t, sibling)
+	sibChat := f.seed.Chat(t, sibling, sibDevice, "628444@s.whatsapp.net")
+	f.decided(t, sibling, sibDevice, sibChat, "C1", message.MatchMatched, "legacy-dm", base.Add(3*time.Hour))
+
+	hits, err := f.store.RuleHits(f.ctx(t), f.device)
+	require.NoError(t, err)
+	require.Equal(t, map[string]message.RuleHit{
+		"legacy-dm": {Count: 2, LastAt: base.Add(time.Hour)},
+		"spam":      {Count: 1, LastAt: base},
+	}, hits)
+
+	cross, err := f.store.RuleHits(tenant.Into(t.Context(), sibling), f.device)
+	require.NoError(t, err)
+	require.Empty(t, cross, "a sibling project in the same org sees nothing of this device")
 }

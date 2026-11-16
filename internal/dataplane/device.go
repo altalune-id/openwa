@@ -15,11 +15,26 @@ import (
 )
 
 type rulesView struct {
-	GroupMode      string   `json:"group_mode"`
-	AllowedSenders []string `json:"allowed_senders"`
-	AllowedGroups  []string `json:"allowed_groups"`
-	TriggerPrefix  string   `json:"trigger_prefix"`
-	IgnoreFromMe   bool     `json:"ignore_from_me"`
+	GroupMode      string     `json:"group_mode"`
+	AllowedSenders *[]string  `json:"allowed_senders,omitempty"`
+	AllowedGroups  *[]string  `json:"allowed_groups,omitempty"`
+	TriggerPrefix  string     `json:"trigger_prefix"`
+	IgnoreFromMe   bool       `json:"ignore_from_me"`
+	Items          []ruleView `json:"items"`
+}
+
+type ruleView struct {
+	ID         string          `json:"id"`
+	Name       string          `json:"name"`
+	Enabled    bool            `json:"enabled"`
+	Action     string          `json:"action"`
+	Conditions []conditionView `json:"conditions"`
+}
+
+type conditionView struct {
+	Field  string   `json:"field"`
+	Op     string   `json:"op,omitempty"`
+	Values []string `json:"values,omitempty"`
 }
 
 type deviceView struct {
@@ -48,11 +63,12 @@ type linkView struct {
 }
 
 type rulesPatch struct {
-	GroupMode      *string   `json:"group_mode"`
-	AllowedSenders *[]string `json:"allowed_senders"`
-	AllowedGroups  *[]string `json:"allowed_groups"`
-	TriggerPrefix  *string   `json:"trigger_prefix"`
-	IgnoreFromMe   *bool     `json:"ignore_from_me"`
+	GroupMode      *string     `json:"group_mode"`
+	AllowedSenders *[]string   `json:"allowed_senders"`
+	AllowedGroups  *[]string   `json:"allowed_groups"`
+	TriggerPrefix  *string     `json:"trigger_prefix"`
+	IgnoreFromMe   *bool       `json:"ignore_from_me"`
+	Items          *[]ruleView `json:"items"`
 }
 
 type deviceInput struct {
@@ -160,7 +176,7 @@ func (h *Handler) patchDevice(w http.ResponseWriter, r *http.Request) {
 	}
 	var rules *RulesRef
 	if in.Rules != nil {
-		rr := mergeRules(ref.Rules, *in.Rules)
+		rr := rulesFromPatch(ref.Rules, *in.Rules)
 		rules = &rr
 	}
 	d, err := h.devices.Update(req.ctx, id, in.Name, rules, ifVersion)
@@ -323,21 +339,52 @@ func linkStatus(outcome string) string {
 
 func deviceViewOf(d DeviceRef) deviceView {
 	return deviceView{
-		ID:   d.PublicID,
-		Name: d.Name,
-		Rules: rulesView{
-			GroupMode:      d.Rules.GroupMode,
-			AllowedSenders: nonNil(d.Rules.AllowedSenders),
-			AllowedGroups:  nonNil(d.Rules.AllowedGroups),
-			TriggerPrefix:  d.Rules.TriggerPrefix,
-			IgnoreFromMe:   d.Rules.IgnoreFromMe,
-		},
+		ID:         d.PublicID,
+		Name:       d.Name,
+		Rules:      rulesViewOf(d.Rules),
 		Version:    d.Version,
 		State:      d.State,
 		Phone:      d.Phone,
 		PushName:   d.PushName,
 		LastSeenAt: d.LastSeenAt,
 	}
+}
+
+func rulesViewOf(r RulesRef) rulesView {
+	v := rulesView{GroupMode: r.GroupMode, TriggerPrefix: r.TriggerPrefix, IgnoreFromMe: r.IgnoreFromMe, Items: make([]ruleView, 0, len(r.Items))}
+	if r.GroupMode != string(device.GroupCustom) {
+		senders, groups := nonNil(r.AllowedSenders), nonNil(r.AllowedGroups)
+		v.AllowedSenders, v.AllowedGroups = &senders, &groups
+	}
+	for _, it := range r.Items {
+		rv := ruleView{ID: it.ID, Name: it.Name, Enabled: it.Enabled, Action: it.Action, Conditions: make([]conditionView, 0, len(it.Conditions))}
+		for _, c := range it.Conditions {
+			rv.Conditions = append(rv.Conditions, conditionView(c))
+		}
+		v.Items = append(v.Items, rv)
+	}
+	return v
+}
+
+// NOTE: a patch carrying items replaces the rules with them and ignores the legacy fields; otherwise the legacy fields merge onto the current ones.
+func rulesFromPatch(cur RulesRef, p rulesPatch) RulesRef {
+	if p.Items == nil {
+		cur = mergeRules(cur, p)
+		cur.Items = nil
+		return cur
+	}
+	out := RulesRef{IgnoreFromMe: cur.IgnoreFromMe, Items: make([]RuleRef, 0, len(*p.Items))}
+	if p.IgnoreFromMe != nil {
+		out.IgnoreFromMe = *p.IgnoreFromMe
+	}
+	for _, rv := range *p.Items {
+		r := RuleRef{ID: rv.ID, Name: rv.Name, Enabled: rv.Enabled, Action: rv.Action, Conditions: make([]ConditionRef, 0, len(rv.Conditions))}
+		for _, c := range rv.Conditions {
+			r.Conditions = append(r.Conditions, ConditionRef(c))
+		}
+		out.Items = append(out.Items, r)
+	}
+	return out
 }
 
 // NOTE: mergeRules overlays only the fields the patch named onto the device's current rules, so an omitted field is kept, never zeroed.

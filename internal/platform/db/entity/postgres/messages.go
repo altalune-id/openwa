@@ -37,6 +37,8 @@ type Messages struct {
 	Version           postgres.ColumnInteger
 	CreatedAt         postgres.ColumnTimestampz
 	UpdatedAt         postgres.ColumnTimestampz
+	MatchOutcome      postgres.ColumnString
+	MatchedRuleID     postgres.ColumnString
 
 	AllColumns postgres.ColumnList
 }
@@ -78,7 +80,9 @@ func NewMessages(schema, tablePrefix string) *Messages {
 		version           = postgres.IntegerColumn("version")
 		createdAt         = postgres.TimestampzColumn("created_at")
 		updatedAt         = postgres.TimestampzColumn("updated_at")
-		all               = postgres.ColumnList{id, publicID, orgID, projectID, deviceID, chatID, direction, waMessageID, senderJID, senderLID, senderPhone, senderName, fromMe, typ, body, media, location, quotedWAMessageID, mentions, targetWAMessageID, status, errCol, attempts, waTimestamp, sentAt, deliveredAt, readAt, raw, version, createdAt, updatedAt}
+		matchOutcome      = postgres.StringColumn("match_outcome")
+		matchedRuleID     = postgres.StringColumn("matched_rule_id")
+		all               = postgres.ColumnList{id, publicID, orgID, projectID, deviceID, chatID, direction, waMessageID, senderJID, senderLID, senderPhone, senderName, fromMe, typ, body, media, location, quotedWAMessageID, mentions, targetWAMessageID, status, errCol, attempts, waTimestamp, sentAt, deliveredAt, readAt, raw, version, createdAt, updatedAt, matchOutcome, matchedRuleID}
 	)
 	return &Messages{
 		Table:             postgres.NewTable(schema, tablePrefix+"messages", "messages", all...),
@@ -113,6 +117,8 @@ func NewMessages(schema, tablePrefix string) *Messages {
 		Version:           version,
 		CreatedAt:         createdAt,
 		UpdatedAt:         updatedAt,
+		MatchOutcome:      matchOutcome,
+		MatchedRuleID:     matchedRuleID,
 		AllColumns:        all,
 	}
 }

@@ -337,6 +337,6 @@ reply in the thread.
   agent for short replies through `forwardedProps.channel`.
 - Media: `data.message.media.url` needs the key's `messages:read`; download it and pass it to
   the agent if it can see images.
-- Handover: when a human takes over, change the device's rules (for example set
-  `allowed_senders` to exclude that person) or stop the worker for that chat; the inbox keeps
+- Handover: when a human takes over, change the device's rules (for example add a `sender`
+  condition with `is_not` for that person) or stop the worker for that chat; the inbox keeps
   working for the human.

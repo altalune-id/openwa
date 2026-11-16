@@ -55,7 +55,7 @@ func (h *DeviceHandler) GetDevices(w http.ResponseWriter, r *http.Request) {
 		h.ErrorPageKey(w, sc.req, http.StatusInternalServerError, "error.load_failed", err)
 		return
 	}
-	v := templates.DevicesView{ProjectSlug: sc.project.Slug, Total: len(views), Cards: make([]templates.DeviceCard, 0, len(views))}
+	v := templates.DevicesView{ProjectSlug: sc.project.Slug, Total: len(views), Cards: make([]templates.DeviceCard, 0, len(views)), CanManage: h.canManageProject(sc)}
 	for _, dv := range views {
 		switch dv.Status.State {
 		case device.SessionConnected:
@@ -83,6 +83,9 @@ func (h *DeviceHandler) GetDeviceNew(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.requireManager(w, sc) {
+		return
+	}
 	l := h.layout(sc, "devices.new")
 	Render(w, sc.req, templates.DeviceNewLayout(l, templates.DeviceFormView{ProjectSlug: sc.project.Slug}))
 }
@@ -91,6 +94,9 @@ func (h *DeviceHandler) GetDeviceNew(w http.ResponseWriter, r *http.Request) {
 func (h *DeviceHandler) PostDeviceCreate(w http.ResponseWriter, r *http.Request) {
 	sc, ok := h.RequireProject(w, r)
 	if !ok {
+		return
+	}
+	if !h.requireManager(w, sc) {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -127,6 +133,9 @@ func (h *DeviceHandler) PostDeviceLink(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.requireManager(w, sc) {
+		return
+	}
 	st, err := h.Devices.StartLink(sc.req.Context(), dv.Device.ID)
 	if !web.IsHTMXRequest(r) {
 		if err != nil {
@@ -154,6 +163,9 @@ func (h *DeviceHandler) PostDevicePhoneLink(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
+	if !h.requireManager(w, sc) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		h.ErrorPageKey(w, sc.req, http.StatusBadRequest, "error.bad_request", err)
 		return
@@ -167,6 +179,9 @@ func (h *DeviceHandler) PostDevicePhoneLink(w http.ResponseWriter, r *http.Reque
 func (h *DeviceHandler) PostDeviceUnlink(w http.ResponseWriter, r *http.Request) {
 	sc, dv, ok := h.requireDevice(w, r)
 	if !ok {
+		return
+	}
+	if !h.requireManager(w, sc) {
 		return
 	}
 	if err := h.Devices.Unlink(sc.req.Context(), dv.Device.ID); err != nil {
@@ -198,7 +213,7 @@ func (h *DeviceHandler) PostDeviceRules(w http.ResponseWriter, r *http.Request) 
 		h.writeDetail(w, sc, dv, deviceWriteStatus(err), detailInput{rules: &rules, rulesErr: err})
 		return
 	}
-	if _, err := h.Devices.UpdateRules(sc.req.Context(), dv.Device.ID, rules, version); err != nil {
+	if _, err := h.Devices.UpdateLegacyRules(sc.req.Context(), dv.Device.ID, rules, version); err != nil {
 		h.logUnless(err, "web device: rules")
 		h.writeDetail(w, sc, dv, deviceWriteStatus(err), detailInput{rules: &rules, rulesErr: err})
 		return
@@ -238,6 +253,9 @@ func (h *DeviceHandler) PostDeviceDelete(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
+	if !h.requireManager(w, sc) {
+		return
+	}
 	if err := h.Devices.Delete(sc.req.Context(), dv.Device.ID); err != nil {
 		h.logUnless(err, "web device: delete")
 		h.SetFlash(w, sc.req, web.FlashErr, "flash.device_action_failed")
@@ -249,7 +267,7 @@ func (h *DeviceHandler) PostDeviceDelete(w http.ResponseWriter, r *http.Request)
 }
 
 type detailInput struct {
-	rules     *device.Rules
+	rules     *device.Legacy
 	rulesErr  error
 	name      *string
 	renameErr error
@@ -289,13 +307,14 @@ func (h *DeviceHandler) writeDetail(w http.ResponseWriter, sc ProjectScope, dv d
 		h.LogErr("web device: link state", err)
 		st = device.LinkState{Outcome: device.LinkNone}
 	}
+	canManage := h.canManageProject(sc)
 	l := h.layout(sc, "")
 	l.Crumbs[len(l.Crumbs)-1].Href = h.ProjectURL(sc, "/devices")
 	l.Crumbs = append(l.Crumbs, web.Crumb{Label: dv.Device.Name})
 	l.ActiveNav.Parent = "devices"
 
 	d := dv.Device
-	rules := d.Rules
+	rules, expressible := d.Rules.Legacy()
 	if in.rules != nil {
 		rules = *in.rules
 	}
@@ -311,8 +330,8 @@ func (h *DeviceHandler) writeDetail(w http.ResponseWriter, sc ProjectScope, dv d
 		Reason:      dv.Status.Reason,
 		LastSeen:    dv.Status.LastSeen,
 		RenameValue: d.Name,
-		Pairing:     pairingView(sc, dv, st, ""),
-		CanManage:   h.canManageProject(sc),
+		Pairing:     pairingView(sc, dv, st, "", canManage),
+		CanManage:   canManage,
 		Rules: templates.DeviceRulesView{
 			GroupMode:      string(rules.GroupMode),
 			AllowedSenders: strings.Join(rules.AllowedSenders, "\n"),
@@ -328,6 +347,9 @@ func (h *DeviceHandler) writeDetail(w http.ResponseWriter, sc ProjectScope, dv d
 	if in.renameErr != nil {
 		v.RenameError = l.Tr(deviceErrorKey(in.renameErr))
 	}
+	if !expressible && in.rulesErr == nil {
+		v.Rules.FormError = l.Tr(deviceErrorKey(&device.RulesShapeConflictError{}))
+	}
 	if in.rulesErr != nil {
 		if ir, ok := errorsAsInvalidRules(in.rulesErr); ok {
 			v.Rules.Errors[ir.Field] = l.Tr(deviceErrorKey(in.rulesErr))
@@ -340,13 +362,14 @@ func (h *DeviceHandler) writeDetail(w http.ResponseWriter, sc ProjectScope, dv d
 
 func (h *DeviceHandler) writePairing(w http.ResponseWriter, sc ProjectScope, dv device.DeviceView, st device.LinkState, err error, phone string) {
 	base := h.ProjectFragmentBase(sc)
+	canManage := h.canManageProject(sc)
 	if err == nil {
-		Render(w, sc.req, templates.DevicePairing(base, pairingView(sc, dv, st, phone)))
+		Render(w, sc.req, templates.DevicePairing(base, pairingView(sc, dv, st, phone, canManage)))
 		return
 	}
 	h.logUnless(err, "web device: link")
 	status := deviceWriteStatus(err)
-	v := pairingView(sc, dv, device.LinkState{Outcome: device.LinkFailed}, phone)
+	v := pairingView(sc, dv, device.LinkState{Outcome: device.LinkFailed}, phone, canManage)
 	v.ErrorKey = deviceErrorKey(err)
 	if whatsapp.IsInvalidPhoneError(err) {
 		v.ErrorKey = ""
@@ -355,7 +378,7 @@ func (h *DeviceHandler) writePairing(w http.ResponseWriter, sc ProjectScope, dv 
 	RenderStatus(w, sc.req, status, templates.DevicePairing(base, v))
 }
 
-func pairingView(sc ProjectScope, dv device.DeviceView, st device.LinkState, phone string) templates.DevicePairingView {
+func pairingView(sc ProjectScope, dv device.DeviceView, st device.LinkState, phone string, canManage bool) templates.DevicePairingView {
 	v := templates.DevicePairingView{
 		ProjectSlug: sc.project.Slug,
 		DeviceID:    dv.Device.PublicID,
@@ -365,9 +388,14 @@ func pairingView(sc ProjectScope, dv device.DeviceView, st device.LinkState, pho
 		Linked:      dv.Status.State == device.SessionConnected || dv.Status.State == device.SessionDisconnected,
 		Phone:       dv.Status.Phone,
 		PhoneValue:  phone,
+		CanManage:   canManage,
 	}
 	if len(st.PNG) > 0 {
 		v.PNGBase64 = base64.StdEncoding.EncodeToString(st.PNG)
+	}
+	// SECURITY: a pending QR or pairing code lets whoever scans it first take the number, so only a manager sees it.
+	if !canManage {
+		v.PNGBase64, v.PairingCode = "", ""
 	}
 	//i18n:use devices.link_expired
 	//i18n:use devices.link_failed
@@ -412,14 +440,10 @@ func formVersion(r *http.Request, current int) (int, error) {
 	return v, nil
 }
 
-func rulesFromForm(r *http.Request) device.Rules {
-	senders := splitList(r.PostForm.Get("allowed_senders"))
-	for i, s := range senders {
-		senders[i] = strings.NewReplacer("+", "", " ", "", "-", "", "(", "", ")", "").Replace(s)
-	}
-	return device.Rules{
+func rulesFromForm(r *http.Request) device.Legacy {
+	return device.Legacy{
 		GroupMode:      device.GroupMode(r.PostForm.Get("group_mode")),
-		AllowedSenders: senders,
+		AllowedSenders: splitList(r.PostForm.Get("allowed_senders")),
 		AllowedGroups:  splitList(r.PostForm.Get("allowed_groups")),
 		TriggerPrefix:  r.PostForm.Get("trigger_prefix"),
 		IgnoreFromMe:   r.PostForm.Get("ignore_from_me") == "1",
@@ -473,6 +497,8 @@ func deviceErrorKey(err error) string {
 		return "devices.error.name_taken"
 	case device.IsStaleVersionError(err):
 		return "devices.error.stale_version"
+	case device.IsRulesShapeConflictError(err):
+		return "devices.error.rules_shape_conflict"
 	case device.IsInvalidRulesError(err):
 		ir, _ := errorsAsInvalidRules(err)
 		return "devices.error.invalid_" + ir.Field
@@ -494,7 +520,7 @@ func deviceWriteStatus(err error) int {
 	switch {
 	case device.IsInvalidNameError(err), device.IsInvalidRulesError(err), whatsapp.IsInvalidPhoneError(err), device.IsNameTakenError(err):
 		return http.StatusUnprocessableEntity
-	case device.IsStaleVersionError(err), whatsapp.IsAlreadyLinkedError(err), whatsapp.IsLinkTimeoutError(err), whatsapp.IsNotConnectedError(err):
+	case device.IsStaleVersionError(err), device.IsRulesShapeConflictError(err), whatsapp.IsAlreadyLinkedError(err), whatsapp.IsLinkTimeoutError(err), whatsapp.IsNotConnectedError(err):
 		return http.StatusConflict
 	case whatsapp.IsUnsupportedError(err):
 		return http.StatusNotImplemented

@@ -75,3 +75,16 @@ func TestEnvKeys_MessagingAwareness(t *testing.T) {
 	}
 	require.Len(t, seen, len(want), "every messaging key is reachable from the environment")
 }
+
+func TestValidate_WhatsAppDefaultCountryCode(t *testing.T) {
+	c := validMessagingCfg()
+	require.Empty(t, c.WhatsApp.DefaultCountryCode)
+	for _, ok := range []string{"", "1", "62", "358"} {
+		c.WhatsApp.DefaultCountryCode = ok
+		require.NoError(t, c.Validate(), ok)
+	}
+	for _, bad := range []string{"+62", "6a", "1234", "0", "01"} {
+		c.WhatsApp.DefaultCountryCode = bad
+		require.Error(t, c.Validate(), bad)
+	}
+}

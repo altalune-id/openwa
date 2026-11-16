@@ -39,7 +39,7 @@ func TestDeviceServiceForDataplane_ErrorsNeverCarryTheDeviceUUID(t *testing.T) {
 	t.Parallel()
 	store, sessions := fakes.NewDevice(), fakes.NewDeviceSessions()
 	log := slog.New(slog.DiscardHandler)
-	svc := device.NewService(store, log, apperror.NewReporter(log, false).Unexpected, fakes.UnitOfWork, sessions)
+	svc := device.NewService(store, log, apperror.NewReporter(log, false).Unexpected, fakes.UnitOfWork, sessions, "")
 	ctx := tenant.Into(t.Context(), tenant.Context{OrgID: uuid.New(), ProjectID: uuid.New()})
 	d, err := svc.Create(ctx, "Sales")
 	require.NoError(t, err)

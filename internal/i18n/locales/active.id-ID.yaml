@@ -529,6 +529,7 @@ devices.error.invalid_allowed_senders: "Gunakan nomor telepon dengan kode negara
 devices.error.invalid_allowed_groups: "Gunakan JID grup berakhiran @g.us."
 devices.error.invalid_trigger_prefix: "Gunakan paling banyak 16 karakter."
 devices.error.stale_version: "Perangkat ini berubah sejak halaman dibuka. Muat ulang lalu coba lagi."
+devices.error.rules_shape_conflict: "Aturan ini memakai opsi yang tidak bisa ditampilkan formulir ini, jadi formulir ini tidak bisa mengubahnya."
 devices.error.invalid_phone: "Gunakan format internasional dengan kode negara."
 devices.error.already_linked: "Perangkat ini sudah tertaut. Keluarkan dulu."
 devices.error.not_owned: "Perangkat ini sedang tidak berjalan di server ini. Coba lagi sebentar lagi."

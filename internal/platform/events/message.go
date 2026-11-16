@@ -56,9 +56,11 @@ type MessageV1 struct {
 	Location  *LocationV1 `json:"location"`
 }
 
-// MatchedV1 lists why the device's inbound rules matched.
+// MatchedV1 lists why the device's inbound rules matched and which rule decided.
 type MatchedV1 struct {
-	Reasons []string `json:"reasons"`
+	Reasons  []string `json:"reasons"`
+	RuleID   string   `json:"rule_id"`
+	RuleName string   `json:"rule_name"`
 }
 
 // MessageEventV1 is the payload for MessageReceived and MessageMatched; Matched is set on the latter only.

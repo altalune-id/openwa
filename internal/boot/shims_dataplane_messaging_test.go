@@ -18,7 +18,7 @@ import (
 func TestDataplaneShims_SiblingProjectDeviceIsNotFound(t *testing.T) {
 	t.Parallel()
 	log := slog.New(slog.DiscardHandler)
-	svc := device.NewService(fakes.NewDevice(), log, apperror.NewReporter(log, false).Unexpected, fakes.UnitOfWork, fakes.NewDeviceSessions())
+	svc := device.NewService(fakes.NewDevice(), log, apperror.NewReporter(log, false).Unexpected, fakes.UnitOfWork, fakes.NewDeviceSessions(), "")
 	org := uuid.New()
 	sibling := tenant.Into(t.Context(), tenant.Context{OrgID: org, ProjectID: uuid.New()})
 	d, err := svc.Create(sibling, "Sibling")

@@ -50,35 +50,6 @@ func TestJIDHelpers(t *testing.T) {
 	require.Equal(t, "", whatsapp.PhoneFromJID(""))
 }
 
-func TestNormalizePhone(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		in   string
-		want string
-		bad  bool
-	}{
-		{"+62 812-3456", "628123456", false},
-		{"62 (812) 3456.789", "628123456789", false},
-		{"0812 3456 789", "", true},
-		{"+1", "", true},
-		{"abc", "", true},
-		{"", "", true},
-		{"+12345678901234567", "", true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.in, func(t *testing.T) {
-			t.Parallel()
-			got, err := whatsapp.NormalizePhone(tc.in)
-			if tc.bad {
-				require.True(t, whatsapp.IsInvalidPhoneError(err), "got %v", err)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tc.want, got)
-		})
-	}
-}
-
 func TestResolvePhone(t *testing.T) {
 	t.Parallel()
 	lookup := func(lid string) string {

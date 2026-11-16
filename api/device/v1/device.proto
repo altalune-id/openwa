@@ -49,16 +49,42 @@ service DeviceService {
 }
 
 message Rules {
-  // Which group messages match: "ignore", "mention" or "open"
+  // Which group messages match: "ignore", "mention" or "open". Reads return "custom" when only items can describe the rules; send items then
   string group_mode = 1;
-  // E.164 digits without "+"; empty allows every sender
+  // E.164 digits without "+"; empty allows every sender. Empty and unused when group_mode is "custom"
   repeated string allowed_senders = 2;
-  // Group JIDs ending in @g.us; empty allows every group
+  // Group JIDs ending in @g.us; empty allows every group. Empty and unused when group_mode is "custom"
   repeated string allowed_groups = 3;
   // Only messages starting with this text match; empty matches all
   string trigger_prefix = 4;
   // Skip messages sent from the paired account itself
   bool ignore_from_me = 5;
+  // Ordered rules; when set on a write it replaces the rules and the legacy fields are ignored, and an empty list sends nothing
+  RuleList items = 6;
+}
+
+message RuleList {
+  repeated Rule rules = 1;
+}
+
+message Rule {
+  // Up to 64 letters, digits, - or _; omit to have one minted
+  string id = 1;
+  string name = 2;
+  bool enabled = 3;
+  // "match" sends the message to message.matched; "ignore" stops evaluation without sending
+  string action = 4;
+  // All must hold
+  repeated Condition conditions = 5;
+}
+
+message Condition {
+  // "chat_kind", "chat", "sender", "text" or "mention"
+  string field = 1;
+  // chat_kind, chat, sender: "is" or "is_not"; text: "contains", "starts_with" or "equals"; mention: empty
+  string op = 2;
+  // Any may hold. chat_kind: "dm" or "group"; chat: group JIDs; sender: "phone:<digits>" or a full JID ending in @s.whatsapp.net or @lid
+  repeated string values = 3;
 }
 
 message LinkState {

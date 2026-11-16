@@ -89,6 +89,11 @@ func (r *Recorder) store1(ctx context.Context, ref Ref, in InboundInput, emit bo
 	}
 	m := NewInbound(ref, chat.ID, pid, in)
 	m.stamp(r.clock())
+	var dev *DeviceRef
+	var match MatchResult
+	if emit && !in.FromMe {
+		dev, match = r.match(ctx, ref, chat, m, in)
+	}
 	inserted, err := r.store.InsertInbound(ctx, m)
 	if err != nil || !inserted {
 		return err
@@ -109,22 +114,31 @@ func (r *Recorder) store1(ctx context.Context, ref Ref, in InboundInput, emit bo
 	if !emit || in.FromMe {
 		return nil
 	}
-	return r.emit(ctx, ref, chat, m, in)
+	return r.emit(ctx, ref, chat, m, dev, match)
 }
 
-func (r *Recorder) emit(ctx context.Context, ref Ref, chat ChatRef, m *Message, in InboundInput) error {
-	dev, err := r.devices.Ref(ctx, ref.DeviceID)
-	if err != nil {
-		return err
-	}
-	matched, reasons, err := r.devices.Match(ctx, ref.DeviceID, MatchInput{
-		IsGroup: in.IsGroup, ChatJID: chat.JID, SenderPhone: in.SenderPhone, FromMe: in.FromMe,
+func (r *Recorder) match(ctx context.Context, ref Ref, chat ChatRef, m *Message, in InboundInput) (*DeviceRef, MatchResult) {
+	senderJID, senderLID := splitIdentity(withoutDevice(in.SenderJID), withoutDevice(in.SenderAlt))
+	dev, res, err := r.devices.Match(ctx, ref.DeviceID, MatchInput{
+		IsGroup: in.IsGroup, ChatJID: chat.JID, SenderPhone: in.SenderPhone, SenderJID: senderJID, SenderLID: senderLID, FromMe: in.FromMe,
 		Body: m.Body, Mentions: in.Mentions, QuotedSender: in.QuotedSender,
 	})
 	if err != nil {
-		// NOTE: WhatsApp already delivered the message, so a rules failure logs and leaves it received but unmatched.
+		// NOTE: WhatsApp already delivered the message, so a rules failure logs and leaves it received but not evaluated.
 		r.log.WarnContext(ctx, "message.RecordInbound: rules match", slog.String("device_id", ref.DeviceID.String()), slog.Any("error", err))
-		matched, reasons = false, nil
+		return nil, MatchResult{}
+	}
+	m.MatchOutcome, m.MatchedRuleID = res.Outcome, res.RuleID
+	return &dev, res
+}
+
+func (r *Recorder) emit(ctx context.Context, ref Ref, chat ChatRef, m *Message, dev *DeviceRef, match MatchResult) error {
+	if dev == nil {
+		d, err := r.devices.Ref(ctx, ref.DeviceID)
+		if err != nil {
+			return err
+		}
+		dev = &d
 	}
 	quotedBody := ""
 	if m.QuotedWAMessageID != "" {
@@ -140,14 +154,14 @@ func (r *Recorder) emit(ctx context.Context, ref Ref, chat ChatRef, m *Message, 
 		}
 		mediaURL = MediaURL(r.baseURL, org, project, m.PublicID)
 	}
-	payload := eventPayload(dev, chat, m, quotedBody, mediaURL)
+	payload := eventPayload(*dev, chat, m, quotedBody, mediaURL)
 	if err := r.webhooks.Enqueue(ctx, events.MessageReceived, payload); err != nil {
 		return err
 	}
-	if !matched {
+	if match.Outcome != MatchMatched {
 		return nil
 	}
-	payload.Matched = &events.MatchedV1{Reasons: append([]string{}, reasons...)}
+	payload.Matched = &events.MatchedV1{Reasons: append([]string{}, match.Reasons...), RuleID: match.RuleID, RuleName: match.RuleName}
 	return r.webhooks.Enqueue(ctx, events.MessageMatched, payload)
 }
 
@@ -161,6 +175,15 @@ func chatIdentity(in InboundInput) (jid, lid, kind string) {
 		return pn, lid, "dm"
 	}
 	return lid, lid, "dm"
+}
+
+func withoutDevice(jid string) string {
+	user, server, ok := strings.Cut(jid, "@")
+	if !ok {
+		return jid
+	}
+	user, _, _ = strings.Cut(user, ":")
+	return user + "@" + server
 }
 
 func splitIdentity(a, b string) (pn, lid string) {

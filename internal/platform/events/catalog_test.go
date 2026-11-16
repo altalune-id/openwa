@@ -106,7 +106,7 @@ func TestGoldenPayloads(t *testing.T) {
 			Media: &events.MediaV1{Mime: "image/jpeg", Size: 48213,
 				URL: "https://wa.example.com/api/v1/orgs/acme/projects/main/messages/msg_Mj6Zc1Ld9Fs4Kb2c/media"},
 		},
-		Matched: &events.MatchedV1{Reasons: []string{"group_mention"}},
+		Matched: &events.MatchedV1{Reasons: []string{"group_mention"}, RuleID: "legacy-group", RuleName: "Groups"},
 	})
 	checkGolden(t, "testdata/message_status_v1.golden.json", events.MessageStatusV1{
 		Device:  device,

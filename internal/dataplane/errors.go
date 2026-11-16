@@ -162,7 +162,7 @@ func statusFor(err error) failure {
 		return failure{http.StatusPreconditionRequired, "precondition_required"}
 	case IsPreconditionFailedError(err), blog.IsStaleVersionError(err), device.IsStaleVersionError(err):
 		return failure{http.StatusPreconditionFailed, "precondition_failed"}
-	case IsConflictError(err), blog.IsAlreadyExistsError(err), device.IsNameTakenError(err),
+	case IsConflictError(err), blog.IsAlreadyExistsError(err), device.IsNameTakenError(err), device.IsRulesShapeConflictError(err),
 		message.IsDeviceNotLinkedError(err), message.IsEditWindowClosedError(err), message.IsNotOwnMessageError(err),
 		chat.IsNotAGroupError(err), message.IsVersionMismatchError(err), chat.IsVersionMismatchError(err),
 		whatsapp.IsAlreadyLinkedError(err), whatsapp.IsNotConnectedError(err), whatsapp.IsLinkTimeoutError(err):

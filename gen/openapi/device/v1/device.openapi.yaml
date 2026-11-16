@@ -388,6 +388,25 @@ components:
           description: Deserialized error detail payload. The 'type' field indicates the schema. This field is for easier debugging and should not be relied upon for application logic.
       additionalProperties: true
       description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message, with an additional debug field for ConnectRPC error details.
+    device.v1.Condition:
+      type: object
+      properties:
+        field:
+          type: string
+          title: field
+          description: '"chat_kind", "chat", "sender", "text" or "mention"'
+        op:
+          type: string
+          title: op
+          description: 'chat_kind, chat, sender: "is" or "is_not"; text: "contains", "starts_with" or "equals"; mention: empty'
+        values:
+          type: array
+          items:
+            type: string
+          title: values
+          description: 'Any may hold. chat_kind: "dm" or "group"; chat: group JIDs; sender: "phone:<digits>" or a full JID ending in @s.whatsapp.net or @lid'
+      title: Condition
+      additionalProperties: false
     device.v1.CreateDeviceRequest:
       type: object
       properties:
@@ -603,25 +622,60 @@ components:
           title: devices
       title: ListDevicesResponse
       additionalProperties: false
+    device.v1.Rule:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+          description: Up to 64 letters, digits, - or _; omit to have one minted
+        name:
+          type: string
+          title: name
+        enabled:
+          type: boolean
+          title: enabled
+        action:
+          type: string
+          title: action
+          description: '"match" sends the message to message.matched; "ignore" stops evaluation without sending'
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/device.v1.Condition'
+          title: conditions
+          description: All must hold
+      title: Rule
+      additionalProperties: false
+    device.v1.RuleList:
+      type: object
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/device.v1.Rule'
+          title: rules
+      title: RuleList
+      additionalProperties: false
     device.v1.Rules:
       type: object
       properties:
         groupMode:
           type: string
           title: group_mode
-          description: 'Which group messages match: "ignore", "mention" or "open"'
+          description: 'Which group messages match: "ignore", "mention" or "open". Reads return "custom" when only items can describe the rules; send items then'
         allowedSenders:
           type: array
           items:
             type: string
           title: allowed_senders
-          description: E.164 digits without "+"; empty allows every sender
+          description: E.164 digits without "+"; empty allows every sender. Empty and unused when group_mode is "custom"
         allowedGroups:
           type: array
           items:
             type: string
           title: allowed_groups
-          description: Group JIDs ending in @g.us; empty allows every group
+          description: Group JIDs ending in @g.us; empty allows every group. Empty and unused when group_mode is "custom"
         triggerPrefix:
           type: string
           title: trigger_prefix
@@ -630,6 +684,10 @@ components:
           type: boolean
           title: ignore_from_me
           description: Skip messages sent from the paired account itself
+        items:
+          title: items
+          description: Ordered rules; when set on a write it replaces the rules and the legacy fields are ignored, and an empty list sends nothing
+          $ref: '#/components/schemas/device.v1.RuleList'
       title: Rules
       additionalProperties: false
     device.v1.StartLinkRequest:

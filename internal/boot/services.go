@@ -109,11 +109,12 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 		meow.NewEngine(wa, meow.Options{InboundQueueSize: cfg.WhatsApp.InboundQueueSize, Log: log}),
 		whatsapp.NewLeaseStore(cfg.DB, pool),
 		whatsapp.RuntimeConfig{
-			Owner:         owner,
-			LeaseTTL:      cfg.WhatsApp.LeaseTTL,
-			LeaseInterval: cfg.WhatsApp.LeaseInterval,
-			LinkTimeout:   cfg.WhatsApp.LinkTimeout,
-			ParkFor:       cfg.WhatsApp.ParkFor,
+			Owner:              owner,
+			LeaseTTL:           cfg.WhatsApp.LeaseTTL,
+			LeaseInterval:      cfg.WhatsApp.LeaseInterval,
+			LinkTimeout:        cfg.WhatsApp.LinkTimeout,
+			ParkFor:            cfg.WhatsApp.ParkFor,
+			DefaultCountryCode: cfg.WhatsApp.DefaultCountryCode,
 			Sender: whatsapp.SenderConfig{
 				SpacingMin:       cfg.WhatsApp.SendSpacingMin,
 				SpacingMax:       cfg.WhatsApp.SendSpacingMax,
@@ -127,7 +128,7 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 	whatsappSvc := whatsapp.NewService(waStore, log, reporter.Unexpected, uow,
 		runtime, webhooks, deviceDescriber{store: deviceStore}, time.Now)
 	runtime.Subscribe(whatsappSvc)
-	devices := device.NewService(deviceStore, log, reporter.Unexpected, uow, deviceSessions{svc: whatsappSvc})
+	devices := device.NewService(deviceStore, log, reporter.Unexpected, uow, deviceSessions{svc: whatsappSvc}, cfg.WhatsApp.DefaultCountryCode)
 
 	chats := chat.NewService(chat.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected, uow, groupsForChat{wa: whatsappSvc, devices: deviceStore})
 	contacts := contact.NewService(contact.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected)

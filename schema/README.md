@@ -45,6 +45,8 @@ erDiagram
     projects ||--o{ api_key_projects : "granted"
     projects ||--o{ webhook_endpoints : "sends to"
     webhook_endpoints ||--o{ webhook_deliveries : "attempts"
+    projects ||--o{ devices : "pairs"
+    devices ||--o{ messages : "carries"
 
     memberships {
         uuid org_id FK
@@ -70,6 +72,21 @@ erDiagram
         uuid org_id FK
         uuid key_id FK
         uuid project_id FK
+    }
+    devices {
+        uuid id PK
+        uuid project_id FK
+        jsonb rules "v2 items; no v marker = v1"
+        int version
+    }
+    messages {
+        uuid id PK
+        uuid project_id FK
+        uuid device_id FK
+        text direction "in|out"
+        text match_outcome "matched|ignored|none; null = not evaluated"
+        text matched_rule_id "deciding rule id; null when none"
+        timestamptz wa_timestamp
     }
 ```
 
@@ -117,3 +134,6 @@ pinned by `TestMigrateUp_DefinerFunctionsAreOwnedByTheMigrationRole`.
    keys, so a row cannot pair one org's parent with another org's child.
 5. If the migration must run as owner (DDL), prefix the block with
    `{{if .Role}}SET ROLE {{.Role}};{{end}}`.
+6. On a hot table, add a `CHECK` as `NOT VALID`, then `VALIDATE CONSTRAINT`
+   and `CREATE INDEX CONCURRENTLY` in a separate `-- +goose NO TRANSACTION`
+   migration (`017_message_match.sql`, `018_message_match_index.sql`).

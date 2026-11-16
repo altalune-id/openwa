@@ -190,15 +190,16 @@ Boot fails if the runtime role holds `BYPASSRLS` and `db.allowBypassRLS` is `fal
 
 ## WhatsApp
 
-| Key                         | Default     | Awareness   | Meaning                                                                                                                                                                 |
-| --------------------------- | ----------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `whatsapp.engine`           | `whatsmeow` | `bootstrap` | The WhatsApp engine. `whatsmeow` is the only value.                                                                                                                     |
-| `whatsapp.clientName`       | `OpenWA`    | `-`         | The device name shown under Linked Devices on the phone.                                                                                                                |
-| `whatsapp.leaseTTL`         | `45s`       | `-`         | How long a device lease stays valid without a renewal. Must exceed 2 x `whatsapp.leaseInterval`.                                                                        |
-| `whatsapp.leaseInterval`    | `15s`       | `-`         | How often the runtime renews its leases and claims free ones. For `whatsapp.leaseTTL` after start it also claims every 15s while another process holds a lease.         |
-| `whatsapp.linkTimeout`      | `3m`        | `-`         | How long a pairing attempt runs, and how long its outcome stays visible afterwards.                                                                                     |
-| `whatsapp.parkFor`          | `0s`        | `-`         | How long a device stays parked after `stream_replaced`, a temporary ban or a connect failure; `0` means 5 x `whatsapp.leaseTTL`. `client_outdated` parks until restart. |
-| `whatsapp.inboundQueueSize` | `1024`      | `-`         | Per-device buffer between whatsmeow and the sink; when full the engine blocks, it never drops.                                                                          |
+| Key                           | Default     | Awareness   | Meaning                                                                                                                                                                 |
+| ----------------------------- | ----------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `whatsapp.engine`             | `whatsmeow` | `bootstrap` | The WhatsApp engine. `whatsmeow` is the only value.                                                                                                                     |
+| `whatsapp.clientName`         | `OpenWA`    | `-`         | The device name shown under Linked Devices on the phone.                                                                                                                |
+| `whatsapp.leaseTTL`           | `45s`       | `-`         | How long a device lease stays valid without a renewal. Must exceed 2 x `whatsapp.leaseInterval`.                                                                        |
+| `whatsapp.leaseInterval`      | `15s`       | `-`         | How often the runtime renews its leases and claims free ones. For `whatsapp.leaseTTL` after start it also claims every 15s while another process holds a lease.         |
+| `whatsapp.linkTimeout`        | `3m`        | `-`         | How long a pairing attempt runs, and how long its outcome stays visible afterwards.                                                                                     |
+| `whatsapp.parkFor`            | `0s`        | `-`         | How long a device stays parked after `stream_replaced`, a temporary ban or a connect failure; `0` means 5 x `whatsapp.leaseTTL`. `client_outdated` parks until restart. |
+| `whatsapp.defaultCountryCode` | empty       | `-`         | Calling code (1 to 3 digits) that replaces the leading `0` of a national phone number when pairing or in rule senders. Empty refuses national numbers.                  |
+| `whatsapp.inboundQueueSize`   | `1024`      | `-`         | Per-device buffer between whatsmeow and the sink; when full the engine blocks, it never drops.                                                                          |
 
 ## Scheduler
 

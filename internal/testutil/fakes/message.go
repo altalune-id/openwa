@@ -366,6 +366,28 @@ func (f *Message) CountOlderThan(ctx context.Context, projectID uuid.UUID, befor
 	return n, nil
 }
 
+func (f *Message) RuleHits(ctx context.Context, deviceID uuid.UUID) (map[string]message.RuleHit, error) {
+	tc, err := tenant.From(ctx)
+	if err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := map[string]message.RuleHit{}
+	for _, m := range f.rows {
+		if m.OrgID != tc.OrgID || m.ProjectID != tc.ProjectID || m.DeviceID != deviceID || m.MatchedRuleID == "" {
+			continue
+		}
+		h := out[m.MatchedRuleID]
+		h.Count++
+		if m.WATimestamp.After(h.LastAt) {
+			h.LastAt = m.WATimestamp
+		}
+		out[m.MatchedRuleID] = h
+	}
+	return out, nil
+}
+
 func (f *Message) CountToday(ctx context.Context, since time.Time) (int64, error) {
 	tc, err := tenant.From(ctx)
 	if err != nil {

@@ -82,9 +82,14 @@ func (s *DeviceService) UpdateDevice(ctx context.Context, req *connect.Request[d
 		name := req.Msg.GetName()
 		u.Name = &name
 	}
-	if req.Msg.GetRules() != nil {
-		rules := rulesFromProto(req.Msg.GetRules())
+	switch r := req.Msg.GetRules(); {
+	case r == nil:
+	case r.GetItems() != nil:
+		rules := itemsFromProto(r)
 		u.Rules = &rules
+	default:
+		legacy := legacyFromProto(r)
+		u.Legacy = &legacy
 	}
 	d, err := s.devices.Update(tctx, v.Device.ID, u, int(req.Msg.GetVersion()))
 	if err != nil {
@@ -254,21 +259,43 @@ func linkToProto(st device.LinkState) *devicev1.LinkState {
 }
 
 func rulesToProto(r device.Rules) *devicev1.Rules {
+	items := make([]*devicev1.Rule, 0, len(r.Items))
+	for _, it := range r.Items {
+		conds := make([]*devicev1.Condition, 0, len(it.Conditions))
+		for _, c := range it.Conditions {
+			conds = append(conds, &devicev1.Condition{Field: string(c.Field), Op: string(c.Op), Values: append([]string{}, c.Values...)})
+		}
+		items = append(items, &devicev1.Rule{Id: it.ID, Name: it.Name, Enabled: it.Enabled, Action: string(it.Action), Conditions: conds})
+	}
+	l := r.LegacyView()
 	return &devicev1.Rules{
-		GroupMode:      string(r.GroupMode),
-		AllowedSenders: append([]string{}, r.AllowedSenders...),
-		AllowedGroups:  append([]string{}, r.AllowedGroups...),
-		TriggerPrefix:  r.TriggerPrefix,
+		GroupMode:      string(l.GroupMode),
+		AllowedSenders: append([]string{}, l.AllowedSenders...),
+		AllowedGroups:  append([]string{}, l.AllowedGroups...),
+		TriggerPrefix:  l.TriggerPrefix,
 		IgnoreFromMe:   r.IgnoreFromMe,
+		Items:          &devicev1.RuleList{Rules: items},
 	}
 }
 
-func rulesFromProto(r *devicev1.Rules) device.Rules {
-	return device.Rules{
+func legacyFromProto(r *devicev1.Rules) device.Legacy {
+	return device.Legacy{
 		GroupMode:      device.GroupMode(r.GetGroupMode()),
 		AllowedSenders: r.GetAllowedSenders(),
 		AllowedGroups:  r.GetAllowedGroups(),
 		TriggerPrefix:  r.GetTriggerPrefix(),
 		IgnoreFromMe:   r.GetIgnoreFromMe(),
 	}
+}
+
+func itemsFromProto(r *devicev1.Rules) device.Rules {
+	out := device.Rules{IgnoreFromMe: r.GetIgnoreFromMe(), Items: make([]device.Rule, 0, len(r.GetItems().GetRules()))}
+	for _, it := range r.GetItems().GetRules() {
+		conds := make([]device.Condition, 0, len(it.GetConditions()))
+		for _, c := range it.GetConditions() {
+			conds = append(conds, device.Condition{Field: device.Field(c.GetField()), Op: device.Op(c.GetOp()), Values: c.GetValues()})
+		}
+		out.Items = append(out.Items, device.Rule{ID: it.GetId(), Name: it.GetName(), Enabled: it.GetEnabled(), Action: device.Action(it.GetAction()), Conditions: conds})
+	}
+	return out
 }
