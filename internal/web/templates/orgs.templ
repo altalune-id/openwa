@@ -35,7 +35,7 @@ templ OrgsPage(d web.LayoutData, v OrgsView) {
 							</p>
 							<p class="truncate text-xs text-base-content/70">{ o.Slug }</p>
 						</div>
-						@AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("common.open"), Href: d.Href("/orgs/" + o.Slug + "/projects")})
+						@AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("common.open"), Href: d.Href("/orgs/" + o.Slug)})
 					}
 				}
 			}

@@ -69,7 +69,7 @@ func (h *HomeHandler) landingPath(r *http.Request, p session.Principal) string {
 	return "/orgs"
 }
 
-// GetSwitch lands a member of the path's org on its last project, else its only project, else its overview.
+// GetSwitch lands a member of the path's org on the session's last project when it is in this org, else the org's only project, else the org overview.
 func (h *HomeHandler) GetSwitch(w http.ResponseWriter, r *http.Request) {
 	sc, ok := h.RequireOrg(w, r)
 	if !ok {

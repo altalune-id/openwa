@@ -20,7 +20,7 @@ templ switcherRailTrigger(d web.LayoutData) {
 		if d.ActiveOrg != nil {
 			<span class="block truncate text-xs font-normal text-base-content/80">{ d.ActiveOrg.Name }</span>
 		}
-		<span class="block truncate font-semibold">{ switcherTitle(d) }</span>
+		<span class={ "block truncate", switcherTitleClass(d) }>{ switcherTitle(d) }</span>
 	</span>
 	@icons.Icon("chevrons-up-down", "size-4 shrink-0 opacity-70")
 }
@@ -37,7 +37,7 @@ templ switcherPhoneTrigger(d web.LayoutData) {
 			if d.ActiveOrg != nil {
 				<span class="block truncate text-xs leading-4 font-normal text-base-content/80">{ d.ActiveOrg.Name }</span>
 			}
-			<span class="block truncate leading-5 font-semibold">{ switcherTitle(d) }</span>
+			<span class={ "block truncate leading-5", switcherTitleClass(d) }>{ switcherTitle(d) }</span>
 		</span>
 		@icons.Icon("chevrons-up-down", "size-4 shrink-0 opacity-70")
 	</button>
@@ -67,7 +67,7 @@ templ switcherList(d web.LayoutData) {
 		for _, p := range d.OtherProjects {
 			@switcherProject(d.ProjectPath(p.Slug, "/overview"), "folder", p.Name, false)
 		}
-		if d.ActiveOrg != nil {
+		if canCreateProject(d) {
 			<li>
 				<a href={ templ.SafeURL(d.OrgPath("/projects/new")) }>
 					@icons.Icon("plus", "size-4")
@@ -138,10 +138,14 @@ func switcherTitle(d web.LayoutData) string {
 	if d.ActiveProject != nil {
 		return d.ActiveProject.Name
 	}
-	if d.ActiveOrg != nil {
-		return d.ActiveOrg.Name
-	}
 	return d.Tr("common.select_project")
+}
+
+func switcherTitleClass(d web.LayoutData) string {
+	if d.ActiveProject != nil {
+		return "font-semibold"
+	}
+	return "font-normal text-base-content/70"
 }
 
 func switcherLabel(d web.LayoutData) string {

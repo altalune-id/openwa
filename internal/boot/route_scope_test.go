@@ -62,7 +62,6 @@ func probeRoutes() []probeRoute {
 		{http.MethodGet, base + "/members", nil},
 		{http.MethodGet, base + "/invites", nil},
 		{http.MethodGet, base + "/apikeys", nil},
-		{http.MethodGet, base + "/projects", nil},
 		{http.MethodGet, base + "/projects/new", nil},
 		{http.MethodGet, pbase + "/overview", nil},
 		{http.MethodGet, pbase + "/devices", nil},
@@ -496,4 +495,22 @@ func TestRoutes_InlineFormErrorCarriesTheErrorCode(t *testing.T) {
 	require.Contains(t, body, apperror.CodeOrgAlreadyExists,
 		"a duplicate slug must name its code (%s) so the user can quote it", apperror.CodeOrgAlreadyExists)
 	require.Contains(t, body, "Reference:", "the request id must stay alongside the code")
+}
+
+func TestRoutes_ProjectsListIsGone(t *testing.T) {
+	srv, _ := newScopeProbeServer(t, config.ModeCloud)
+	owner, err := srv.Users.Create(context.Background(), user.CreateRequest{
+		Email: "probe-gone@example.com", Name: "Probe Gone", Source: user.SourceOIDC,
+	})
+	require.NoError(t, err)
+	o, err := srv.Orgs.Create(context.Background(), org.CreateRequest{Slug: "gone-org", Name: "Gone", OwnerID: owner.ID})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/orgs/"+o.Slug+"/projects", nil)
+	req.AddCookie(probeCookie(t, srv, session.Principal{UserID: owner.ID, ActiveOrgID: o.ID}))
+	rec := httptest.NewRecorder()
+	srv.Web.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusMethodNotAllowed, rec.Code)
+	require.Equal(t, http.MethodPost, rec.Header().Get("Allow"))
+	require.Empty(t, rec.Header().Get("Location"))
 }

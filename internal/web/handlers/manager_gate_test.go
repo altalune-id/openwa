@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -20,7 +21,7 @@ import (
 	"altalune.id/openwa/internal/web/handlers"
 )
 
-const managersOnlyKey = "common.managers_only"
+const managersOnlyKey = "managers_only"
 
 type membershipLookupError struct{}
 
@@ -422,4 +423,58 @@ func TestManagerGate_ALookupErrorRefuses(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "Alpha", got.Name)
 	})
+}
+
+// SECURITY: creating a project needs an owner or admin; a member is refused before anything is written.
+func TestProjects_CreateNeedsAManager(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	owner := uuid.New()
+	o := f.seedOrg(t, "acme", owner)
+	mux := http.NewServeMux()
+	handlers.NewProjectHandler(f.Deps, f.Projects).Register(mux)
+	count := func() int {
+		items, err := f.Projects.List(setTenant(context.Background(), o.ID, owner), o.ID)
+		require.NoError(t, err)
+		return len(items)
+	}
+	member := addMember(t, f, o.ID, owner, org.RoleMember)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodGet, "/orgs/acme/projects/new", "", member))
+	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "error.managers_only_title")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodPost, "/orgs/acme/projects", "slug=sneaky&name=Sneaky", member))
+	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	assert.Equal(t, 0, count(), "a refused create writes nothing")
+
+	admin := addMember(t, f, o.ID, owner, org.RoleAdmin)
+	for i, p := range []session.Principal{{UserID: owner, ActiveOrgID: o.ID}, admin} {
+		rec = httptest.NewRecorder()
+		mux.ServeHTTP(rec, f.authedRequest(t, http.MethodGet, "/orgs/acme/projects/new", "", p))
+		require.Equal(t, http.StatusOK, rec.Code)
+		rec = httptest.NewRecorder()
+		mux.ServeHTTP(rec, f.authedRequest(t, http.MethodPost, "/orgs/acme/projects", fmt.Sprintf("slug=made-%d&name=Made", i), p))
+		require.Equal(t, http.StatusSeeOther, rec.Code, rec.Body.String())
+	}
+	assert.Equal(t, 2, count())
+}
+
+func TestLayout_ActiveOrgCarriesTheManagerFlag(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	owner := uuid.New()
+	o := f.seedOrg(t, "acme", owner)
+	member := addMember(t, f, o.ID, owner, org.RoleMember)
+	admin := addMember(t, f, o.ID, owner, org.RoleAdmin)
+	for _, tc := range []struct {
+		p    session.Principal
+		want bool
+	}{{session.Principal{UserID: owner, ActiveOrgID: o.ID}, true}, {admin, true}, {member, false}} {
+		r := httptest.NewRequest(http.MethodGet, "/orgs/acme", nil)
+		d := f.Deps.LayoutForOrg(r.WithContext(session.PrincipalInto(r.Context(), tc.p)), "T", "acme", "overview")
+		require.NotNil(t, d.ActiveOrg)
+		assert.Equal(t, tc.want, d.ActiveOrg.CanManage)
+	}
 }

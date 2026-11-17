@@ -55,11 +55,12 @@ type ActiveNav struct {
 
 // ActiveOrg is what the org switcher pill and menu heading show.
 type ActiveOrg struct {
-	ID     string
-	Slug   string
-	Name   string
-	Role   string
-	System bool
+	ID        string
+	Slug      string
+	Name      string
+	Role      string
+	System    bool
+	CanManage bool
 }
 
 // ActiveProject is what the project switcher pill and sidebar heading show.

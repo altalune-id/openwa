@@ -145,12 +145,19 @@ func TestLayout_DialogsRenderInTheHostOutsideMain(t *testing.T) {
 	require.Greater(t, strings.Index(html, `id="x-dlg"`), host)
 }
 
-func TestLayout_OrgProjectsItemDoesNotLightUpOnProjectPages(t *testing.T) {
+func TestLayout_NoLinkToTheRetiredProjectsPage(t *testing.T) {
 	d := projectShell()
 	d.ActiveNav = web.ActiveNav{Scope: web.NavScopeOrg}
 	d.ActiveProject = nil
-	html := renderShell(t, d)
-	require.Regexp(t, `<a href="/orgs/acme/projects">`, html)
+	d.ActiveOrg.CanManage = true
+	d.OtherOrgs = []web.ActiveOrg{{Slug: "beta", Name: "Beta"}}
+	for name, html := range map[string]string{
+		"shell":       renderShell(t, d),
+		"orgs":        render(t, OrgsPage(d, OrgsView{Orgs: []OrgSummary{{Slug: "acme", Name: "Acme"}}})),
+		"project_new": render(t, ProjectNewPage(d, ProjectNewView{OrgSlug: "acme"})),
+	} {
+		require.NotRegexp(t, `href="/orgs/[a-z]+/projects"`, html, name)
+	}
 }
 
 func TestLayout_OrgScopeShowsAPIKeysLink(t *testing.T) {
@@ -251,4 +258,16 @@ func TestA11y_IconOnlyButtonsAreLabelled(t *testing.T) {
 
 func stripTags(s string) string {
 	return strings.TrimSpace(regexp.MustCompile(`<[^>]*>`).ReplaceAllString(s, ""))
+}
+
+func TestSwitcherTrigger_OrgPageNamesTheOrgOnceAndPromptsForAProject(t *testing.T) {
+	d := web.LayoutData{ActiveOrg: &web.ActiveOrg{Slug: "toko", Name: "Toko Sari"}}
+	for name, c := range map[string]templ.Component{"rail": switcherRailTrigger(d), "phone": switcherPhoneTrigger(d)} {
+		var buf bytes.Buffer
+		require.NoError(t, c.Render(context.Background(), &buf))
+		text := stripTags(buf.String())
+		require.Equal(t, 1, strings.Count(text, "Toko Sari"), "%s trigger: org name once: %q", name, text)
+		require.Contains(t, buf.String(), `text-base-content/70">`+d.Tr("common.select_project")+`</span>`, "%s trigger: muted prompt", name)
+	}
+	require.Equal(t, d.Tr("switcher.label", "Org", "Toko Sari", "Project", d.Tr("common.select_project")), switcherLabel(d))
 }

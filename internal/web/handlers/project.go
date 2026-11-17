@@ -19,34 +19,15 @@ func NewProjectHandler(d Deps, projects *project.Service) *ProjectHandler {
 	return &ProjectHandler{Deps: d}
 }
 
-// GetList renders /orgs/{org}/projects.
-func (h *ProjectHandler) GetList(w http.ResponseWriter, r *http.Request) {
-	sc, ok := h.RequireOrg(w, r)
-	if !ok {
-		return
-	}
-	o, r := sc.org, sc.req
-	items, err := h.Projects.List(r.Context(), o.ID)
-	if err != nil {
-		h.LogErr("web project: list", err)
-		h.ErrorPageKey(w, r, http.StatusInternalServerError, "error.load_failed", err)
-		return
-	}
-	Render(w, r, templates.ProjectsLayout(
-		h.LayoutForOrg(r, pageTitle(r, "projects.title"), o.Slug, "projects"),
-		templates.ProjectsView{OrgSlug: o.Slug, Projects: projectSummaries(items)},
-	))
-}
-
 // GetNew renders /orgs/{org}/projects/new.
 func (h *ProjectHandler) GetNew(w http.ResponseWriter, r *http.Request) {
 	sc, ok := h.RequireOrg(w, r)
-	if !ok {
+	if !ok || !h.requireOrgManager(w, sc) {
 		return
 	}
 	o := sc.org
 	Render(w, r, templates.ProjectNewLayout(
-		h.LayoutForOrg(r, pageTitle(r, "nav.create_project"), o.Slug, "projects"),
+		h.LayoutForOrg(r, pageTitle(r, "nav.create_project"), o.Slug, "overview"),
 		templates.ProjectNewView{OrgSlug: o.Slug, Slug: slugs.Generate()},
 	))
 }
@@ -54,7 +35,7 @@ func (h *ProjectHandler) GetNew(w http.ResponseWriter, r *http.Request) {
 // PostCreate handles POST /orgs/{org}/projects.
 func (h *ProjectHandler) PostCreate(w http.ResponseWriter, r *http.Request) {
 	sc, ok := h.RequireOrg(w, r)
-	if !ok {
+	if !ok || !h.requireOrgManager(w, sc) {
 		return
 	}
 	p, sid, o, r := sc.principal, sc.sid, sc.org, sc.req
@@ -75,7 +56,7 @@ func (h *ProjectHandler) PostCreate(w http.ResponseWriter, r *http.Request) {
 			slug = slugs.Generate()
 		}
 		Render(w, r, templates.ProjectNewLayout(
-			h.LayoutForOrg(r, pageTitle(r, "nav.create_project"), o.Slug, "projects"),
+			h.LayoutForOrg(r, pageTitle(r, "nav.create_project"), o.Slug, "overview"),
 			templates.ProjectNewView{OrgSlug: o.Slug, Slug: slug, Name: name, Error: msg, ErrorCode: ErrorRef(err)},
 		))
 		return
@@ -94,17 +75,8 @@ func projectPath(orgSlug, projectSlug, suffix string) string {
 	return "/orgs/" + orgSlug + "/projects/" + projectSlug + suffix
 }
 
-func projectSummaries(items []*project.Project) []templates.ProjectSummary {
-	out := make([]templates.ProjectSummary, 0, len(items))
-	for _, p := range items {
-		out = append(out, templates.ProjectSummary{ID: p.ID.String(), Slug: p.Slug, Name: p.Name, System: p.System})
-	}
-	return out
-}
-
 // Register wires the project routes onto mux.
 func (h *ProjectHandler) Register(mux web.Mux) {
-	mux.HandleFunc("GET /orgs/{org}/projects", h.GetList)
 	mux.HandleFunc("GET /orgs/{org}/projects/new", h.GetNew)
 	mux.HandleFunc("POST /orgs/{org}/projects", h.PostCreate)
 }

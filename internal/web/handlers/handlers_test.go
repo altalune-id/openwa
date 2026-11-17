@@ -271,7 +271,7 @@ func TestOrgHandler_PostCreate_HappyPath(t *testing.T) {
 	body := "slug=acme&name=Acme"
 	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodPost, "/orgs", body, session.Principal{UserID: uid}))
 	assert.Equal(t, http.StatusSeeOther, rec.Code)
-	assert.Equal(t, "/orgs/acme/projects", rec.Header().Get("Location"))
+	assert.Equal(t, "/orgs/acme", rec.Header().Get("Location"))
 }
 
 func TestOrgHandler_PostCreate_DuplicateSlug(t *testing.T) {
@@ -327,17 +327,6 @@ func TestOrgHandler_PostRename_MissingOrg(t *testing.T) {
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodPost, "/orgs/ghost/rename", "name=New", session.Principal{UserID: uuid.New()}))
 	assert.Equal(t, http.StatusNotFound, rec.Code)
-}
-
-func TestProjectHandler_GetList_UnauthRedirect(t *testing.T) {
-	t.Parallel()
-	f := newFixture(t)
-	h := handlers.NewProjectHandler(f.Deps, f.Projects)
-	mux := http.NewServeMux()
-	h.Register(mux)
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/orgs/acme/projects", nil))
-	assert.Equal(t, http.StatusSeeOther, rec.Code)
 }
 
 // TestProjectHandler_GetNew_UnknownOrgIs404 replaces the old active-org precondition: the org now comes from the path, so an org the caller does not belong to is indistinguishable from one that does not exist.

@@ -15,9 +15,9 @@
 /orgs	empty	sign in as a user with no org
 /orgs	data	create 2 orgs
 /orgs/new	forbidden	selfhosted mode: 403 (org creation is off); walk only in cloud mode
-/orgs/{o}	default	create an org
-/orgs/{o}/projects	empty	create an org
-/orgs/{o}/projects	data	create 2 projects
+/orgs/{o}	empty	create an org with no project
+/orgs/{o}	data	create 2 projects
+/orgs/{o}	member	sign in as a plain member (no New project)
 /orgs/{o}/projects/new	default	none
 /orgs/{o}/projects/new	error	submit with an empty name
 /orgs/{o}/members	data	create an org, invite one person, accept

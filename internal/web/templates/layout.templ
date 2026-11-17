@@ -216,8 +216,10 @@ templ projectMenu(d web.LayoutData) {
 			}
 		}
 	} else {
-		<li class="menu-title flex h-8 justify-center px-3 py-0">{ d.Tr("common.project") }</li>
-		@menuLink(d.OrgPath("/projects/new"), "plus", d.Tr("nav.create_project"), false)
+		if canCreateProject(d) {
+			<li class="menu-title flex h-8 justify-center px-3 py-0">{ d.Tr("common.project") }</li>
+			@menuLink(d.OrgPath("/projects/new"), "plus", d.Tr("nav.create_project"), false)
+		}
 	}
 }
 
@@ -247,7 +249,6 @@ templ orgMenu(d web.LayoutData) {
 
 templ orgLinks(d web.LayoutData, slug string) {
 	@menuLink(d.Href("/orgs/"+slug), "layout-dashboard", d.Tr("nav.overview"), d.ActiveNav.OrgKey == "overview")
-	@menuLink(d.OrgPath("/projects"), "folder", d.Tr("nav.projects"), d.ActiveNav.OrgKey == "projects")
 	@menuLink(d.Href("/orgs/"+slug+"/members"), "users", d.Tr("nav.members"), d.ActiveNav.OrgKey == "members")
 	@menuLink(d.Href("/orgs/"+slug+"/invites"), "mail", d.Tr("nav.invites"), d.ActiveNav.OrgKey == "invites")
 	@menuLink(d.Href("/orgs/"+slug+"/apikeys"), "key", d.Tr("nav.apikeys"), d.ActiveNav.OrgKey == "apikeys")

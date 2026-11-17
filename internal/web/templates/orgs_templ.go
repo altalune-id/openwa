@@ -153,7 +153,7 @@ func OrgsPage(d web.LayoutData, v OrgsView) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("common.open"), Href: d.Href("/orgs/" + o.Slug + "/projects")}).Render(ctx, templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("common.open"), Href: d.Href("/orgs/" + o.Slug)}).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}

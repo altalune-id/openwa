@@ -89,6 +89,7 @@ func TestConsoleRefusesCrossOriginPreferenceAndWorkspacePosts(t *testing.T) {
 		{"/theme", "mode=dark&redirect=/"},
 		{"/tips/" + web.Tips()[0].ID + "/seen", "all=1&redirect=/"},
 		{"/orgs/acme/projects/alpha/rename", "name=Evil"},
+		{"/orgs/acme/projects", "name=Evil"},
 		{"/signup/complete", "workspace_name=Evil"},
 	} {
 		t.Run(tc.path, func(t *testing.T) {

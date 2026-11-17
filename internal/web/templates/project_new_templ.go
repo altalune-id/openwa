@@ -189,7 +189,7 @@ func ProjectNewPage(d web.LayoutData, v ProjectNewView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\" pattern=\"[a-z0-9-]+\" class=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\" pattern=\"[a-z0-9\\-]+\" dir=\"ltr\" class=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -228,7 +228,7 @@ func ProjectNewPage(d web.LayoutData, v ProjectNewView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("common.cancel"), Href: d.OrgPath("/projects")}).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("common.cancel"), Href: d.OrgPath("")}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

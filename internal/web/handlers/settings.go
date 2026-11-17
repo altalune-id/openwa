@@ -114,8 +114,7 @@ func (h *SettingsHandler) PostRetention(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	if !h.canManageProject(sc) {
-		h.ErrorPageKey(w, sc.req, http.StatusForbidden, "settings.error.forbidden", nil)
+	if !h.requireManager(w, sc) {
 		return
 	}
 	if err := r.ParseForm(); err != nil {

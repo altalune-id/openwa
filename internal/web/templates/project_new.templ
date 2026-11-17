@@ -23,11 +23,11 @@ templ ProjectNewPage(d web.LayoutData, v ProjectNewView) {
 				<input name="name" type="text" autofocus value={ v.Name } placeholder={ d.Tr("project_new.name_placeholder") } class={ InputClass() } { InputAttrs(nameField)... }/>
 			}
 			@FormField(d, slugField) {
-				<input name="slug" type="text" value={ v.Slug } placeholder={ d.Tr("project_new.slug_placeholder") } pattern="[a-z0-9-]+" class={ InputClass() } { InputAttrs(slugField)... }/>
+				<input name="slug" type="text" value={ v.Slug } placeholder={ d.Tr("project_new.slug_placeholder") } pattern="[a-z0-9\-]+" dir="ltr" class={ InputClass() } { InputAttrs(slugField)... }/>
 			}
 			<div class="flex items-center gap-3 pt-2">
 				@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("nav.create_project")})
-				@AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("common.cancel"), Href: d.OrgPath("/projects")})
+				@AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("common.cancel"), Href: d.OrgPath("")})
 			</div>
 		</form>
 	</section>

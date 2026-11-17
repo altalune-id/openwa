@@ -55,7 +55,7 @@ func TestOrgHandler_PostCreate_GeneratesSlugWhenBlank(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, orgs, 1)
 	assert.NotEmpty(t, orgs[0].Slug)
-	assert.Equal(t, "/orgs/"+orgs[0].Slug+"/projects", rec.Header().Get("Location"))
+	assert.Equal(t, "/orgs/"+orgs[0].Slug, rec.Header().Get("Location"))
 }
 
 func TestProjectHandler_GetNew_PrefillsGeneratedSlug(t *testing.T) {

@@ -79,7 +79,7 @@ func (h *OrgHandler) PostCreate(w http.ResponseWriter, r *http.Request) {
 		h.LogErr("web org: update session", err)
 	}
 	h.SetFlash(w, r, web.FlashOK, "flash.org_created", "Name", created.Name)
-	http.Redirect(w, r, web.Path(h.Cfg.HTTP.BasePath, "/orgs/"+created.Slug+"/projects"), http.StatusSeeOther)
+	http.Redirect(w, r, web.Path(h.Cfg.HTTP.BasePath, "/orgs/"+created.Slug), http.StatusSeeOther)
 }
 
 // PostRename handles POST /orgs/{slug}/rename.

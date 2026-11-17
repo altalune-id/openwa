@@ -60,13 +60,13 @@ func DashboardPage(d web.LayoutData, v DashboardView) templ.Component {
 		templ_7745c5c3_Err = PageHeader(d, PageHeaderProps{
 			Title:    dashboardTitle(d, v),
 			Subtitle: d.Tr("dashboard.subtitle"),
-			Actions:  AppButton(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("dashboard.new_project"), Href: d.OrgPath("/projects/new")}),
+			Actions:  newProjectAction(d, d.Tr("dashboard.new_project")),
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if len(v.Projects) == 0 {
-			templ_7745c5c3_Err = EmptyState(d, EmptyStateProps{Icon: "folder", Title: d.Tr("dashboard.empty_title"), Body: d.Tr("dashboard.empty_body"), CTA: &ButtonProps{Kind: ButtonPrimary, Label: d.Tr("projects.create_first"), Href: d.OrgPath("/projects/new")}}).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = EmptyState(d, EmptyStateProps{Icon: "folder", Title: d.Tr("dashboard.empty_title"), Body: d.Tr("dashboard.empty_body"), CTA: newProjectCTA(d)}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

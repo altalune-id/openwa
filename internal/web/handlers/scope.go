@@ -130,15 +130,28 @@ func (d Deps) lastProject(ctx context.Context, p session.Principal, orgs []*org.
 
 // SECURITY: project configuration writes need an org owner or admin; a failed lookup refuses.
 func (d Deps) canManageProject(sc ProjectScope) bool {
-	ok, err := d.Orgs.IsManager(sc.req.Context(), sc.org.ID, sc.principal.UserID)
+	return d.isManager(sc.req, sc.org, sc.principal)
+}
+
+func (d Deps) isManager(r *http.Request, o *org.Org, p session.Principal) bool {
+	ok, err := d.Orgs.IsManager(r.Context(), o.ID, p.UserID)
 	return err == nil && ok
 }
 
 //i18n:use common.managers_only
 func (d Deps) requireManager(w http.ResponseWriter, sc ProjectScope) bool {
-	if d.canManageProject(sc) {
+	return d.requireManagerOf(w, sc.req, sc.org, sc.principal)
+}
+
+func (d Deps) requireOrgManager(w http.ResponseWriter, sc OrgScope) bool {
+	return d.requireManagerOf(w, sc.req, sc.org, sc.principal)
+}
+
+// SECURITY: the one manager gate for console writes; a failed lookup refuses.
+func (d Deps) requireManagerOf(w http.ResponseWriter, r *http.Request, o *org.Org, p session.Principal) bool {
+	if d.isManager(r, o, p) {
 		return true
 	}
-	d.ErrorPageKey(w, sc.req, http.StatusForbidden, "common.managers_only", nil)
+	d.ErrorPageKey(w, r, http.StatusForbidden, "error.managers_only", nil)
 	return false
 }

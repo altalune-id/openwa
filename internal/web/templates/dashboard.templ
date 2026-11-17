@@ -29,10 +29,10 @@ templ DashboardPage(d web.LayoutData, v DashboardView) {
 		@PageHeader(d, PageHeaderProps{
 			Title:    dashboardTitle(d, v),
 			Subtitle: d.Tr("dashboard.subtitle"),
-			Actions:  AppButton(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("dashboard.new_project"), Href: d.OrgPath("/projects/new")}),
+			Actions:  newProjectAction(d, d.Tr("dashboard.new_project")),
 		})
 		if len(v.Projects) == 0 {
-			@EmptyState(d, EmptyStateProps{Icon: "folder", Title: d.Tr("dashboard.empty_title"), Body: d.Tr("dashboard.empty_body"), CTA: &ButtonProps{Kind: ButtonPrimary, Label: d.Tr("projects.create_first"), Href: d.OrgPath("/projects/new")}})
+			@EmptyState(d, EmptyStateProps{Icon: "folder", Title: d.Tr("dashboard.empty_title"), Body: d.Tr("dashboard.empty_body"), CTA: newProjectCTA(d)})
 		} else {
 			<ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 				for _, p := range v.Projects {
