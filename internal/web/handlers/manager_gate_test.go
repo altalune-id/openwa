@@ -23,6 +23,16 @@ import (
 
 const managersOnlyKey = "managers_only"
 
+func mainOf(t *testing.T, body string) string {
+	t.Helper()
+	if !strings.Contains(body, "<html") {
+		return body
+	}
+	i, j := strings.Index(body, "<main"), strings.LastIndex(body, "</main>")
+	require.True(t, i >= 0 && j > i, "a full page must render its content inside <main>")
+	return body[i:j]
+}
+
 type membershipLookupError struct{}
 
 func (membershipLookupError) Error() string { return "membership lookup failed" }
@@ -95,7 +105,7 @@ func TestWebhookHandler_WritesNeedAManager(t *testing.T) {
 
 			rec := x.doAs(t, method, path, rt.form, member)
 			require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
-			assert.Contains(t, rec.Body.String(), managersOnlyKey)
+			assert.Contains(t, mainOf(t, rec.Body.String()), managersOnlyKey)
 
 			items, err := x.Hooks.List(x.ctx())
 			require.NoError(t, err)
@@ -142,13 +152,13 @@ func TestWebhookHandler_MembersSeeAReadOnlyPage(t *testing.T) {
 	require.Equal(t, http.StatusOK, list.Code)
 	assert.Contains(t, list.Body.String(), "https://example.com/hook")
 	assert.NotContains(t, list.Body.String(), webhookBase+"/new")
-	assert.Contains(t, list.Body.String(), managersOnlyKey)
+	assert.Contains(t, mainOf(t, list.Body.String()), managersOnlyKey)
 
 	rec := x.doAs(t, http.MethodGet, detail, nil, member)
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
 	assert.Contains(t, body, "https://example.com/hook")
-	assert.Contains(t, body, managersOnlyKey)
+	assert.Contains(t, mainOf(t, body), managersOnlyKey)
 	assert.Contains(t, body, detail+"/deliveries/", "delivery details stay readable")
 	for _, suffix := range []string{`"`, `/delete"`, `/rotate"`, `/retire"`, `/test"`, `/retry"`, `/retry-failed"`} {
 		assert.NotContains(t, body, `action="`+detail+suffix, "a member sees the %s form", suffix)
@@ -171,7 +181,7 @@ func TestDevices_RulesNeedAManager(t *testing.T) {
 	rec := httptest.NewRecorder()
 	x.Mux.ServeHTTP(rec, x.authedRequest(t, http.MethodPost, path+"/rules", "version=1&group_mode=open&trigger_prefix=%21bot", member))
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), managersOnlyKey)
+	assert.Contains(t, mainOf(t, rec.Body.String()), managersOnlyKey)
 	got, err := x.Devices.Get(setTenantProject(context.Background(), x.org, x.project, x.uid), d.ID)
 	require.NoError(t, err)
 	assert.Empty(t, legacyRules(t, got.Device.Rules).TriggerPrefix, "the refused post changed the rules")
@@ -197,7 +207,7 @@ func TestDevices_MembersSeeReadOnlyRules(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
 	assert.Contains(t, body, `value="!bot"`)
-	assert.Contains(t, body, managersOnlyKey)
+	assert.Contains(t, mainOf(t, body), managersOnlyKey)
 	assert.NotContains(t, body, `action="`+path+`/rules"`)
 
 	mgr := x.do(t, http.MethodGet, path, "", false)
@@ -246,7 +256,7 @@ func TestDevices_NumberWritesNeedAManager(t *testing.T) {
 
 			rec := x.doAs(t, rt, d.PublicID, member)
 			require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
-			assert.Contains(t, rec.Body.String(), managersOnlyKey)
+			assert.Contains(t, mainOf(t, rec.Body.String()), managersOnlyKey)
 			assert.Equal(t, 1, x.Store.Len(), "the refused request created or deleted a device")
 			assert.Empty(t, x.Sessions.Linked, "the refused request started a QR link")
 			assert.Empty(t, x.Sessions.Phones, "the refused request started a phone link")
@@ -296,7 +306,7 @@ func TestDevices_MembersSeeReadOnlyNumberPages(t *testing.T) {
 
 	empty := view("")
 	assert.NotContains(t, empty, newHref, "the empty state offers a member no new number")
-	assert.Contains(t, empty, managersOnlyKey)
+	assert.Contains(t, mainOf(t, empty), managersOnlyKey)
 
 	d := x.seed(t, "Sales")
 	x.Sessions.State = device.LinkState{Outcome: device.LinkNone}
@@ -304,17 +314,18 @@ func TestDevices_MembersSeeReadOnlyNumberPages(t *testing.T) {
 	list := view("")
 	assert.Contains(t, list, `id="device-`+d.PublicID+`"`)
 	assert.NotContains(t, list, newHref)
-	assert.Contains(t, list, managersOnlyKey)
+	assert.Contains(t, mainOf(t, list), managersOnlyKey)
 
 	detail := view("/" + d.PublicID)
 	for _, suffix := range []string{"/links", "/phone-links", "/unlink", "/delete"} {
 		assert.NotContains(t, detail, `action="`+path+suffix+`"`, "a member sees the %s form", suffix)
 	}
 	assert.Contains(t, detail, `action="`+path+`/rename"`, "a member keeps rename")
-	assert.Equal(t, 3, strings.Count(detail, managersOnlyKey), "rules, pairing and danger zone each say who can change them")
+	assert.Equal(t, 3, strings.Count(mainOf(t, detail), managersOnlyKey), "rules, pairing and danger zone each say who can change them")
 
 	fragment := view("/" + d.PublicID + "/links/current")
 	assert.NotContains(t, fragment, `action="`+path+`/links"`, "the polled fragment offers a member no pairing form")
+	assert.NotContains(t, fragment, "<main", "the polled fragment carries no shell")
 	assert.Contains(t, fragment, managersOnlyKey)
 
 	x.Sessions.State = device.LinkState{ID: "lnk_FakeDeviceLink001", Method: device.LinkPhone, Outcome: device.LinkPending, PNG: []byte{0x89, 'P', 'N', 'G'}, PairingCode: "ABCD-EFGH"}

@@ -1,0 +1,8 @@
+package templates
+
+import "altalune.id/openwa/internal/web"
+
+// FragmentTitle gives an htmx page swap the document title, which htmx reads from a head block in the response.
+templ FragmentTitle(d web.LayoutData) {
+	<head><title>{ d.DocumentTitle() }</title></head>
+}

@@ -74,6 +74,8 @@ templ switcherList(d web.LayoutData) {
 					{ d.Tr("nav.new_project") }
 				</a>
 			</li>
+		} else if d.ActiveOrg != nil {
+			<li class="menu-title text-xs font-normal">{ d.Tr("projects.create_managers_only") }</li>
 		}
 		if len(d.OtherOrgs) > 0 {
 			<li class="menu-title mt-1.5 flex h-8 justify-center px-3 py-0 text-base-content/70">{ d.Tr("switcher.other_orgs") }</li>

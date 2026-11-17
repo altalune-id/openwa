@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/a-h/templ"
 	"github.com/google/uuid"
 
 	"altalune.id/openwa/internal/i18n"
@@ -393,12 +394,12 @@ func (h *WebhookHandler) writeDetail(w http.ResponseWriter, sc ProjectScope, e *
 		Guide:       guide,
 		CanManage:   deliveries.CanManage,
 	}
+	l := h.layout(sc, pageTitle(sc.req, "title.webhook"))
 	if web.IsHTMXRequest(sc.req) {
 		v.Toast = o.flash
-		Render(w, sc.req, templates.WebhookDetailPage(h.ProjectFragmentBase(sc), v))
+		Render(w, sc.req, templ.Join(templates.FragmentTitle(l), templates.WebhookDetailPage(h.ProjectFragmentBase(sc), v)))
 		return
 	}
-	l := h.layout(sc, pageTitle(sc.req, "title.webhook"))
 	l.Crumbs = append(l.Crumbs, web.Crumb{Label: l.Tr("nav.webhooks"), Href: h.ProjectURL(sc, "/webhooks")})
 	l.Flash = o.flash
 	Render(w, sc.req, templates.WebhookDetailLayout(l, v))
