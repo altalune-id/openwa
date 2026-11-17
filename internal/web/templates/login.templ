@@ -1,6 +1,9 @@
 package templates
 
-import "altalune.id/openwa/internal/web"
+import (
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
+)
 
 type LoginView struct {
 	Error      string
@@ -14,38 +17,38 @@ type LoginView struct {
 
 templ LoginPage(d web.LayoutData, v LoginView) {
 	<section class="mx-auto max-w-sm">
-		<h1 class="text-center text-2xl font-semibold tracking-tight text-foreground">{ d.Tr("login.title") }</h1>
+		<h1 class="text-center text-2xl font-semibold tracking-tight text-base-content">{ d.Tr("login.title") }</h1>
 		if v.Message != "" {
-			<div role="status" class="mt-4 rounded-md border border-success/30 bg-success/10 p-3 text-sm text-foreground">{ v.Message }</div>
+			<div role="status" class="alert alert-soft alert-success mt-4 text-sm">{ v.Message }</div>
 		}
 		if v.Error != "" {
 			@ErrorBanner(d, v.Error, v.ErrorCode)
 		}
 		if d.Caps.ExternalIdentity && !v.AdminForce {
 			if v.LastEmail != "" {
-				<a class="btn-sso mt-6" title={ d.Tr("login.continue_as") + " " + v.LastEmail } href={ templ.SafeURL(d.Href("/login/oidc?return_to=" + v.ReturnTo)) }>
-					<img class="btn-sso__logo" src={ d.OIDCButtonLogoURL() } alt="" aria-hidden="true" width="24" height="24"/>
-					<span class="btn-sso__label">{ d.Tr("login.continue_as") } { v.LastEmail }</span>
-					<span class="btn-sso__chev" aria-hidden="true">→</span>
+				<a class="btn btn-outline btn-block mx-auto mt-6 h-11 max-w-88 justify-start gap-3 font-medium" title={ d.Tr("login.continue_as") + " " + v.LastEmail } href={ templ.SafeURL(d.Href("/login/oidc?return_to=" + v.ReturnTo)) }>
+					<img class="size-6 shrink-0 rounded-sm object-contain" src={ d.OIDCButtonLogoURL() } alt="" aria-hidden="true" width="24" height="24"/>
+					<span class="min-w-0 flex-1 truncate text-start">{ d.Tr("login.continue_as") } { v.LastEmail }</span>
+					@icons.Icon("chevron-right", "size-4 shrink-0 text-base-content/70 rtl:rotate-180")
 				</a>
-				<p class="mt-3 text-center text-sm text-muted-foreground">
+				<p class="mt-3 text-center text-sm text-base-content/70">
 					<a class="hover:underline" href={ templ.SafeURL(d.Href("/login/oidc?switch=1&return_to=" + v.ReturnTo)) }>{ d.Tr("login.switch_account") }</a>
 				</p>
 			} else {
-				<a class="btn-sso mt-6" href={ templ.SafeURL(d.Href("/login/oidc?return_to=" + v.ReturnTo)) }>
-					<img class="btn-sso__logo" src={ d.OIDCButtonLogoURL() } alt="" aria-hidden="true" width="24" height="24"/>
-					<span class="btn-sso__label">{ d.OIDCButtonLabel(d.Tr("login.oidc_button")) }</span>
-					<span class="btn-sso__chev" aria-hidden="true">→</span>
+				<a class="btn btn-outline btn-block mx-auto mt-6 h-11 max-w-88 justify-start gap-3 font-medium" href={ templ.SafeURL(d.Href("/login/oidc?return_to=" + v.ReturnTo)) }>
+					<img class="size-6 shrink-0 rounded-sm object-contain" src={ d.OIDCButtonLogoURL() } alt="" aria-hidden="true" width="24" height="24"/>
+					<span class="min-w-0 flex-1 truncate text-start">{ d.OIDCButtonLabel(d.Tr("login.oidc_button")) }</span>
+					@icons.Icon("chevron-right", "size-4 shrink-0 text-base-content/70 rtl:rotate-180")
 				</a>
 			}
 			if v.LocalAuth {
 				<div class="mt-6 text-center">
-					<a href={ templ.SafeURL(d.Href("/admin-login")) } class="text-sm text-muted-foreground hover:underline">{ d.Tr("login.admin_link") }</a>
+					<a href={ templ.SafeURL(d.Href("/admin-login")) } class="text-sm text-base-content/70 hover:underline">{ d.Tr("login.admin_link") }</a>
 				</div>
 			}
 		}
 		if v.LocalAuth && (v.AdminForce || !d.Caps.ExternalIdentity) {
-			<form method="post" action={ templ.SafeURL(d.Href("/login")) } class="mt-6 space-y-4">
+			<form method="post" action={ templ.SafeURL(d.Href("/login")) } class="mt-6 flex flex-col gap-3">
 				if v.ReturnTo != "" {
 					<input type="hidden" name="return_to" value={ v.ReturnTo }/>
 				}
@@ -54,17 +57,17 @@ templ LoginPage(d web.LayoutData, v LoginView) {
 				}
 				{{ emailField := FieldProps{ID: "email", Label: d.Tr("login.email"), Required: true} }}
 				{{ passwordField := FieldProps{ID: "password", Label: d.Tr("login.password"), Required: true} }}
-				@Field(d, emailField) {
+				@FormField(d, emailField) {
 					<input name="email" type="email" autocomplete="username" class={ InputClass() } { InputAttrs(emailField)... }/>
 				}
-				@Field(d, passwordField) {
+				@FormField(d, passwordField) {
 					<input name="password" type="password" autocomplete="current-password" class={ InputClass() } { InputAttrs(passwordField)... }/>
 				}
 				<button type="submit" class={ ButtonClass(ButtonPrimary), "w-full justify-center" }>{ d.Tr("login.submit") }</button>
 			</form>
 		}
 		if !v.LocalAuth && !d.Caps.ExternalIdentity {
-			<p class="mt-6 text-center text-sm text-muted-foreground">{ d.Tr("login.no_method") }</p>
+			<p class="mt-6 text-center text-sm text-base-content/70">{ d.Tr("login.no_method") }</p>
 		}
 	</section>
 }

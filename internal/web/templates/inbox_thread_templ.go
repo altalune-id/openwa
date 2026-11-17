@@ -126,7 +126,7 @@ func ThreadPane(d web.LayoutData, v ThreadView) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"thread\" class=\"surface flex flex-col\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"thread\" class=\"rounded-box border border-base-300 bg-base-100 flex flex-col\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -280,7 +280,7 @@ func threadHeader(d web.LayoutData, v ThreadView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("inbox.mark_read"), Icon: "check"}).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("inbox.mark_read"), Icon: "check"}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -416,7 +416,7 @@ func ThreadOlder(d web.LayoutData, v ThreadView) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if v.OlderCursor != "" {
-			templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonGhost, Label: d.Tr("inbox.load_older"), Attrs: templ.Attributes{
+			templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("inbox.load_older"), Attrs: templ.Attributes{
 				"hx-get":        threadPath(d, v, messagesQuery("before", v.OlderCursor)),
 				"hx-target":     "#thread-messages",
 				"hx-swap":       "afterbegin",
@@ -1047,7 +1047,7 @@ func bubbleActions(d web.LayoutData, v ThreadView, b BubbleView) templ.Component
 				return templ_7745c5c3_Err
 			}
 			if b.Own {
-				templ_7745c5c3_Err = ConfirmDialog(d, ConfirmProps{
+				templ_7745c5c3_Err = ConfirmModal(d, ConfirmProps{
 					ID:           "revoke-" + b.ID,
 					Title:        d.Tr("inbox.revoke_title"),
 					Body:         d.Tr("inbox.revoke_body"),
@@ -1204,7 +1204,7 @@ func Composer(d web.LayoutData, v ThreadView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("inbox.send"), Icon: "send"}).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("inbox.send"), Icon: "send"}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

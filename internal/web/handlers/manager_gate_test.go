@@ -345,7 +345,7 @@ func TestProjects_RenameNeedsAManager(t *testing.T) {
 	proj, err := f.Projects.Create(setTenant(context.Background(), o.ID, owner), o.ID, "alpha", "Alpha")
 	require.NoError(t, err)
 	mux := http.NewServeMux()
-	handlers.NewProjectHandler(f.Deps, f.Projects).Register(mux)
+	handlers.NewSettingsHandler(f.Deps, f.Projects, nil).Register(mux)
 	const path = "/orgs/acme/projects/alpha/rename"
 	member := addMember(t, f, o.ID, owner, org.RoleMember)
 
@@ -410,7 +410,7 @@ func TestManagerGate_ALookupErrorRefuses(t *testing.T) {
 		proj, err := f.Projects.Create(setTenant(context.Background(), o.ID, owner), o.ID, "alpha", "Alpha")
 		require.NoError(t, err)
 		mux := http.NewServeMux()
-		handlers.NewProjectHandler(f.Deps, f.Projects).Register(mux)
+		handlers.NewSettingsHandler(f.Deps, f.Projects, nil).Register(mux)
 		req := f.authedRequest(t, http.MethodPost, "/orgs/acme/projects/alpha/rename", "name=Renamed", session.Principal{UserID: owner, ActiveOrgID: o.ID})
 		before := failManagerLookup(f)
 

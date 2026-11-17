@@ -129,7 +129,7 @@ func webhookGuideNote(text, header string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if header != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<code class=\"ml-1 rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<code class=\"ms-1 rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -187,7 +187,7 @@ func WebhookGuide(d web.LayoutData, g WebhookGuideView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, " class=\"mt-6 surface p-5\"><summary class=\"cursor-pointer text-sm font-semibold text-foreground\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, " class=\"mt-6 rounded-box border border-base-300 bg-base-100 p-5\"><summary class=\"cursor-pointer text-sm font-semibold text-foreground\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -403,7 +403,7 @@ func WebhookVerifyPanel(d web.LayoutData, g WebhookGuideView) templ.Component {
 			templ_7745c5c3_Var14 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<details data-webhook-verify class=\"mt-6 surface p-5\"><summary class=\"cursor-pointer text-sm font-semibold text-foreground\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<details data-webhook-verify class=\"mt-6 rounded-box border border-base-300 bg-base-100 p-5\"><summary class=\"cursor-pointer text-sm font-semibold text-foreground\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

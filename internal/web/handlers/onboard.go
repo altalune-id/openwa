@@ -134,7 +134,7 @@ func (h *OnboardHandler) GetOnboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.rememberSetupToken(w, r)
-	Render(w, r, templates.OnboardLayout(h.Base(r, "First-time setup"), h.defaultView()))
+	Render(w, r, templates.OnboardLayout(h.Base(r, pageTitle(r, "onboard.title")), h.defaultView()))
 }
 
 // PostLocal handles the local-admin bootstrap form.
@@ -503,7 +503,7 @@ func (h *OnboardHandler) localOnboardAllowed() bool {
 }
 
 func (h *OnboardHandler) render(w http.ResponseWriter, r *http.Request, view templates.OnboardView) {
-	Render(w, r, templates.OnboardLayout(h.Base(r, "First-time setup"), view))
+	Render(w, r, templates.OnboardLayout(h.Base(r, pageTitle(r, "onboard.title")), view))
 }
 
 func (h *OnboardHandler) renderErr(w http.ResponseWriter, r *http.Request, msg string, view templates.OnboardView) {

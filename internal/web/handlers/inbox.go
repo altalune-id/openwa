@@ -523,11 +523,11 @@ func (h *InboxHandler) mediaURL(sc ProjectScope) func(string) string {
 }
 
 func (h *InboxHandler) layout(sc ProjectScope) web.LayoutData {
-	return h.LayoutForProject(sc.req, "Inbox", sc.org.Slug, sc.project, "inbox")
+	return h.LayoutForProject(sc.req, pageTitle(sc.req, "inbox.title"), sc.org.Slug, sc.project, "inbox")
 }
 
 func (h *InboxHandler) newLayout(sc ProjectScope) web.LayoutData {
-	l := h.LayoutForProject(sc.req, "New chat", sc.org.Slug, sc.project, "inbox")
+	l := h.LayoutForProject(sc.req, pageTitle(sc.req, "inbox.new_title"), sc.org.Slug, sc.project, "inbox")
 	l.ActiveNav.Parent = "inbox"
 	l.Crumbs = append(l.Crumbs, web.Crumb{Label: "Inbox", Href: h.ProjectURL(sc, "/inbox")})
 	return l

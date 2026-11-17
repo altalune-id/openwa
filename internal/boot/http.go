@@ -8,7 +8,6 @@ import (
 	"maps"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -40,7 +39,6 @@ import (
 	webhandlers "altalune.id/openwa/internal/web/handlers"
 	webmw "altalune.id/openwa/internal/web/middleware"
 	"altalune.id/openwa/internal/webhook"
-	"altalune.id/openwa/version"
 )
 
 func buildAPIHandler(cfg *config.Config, k *platform.Kernel, s *Services, resource *tokens.Resource) (*controlplane.Server, http.Handler) {
@@ -121,6 +119,7 @@ func buildWebHandler(
 	deps.TermsUpdatedAt = termsSince
 	deps.Orgs = orgs
 	deps.Projects = projects
+	deps.Users = users
 	deps.I18n = bundle
 
 	authHandler := webhandlers.NewAuthHandler(deps, auths, users, orgs, projects, kernel.AltAuth, required)
@@ -138,6 +137,8 @@ func buildWebHandler(
 	webhookHandler := webhandlers.NewWebhookHandler(deps, projects, webhooks)
 	inviteHandler := webhandlers.NewInviteHandler(deps, orgs, invites)
 	localeHandler := webhandlers.NewLocaleHandler(deps, users)
+	themeHandler := webhandlers.NewThemeHandler(deps)
+	tipsHandler := webhandlers.NewTipsHandler(deps)
 	welcomeHandler := webhandlers.NewWelcomeHandler(deps, users)
 	signupHandler := webhandlers.NewSignupHandler(deps, users, orgs, projects)
 	legalHandler := webhandlers.NewLegalHandler(deps)
@@ -148,7 +149,7 @@ func buildWebHandler(
 		BasePath: cfg.HTTP.BasePath,
 		HealthOK: healthOK,
 		AppHandlers: []web.Register{
-			authHandler, onboardingHandler, onboardHandler, homeHandler, orgHandler, projectHandler, overviewHandler, deviceHandler, inboxHandler, contactsHandler, settingsHandler, apiKeyHandler, webhookHandler, inviteHandler, localeHandler, welcomeHandler, signupHandler, legalHandler,
+			authHandler, onboardingHandler, onboardHandler, homeHandler, orgHandler, projectHandler, overviewHandler, deviceHandler, inboxHandler, contactsHandler, settingsHandler, apiKeyHandler, webhookHandler, inviteHandler, localeHandler, themeHandler, tipsHandler, welcomeHandler, signupHandler, legalHandler,
 		},
 		APIHandler:       apiHandler,
 		DataHandler:      dataHandler,
@@ -293,16 +294,7 @@ func newWebDeps(cfg *config.Config, caps capabilities.Capabilities, sessions ses
 		Caps:     caps,
 		Sessions: sessions,
 		Logger:   stdlog.New(logSlogWriter{log: slogger}, "", 0),
-
-		AssetVersion: assetVersion(),
 	}
-}
-
-func assetVersion() string {
-	if version.Version == "" {
-		return strconv.FormatInt(time.Now().Unix(), 10)
-	}
-	return version.Default()
 }
 
 type logSlogWriter struct{ log *slog.Logger }

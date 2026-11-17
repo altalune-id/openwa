@@ -173,7 +173,7 @@ func devicesActions(d web.LayoutData, v DevicesView) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if v.CanManage {
-			templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonPrimary, Label: d.Tr("devices.new"), Icon: "plus", Href: d.ProjectPath(v.ProjectSlug, "/devices/new")}).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonPrimary, Label: d.Tr("devices.new"), Icon: "plus", Href: d.ProjectPath(v.ProjectSlug, "/devices/new")}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -515,11 +515,11 @@ func DeviceNewPage(d web.LayoutData, v DeviceFormView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = Field(d, FieldProps{ID: "name", Label: d.Tr("devices.name"), Help: d.Tr("devices.name_help"), Error: v.Error, Required: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var16), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = FormField(d, FieldProps{ID: "name", Label: d.Tr("devices.name"), Help: d.Tr("devices.name_help"), Error: v.Error, Required: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var16), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.create")}).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.create")}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

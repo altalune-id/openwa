@@ -182,7 +182,7 @@ func inboxActions(d web.LayoutData, v InboxView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("common.refresh"), Icon: "rotate-cw", Attrs: templ.Attributes{
+		templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("common.refresh"), Icon: "rotate-cw", Attrs: templ.Attributes{
 			"hx-get":     d.ProjectPath(v.ProjectSlug, "/inbox/chats"),
 			"hx-target":  "#chat-list-panel",
 			"hx-swap":    "outerHTML",
@@ -192,7 +192,7 @@ func inboxActions(d web.LayoutData, v InboxView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonPrimary, Label: d.Tr("inbox.new_chat"), Icon: "plus", Href: d.ProjectPath(v.ProjectSlug, "/inbox/new")}).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonPrimary, Label: d.Tr("inbox.new_chat"), Icon: "plus", Href: d.ProjectPath(v.ProjectSlug, "/inbox/new")}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -592,7 +592,7 @@ func ChatListPanel(d web.LayoutData, v ChatListView) templ.Component {
 			}
 		}
 		if v.HasMore {
-			templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonGhost, Label: d.Tr("inbox.load_more"), Attrs: templ.Attributes{
+			templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("inbox.load_more"), Attrs: templ.Attributes{
 				"hx-get":    d.ProjectPath(v.ProjectSlug, "/inbox/chats"+chatListQuery(v, url.Values{"limit": {strconv.Itoa(v.Limit + ChatPageSize)}})),
 				"hx-target": "#chat-list-panel",
 				"hx-swap":   "outerHTML",
@@ -911,7 +911,7 @@ func NewChatPage(d web.LayoutData, v NewChatView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "\" class=\"surface space-y-4 p-5\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "\" class=\"rounded-box border border-base-300 bg-base-100 space-y-4 p-5\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1027,7 +1027,7 @@ func NewChatPage(d web.LayoutData, v NewChatView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = Field(d, deviceField).Render(templ.WithChildren(ctx, templ_7745c5c3_Var39), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = FormField(d, deviceField).Render(templ.WithChildren(ctx, templ_7745c5c3_Var39), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1088,7 +1088,7 @@ func NewChatPage(d web.LayoutData, v NewChatView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = Field(d, phoneField).Render(templ.WithChildren(ctx, templ_7745c5c3_Var44), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = FormField(d, phoneField).Render(templ.WithChildren(ctx, templ_7745c5c3_Var44), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1149,11 +1149,11 @@ func NewChatPage(d web.LayoutData, v NewChatView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = Field(d, textField).Render(templ.WithChildren(ctx, templ_7745c5c3_Var48), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = FormField(d, textField).Render(templ.WithChildren(ctx, templ_7745c5c3_Var48), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("inbox.start"), Icon: "send"}).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("inbox.start"), Icon: "send"}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

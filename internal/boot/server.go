@@ -44,6 +44,7 @@ import (
 	"altalune.id/openwa/internal/project"
 	"altalune.id/openwa/internal/todo"
 	"altalune.id/openwa/internal/user"
+	"altalune.id/openwa/internal/web"
 	"altalune.id/openwa/internal/webhook"
 	"altalune.id/openwa/internal/whatsapp"
 	"altalune.id/openwa/internal/whatsapp/meow"
@@ -121,11 +122,16 @@ type Server struct {
 	shutdownOTel func(context.Context) error
 }
 
+var loadThemes = web.LoadThemes //nolint:gochecknoglobals // swapped by a test to prove a broken theme source stops boot.
+
 // BootServer builds every dependency and returns a wired [Server].
 func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Server, error) {
 	o := newOptions()
 	for _, opt := range opts {
 		opt(o)
+	}
+	if err := loadThemes(); err != nil {
+		return nil, fmt.Errorf("boot: themes: %w", err)
 	}
 
 	log := o.logger

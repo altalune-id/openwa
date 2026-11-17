@@ -1,9 +1,12 @@
 package i18n_test
 
 import (
+	"io/fs"
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"gopkg.in/yaml.v3"
 
 	"altalune.id/openwa/internal/i18n"
 )
@@ -258,4 +261,50 @@ func TestNewBundle_InvalidTagInFilename_Panics(t *testing.T) {
 	i18n.NewBundle(fstest.MapFS{
 		"active.notatag!.yaml": &fstest.MapFile{Data: []byte(`k: v`)},
 	}, i18n.EnUS)
+}
+
+func TestLocales_ShellKeysAreNeverEmpty(t *testing.T) {
+	t.Parallel()
+	fsys := i18n.EmbeddedLocalesFS()
+	names, err := fs.Glob(fsys, "locales/active.*.yaml")
+	if err != nil || len(names) < 5 {
+		t.Fatalf("glob locales: %v %v", names, err)
+	}
+	for _, name := range names {
+		buf, err := fs.ReadFile(fsys, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var msgs map[string]any
+		if err := yaml.Unmarshal(buf, &msgs); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		for key, v := range msgs {
+			if strings.HasPrefix(key, "blog.") {
+				continue
+			}
+			forms, ok := v.(map[string]any)
+			if !ok {
+				forms = map[string]any{"": v}
+			}
+			for form, s := range forms {
+				if s == "" {
+					t.Errorf("%s: %s%s is empty", name, key, form)
+				}
+			}
+		}
+	}
+}
+
+func TestLocales_ArabicUsesOneWordForOrganization(t *testing.T) {
+	t.Parallel()
+	buf, err := fs.ReadFile(i18n.EmbeddedLocalesFS(), "locales/active.ar-SA.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, line := range strings.Split(string(buf), "\n") {
+		if strings.Contains(line, "منظم") {
+			t.Errorf("line %d uses منظمة; ar-SA says مؤسسة for organization: %s", i+1, line)
+		}
+	}
 }

@@ -33,7 +33,7 @@ func (h *ProjectHandler) GetList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	Render(w, r, templates.ProjectsLayout(
-		h.LayoutForOrg(r, "Projects", o.Slug, "projects"),
+		h.LayoutForOrg(r, pageTitle(r, "projects.title"), o.Slug, "projects"),
 		templates.ProjectsView{OrgSlug: o.Slug, Projects: projectSummaries(items)},
 	))
 }
@@ -46,7 +46,7 @@ func (h *ProjectHandler) GetNew(w http.ResponseWriter, r *http.Request) {
 	}
 	o := sc.org
 	Render(w, r, templates.ProjectNewLayout(
-		h.LayoutForOrg(r, "Create project", o.Slug, "projects"),
+		h.LayoutForOrg(r, pageTitle(r, "nav.create_project"), o.Slug, "projects"),
 		templates.ProjectNewView{OrgSlug: o.Slug, Slug: slugs.Generate()},
 	))
 }
@@ -75,7 +75,7 @@ func (h *ProjectHandler) PostCreate(w http.ResponseWriter, r *http.Request) {
 			slug = slugs.Generate()
 		}
 		Render(w, r, templates.ProjectNewLayout(
-			h.LayoutForOrg(r, "Create project", o.Slug, "projects"),
+			h.LayoutForOrg(r, pageTitle(r, "nav.create_project"), o.Slug, "projects"),
 			templates.ProjectNewView{OrgSlug: o.Slug, Slug: slug, Name: name, Error: msg, ErrorCode: ErrorRef(err)},
 		))
 		return
@@ -88,33 +88,6 @@ func (h *ProjectHandler) PostCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	h.SetFlash(w, r, web.FlashOK, "flash.project_created", "Name", created.Name)
 	http.Redirect(w, r, web.Path(h.Cfg.HTTP.BasePath, projectPath(o.Slug, created.Slug, "/overview")), http.StatusSeeOther) //nolint:gosec // G710: both slugs are validated by their own slug patterns
-}
-
-// PostRename handles POST /orgs/{org}/projects/{project}/rename.
-func (h *ProjectHandler) PostRename(w http.ResponseWriter, r *http.Request) {
-	sc, ok := h.RequireProject(w, r)
-	if !ok {
-		return
-	}
-	if !h.requireManager(w, sc) {
-		return
-	}
-	o, proj, r := sc.org, sc.project, sc.req
-	if err := r.ParseForm(); err != nil {
-		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.bad_request", nil)
-		return
-	}
-	name := strings.TrimSpace(r.PostForm.Get("name"))
-	if _, err := h.Projects.Rename(r.Context(), proj.ID, name); err != nil {
-		h.LogErr("web project: rename", err)
-		if project.IsSystemProtectedError(err) {
-			h.ErrorPageKey(w, r, http.StatusConflict, "error.forbidden", err)
-			return
-		}
-		h.ErrorPageKey(w, r, http.StatusBadRequest, "error.save_failed", err)
-		return
-	}
-	http.Redirect(w, r, ResolveReturnTo(h.Cfg.HTTP.BasePath, "/orgs/"+o.Slug+"/projects"), http.StatusSeeOther) //nolint:gosec // G710: destination sanitized via ResolveReturnTo → SanitizeReturnTo
 }
 
 func projectPath(orgSlug, projectSlug, suffix string) string {
@@ -134,5 +107,4 @@ func (h *ProjectHandler) Register(mux web.Mux) {
 	mux.HandleFunc("GET /orgs/{org}/projects", h.GetList)
 	mux.HandleFunc("GET /orgs/{org}/projects/new", h.GetNew)
 	mux.HandleFunc("POST /orgs/{org}/projects", h.PostCreate)
-	mux.HandleFunc("POST /orgs/{org}/projects/{project}/rename", h.PostRename)
 }

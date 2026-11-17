@@ -38,7 +38,7 @@ func orgsActions(d web.LayoutData) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if d.Caps.OrgCreation {
-			templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("nav.new_organization"), Href: d.Href("/orgs/new")}).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("nav.new_organization"), Href: d.Href("/orgs/new")}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -113,7 +113,7 @@ func OrgsPage(d web.LayoutData, v OrgsView) templ.Component {
 							}()
 						}
 						ctx = templ.InitializeContext(ctx)
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"min-w-0 flex-1\"><p class=\"flex items-center gap-2 truncate text-sm font-medium text-foreground\"><span class=\"truncate\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"min-w-0 flex-1\"><p class=\"flex items-center gap-2 truncate text-sm font-medium text-base-content\"><span class=\"truncate\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -136,14 +136,14 @@ func OrgsPage(d web.LayoutData, v OrgsView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</p><p class=\"truncate text-xs text-muted-foreground\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</p><p class=\"truncate text-xs text-base-content/70\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var6 string
 						templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(o.Slug)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/orgs.templ`, Line: 36, Col: 65}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/orgs.templ`, Line: 36, Col: 64}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 						if templ_7745c5c3_Err != nil {
@@ -153,7 +153,7 @@ func OrgsPage(d web.LayoutData, v OrgsView) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonGhost, Label: d.Tr("common.open"), Href: d.Href("/orgs/" + o.Slug + "/projects")}).Render(ctx, templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("common.open"), Href: d.Href("/orgs/" + o.Slug + "/projects")}).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}

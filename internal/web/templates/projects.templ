@@ -17,7 +17,7 @@ templ ProjectsPage(d web.LayoutData, v ProjectsView) {
 		@PageHeader(d, PageHeaderProps{
 			Title:    d.Tr("projects.title"),
 			Subtitle: d.Tr("projects.subtitle"),
-			Actions:  Button(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("nav.new_project"), Href: d.OrgPath("/projects/new")}),
+			Actions:  AppButton(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("nav.new_project"), Href: d.OrgPath("/projects/new")}),
 		})
 		if v.Error != "" {
 			@ErrorBanner(d, v.Error, v.ErrorCode)
@@ -28,20 +28,20 @@ templ ProjectsPage(d web.LayoutData, v ProjectsView) {
 			@ListShell(d, "project-list", nil) {
 				for _, p := range v.Projects {
 					<li>
-						<a href={ templ.SafeURL(d.ProjectPath(p.Slug, "/overview")) } class="group flex items-center gap-3 px-4 py-3 hover:bg-muted/60 focus-visible:bg-muted/60">
-							<span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground group-hover:text-foreground">
+						<a href={ templ.SafeURL(d.ProjectPath(p.Slug, "/overview")) } class="group flex items-center gap-3 px-4 py-3 hover:bg-base-200 focus-visible:bg-base-200">
+							<span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-base-300 bg-base-100 text-base-content/70 group-hover:text-base-content">
 								@icons.Icon("folder", "h-4 w-4")
 							</span>
 							<span class="min-w-0 flex-1">
 								<span class="flex items-center gap-2">
-									<span class="truncate text-sm font-medium text-foreground">{ p.Name }</span>
+									<span class="truncate text-sm font-medium text-base-content">{ p.Name }</span>
 									if p.System {
 										@Badge(ToneWarning, d.Tr("common.system"))
 									}
 								</span>
-								<span class="mt-0.5 block truncate text-xs text-muted-foreground">{ p.Slug }</span>
+								<span class="mt-0.5 block truncate text-xs text-base-content/70">{ p.Slug }</span>
 							</span>
-							@icons.Icon("chevron-right", "h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground")
+							@icons.Icon("chevron-right", "h-4 w-4 shrink-0 text-base-content/70 transition-transform group-hover:translate-x-0.5 group-hover:text-base-content")
 						</a>
 					</li>
 				}

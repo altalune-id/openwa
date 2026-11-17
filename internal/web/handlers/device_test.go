@@ -176,8 +176,8 @@ func TestDevices_DetailConfirmsLogoutAndDelete(t *testing.T) {
 	d := x.seed(t, "Sales")
 	x.Sessions.State = device.LinkState{Outcome: device.LinkNone}
 	body := x.do(t, http.MethodGet, devicesBase+"/"+d.PublicID, "", false).Body.String()
-	require.Equal(t, 2, strings.Count(body, "<dialog"))
-	require.Equal(t, 2, strings.Count(body, `data-confirm-open="`), "each dialog has a labelled trigger button")
+	require.Equal(t, 2, strings.Count(body, "data-dialog-close-on-done"), "two confirm dialogs besides the shell switcher sheet")
+	require.Equal(t, 2, strings.Count(body, `data-dialog-open="`)-strings.Count(body, `data-dialog-open="switcher"`), "each dialog has a labelled trigger button")
 	require.Contains(t, body, `action="`+devicesBase+"/"+d.PublicID+`/unlink"`)
 	require.Contains(t, body, `action="`+devicesBase+"/"+d.PublicID+`/delete"`)
 	require.Equal(t, 2, strings.Count(body, `hx-indicator="#device-pair-busy"`), "both pair forms show the spinner during the up-to-15s POST")

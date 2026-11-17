@@ -1,0 +1,40 @@
+package templates
+
+import (
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
+)
+
+// UsageView backs the usage placeholder page.
+type UsageView struct {
+	RetentionDays int
+}
+
+templ UsageLayout(d web.LayoutData, v UsageView) {
+	@Layout(web.WithContent(d, UsagePage(d, v)))
+}
+
+templ UsagePage(d web.LayoutData, v UsageView) {
+	<section class="max-w-3xl">
+		@PageHeader(d, PageHeaderProps{Title: d.Tr("usage.title"), Subtitle: d.Tr("usage.subtitle")})
+		<div class="flex flex-col gap-4 lg:gap-6">
+		<div class="stats stats-vertical w-full border border-base-300 bg-base-100 lg:stats-horizontal">
+			<div class="stat min-w-0">
+				<div class="stat-title whitespace-normal">{ d.Tr("usage.retention") }</div>
+				<div class="stat-value min-w-0 text-2xl break-words whitespace-normal tabular-nums">{ d.TrN("usage.days", v.RetentionDays) }</div>
+				<div class="stat-desc whitespace-normal">
+					if d.ActiveProject != nil {
+						<a href={ templ.SafeURL(d.ProjectPath(d.ActiveProject.Slug, "/settings")) } class="link">{ d.Tr("usage.retention_hint") }</a>
+					} else {
+						{ d.Tr("usage.retention_hint") }
+					}
+				</div>
+			</div>
+		</div>
+		<div role="note" class="alert alert-soft">
+			@icons.Icon("info", "size-5 shrink-0")
+			<span>{ d.Tr("usage.placeholder") }</span>
+		</div>
+		</div>
+	</section>
+}

@@ -201,7 +201,7 @@ func webhookForm(d web.LayoutData, f WebhookFormView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = Field(d, urlField).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = FormField(d, urlField).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -275,7 +275,7 @@ func webhookForm(d web.LayoutData, f WebhookFormView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = Field(d, descField).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = FormField(d, descField).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -340,12 +340,12 @@ func webhookForm(d web.LayoutData, f WebhookFormView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if f.ID == "" {
-				templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Icon: "plus", Label: d.Tr("webhooks.create")}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Icon: "plus", Label: d.Tr("webhooks.create")}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("webhooks.save")}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("webhooks.save")}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -393,7 +393,7 @@ func WebhookNewPage(d web.LayoutData, f WebhookFormView) templ.Component {
 			Eyebrow:  d.Tr("nav.webhooks"),
 			Title:    d.Tr("webhooks.new_title"),
 			Subtitle: d.Tr("webhooks.new_subtitle"),
-			Actions:  Button(ButtonProps{Kind: ButtonGhost, Label: d.Tr("webhooks.back"), Href: d.ProjectPath(f.ProjectSlug, "/webhooks")}),
+			Actions:  AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("webhooks.back"), Href: d.ProjectPath(f.ProjectSlug, "/webhooks")}),
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

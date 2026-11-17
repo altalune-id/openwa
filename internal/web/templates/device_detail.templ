@@ -156,13 +156,13 @@ templ DevicePairing(d web.LayoutData, v DevicePairingView) {
 			}
 			<div class="flex flex-col gap-4">
 				<form method="post" action={ templ.SafeURL(v.path(d, "/links")) } hx-post={ v.path(d, "/links") } hx-target="#device-pairing" hx-swap="outerHTML" hx-indicator="#device-pair-busy" hx-nonce={ d.Nonce }>
-					@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.pair_qr"), Icon: "qr-code"})
+					@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.pair_qr"), Icon: "qr-code"})
 				</form>
 				<form method="post" action={ templ.SafeURL(v.path(d, "/phone-links")) } hx-post={ v.path(d, "/phone-links") } hx-target="#device-pairing" hx-swap="outerHTML" hx-indicator="#device-pair-busy" hx-nonce={ d.Nonce } class="space-y-2">
-					@Field(d, FieldProps{ID: "phone", Label: d.Tr("devices.phone_label"), Help: d.Tr("devices.phone_help"), Error: v.PhoneError}) {
+					@FormField(d, FieldProps{ID: "phone", Label: d.Tr("devices.phone_label"), Help: d.Tr("devices.phone_help"), Error: v.PhoneError}) {
 						<input type="tel" name="phone" value={ v.PhoneValue } inputmode="tel" autocomplete="tel" class={ InputClass() } { InputAttrs(FieldProps{ID: "phone", Help: d.Tr("devices.phone_help"), Error: v.PhoneError})... }/>
 					}
-					@Button(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("devices.pair_phone")})
+					@AppButton(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("devices.pair_phone")})
 				</form>
 				<div id="device-pair-busy">
 					@Spinner(d.Tr("devices.qr_generating"))
@@ -181,7 +181,7 @@ templ deviceRulesCard(d web.LayoutData, v DeviceDetailView) {
 				}
 				<input type="hidden" name="version" value={ strconv.Itoa(v.Version) }/>
 				@deviceRulesFields(d, v)
-				@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.save_rules")})
+				@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.save_rules")})
 			</form>
 		} else {
 			<fieldset disabled class="space-y-4">
@@ -205,13 +205,13 @@ templ deviceRulesFields(d web.LayoutData, v DeviceDetailView) {
 			<p role="alert" id="group_mode-error" class="mt-1 text-sm text-destructive">{ e }</p>
 		}
 	</fieldset>
-	@Field(d, FieldProps{ID: "allowed_senders", Label: d.Tr("devices.allowed_senders"), Help: d.Tr("devices.allowed_senders_help"), Error: v.Rules.Errors["allowed_senders"]}) {
+	@FormField(d, FieldProps{ID: "allowed_senders", Label: d.Tr("devices.allowed_senders"), Help: d.Tr("devices.allowed_senders_help"), Error: v.Rules.Errors["allowed_senders"]}) {
 		<textarea name="allowed_senders" rows="3" placeholder={ d.Tr("devices.allowed_senders_ph") } class={ InputClass() } { InputAttrs(FieldProps{ID: "allowed_senders", Help: d.Tr("devices.allowed_senders_help"), Error: v.Rules.Errors["allowed_senders"]})... }>{ v.Rules.AllowedSenders }</textarea>
 	}
-	@Field(d, FieldProps{ID: "allowed_groups", Label: d.Tr("devices.allowed_groups"), Help: d.Tr("devices.allowed_groups_help"), Error: v.Rules.Errors["allowed_groups"]}) {
+	@FormField(d, FieldProps{ID: "allowed_groups", Label: d.Tr("devices.allowed_groups"), Help: d.Tr("devices.allowed_groups_help"), Error: v.Rules.Errors["allowed_groups"]}) {
 		<textarea name="allowed_groups" rows="3" placeholder={ d.Tr("devices.allowed_groups_ph") } class={ InputClass() } { InputAttrs(FieldProps{ID: "allowed_groups", Help: d.Tr("devices.allowed_groups_help"), Error: v.Rules.Errors["allowed_groups"]})... }>{ v.Rules.AllowedGroups }</textarea>
 	}
-	@Field(d, FieldProps{ID: "trigger_prefix", Label: d.Tr("devices.trigger_prefix"), Help: d.Tr("devices.trigger_prefix_help"), Error: v.Rules.Errors["trigger_prefix"]}) {
+	@FormField(d, FieldProps{ID: "trigger_prefix", Label: d.Tr("devices.trigger_prefix"), Help: d.Tr("devices.trigger_prefix_help"), Error: v.Rules.Errors["trigger_prefix"]}) {
 		<input type="text" name="trigger_prefix" value={ v.Rules.TriggerPrefix } maxlength="16" class={ InputClass() } { InputAttrs(FieldProps{ID: "trigger_prefix", Help: d.Tr("devices.trigger_prefix_help"), Error: v.Rules.Errors["trigger_prefix"]})... }/>
 	}
 	<div>
@@ -224,7 +224,7 @@ templ deviceRulesFields(d web.LayoutData, v DeviceDetailView) {
 }
 
 templ groupModeOption(current, value, label string) {
-	<label class="chip inline-flex cursor-pointer has-[:disabled]:cursor-not-allowed items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm">
+	<label class="inline-flex cursor-pointer has-[:disabled]:cursor-not-allowed items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm has-checked:border-primary has-checked:bg-primary/10">
 		<input type="radio" name="group_mode" value={ value } checked?={ current == value } class="sr-only"/>
 		<span>{ label }</span>
 	</label>
@@ -235,11 +235,11 @@ templ deviceRenameCard(d web.LayoutData, v DeviceDetailView) {
 		<form method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/devices/"+v.ID+"/rename")) } class="flex flex-wrap items-end gap-3">
 			<input type="hidden" name="version" value={ strconv.Itoa(v.Version) }/>
 			<div class="min-w-0 flex-1">
-				@Field(d, FieldProps{ID: "rename-name", Label: d.Tr("devices.name"), Error: v.RenameError, Required: true}) {
+				@FormField(d, FieldProps{ID: "rename-name", Label: d.Tr("devices.name"), Error: v.RenameError, Required: true}) {
 					<input type="text" name="name" value={ v.RenameValue } maxlength="64" required class={ InputClass() } { InputAttrs(FieldProps{ID: "rename-name", Error: v.RenameError})... }/>
 				}
 			</div>
-			@Button(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("devices.rename")})
+			@AppButton(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("devices.rename")})
 		</form>
 	}
 }
@@ -250,7 +250,7 @@ templ deviceDangerZone(d web.LayoutData, v DeviceDetailView) {
 			<p class="text-sm text-muted-foreground">{ d.Tr("common.managers_only") }</p>
 		} else {
 			<div class="flex flex-wrap gap-3">
-				@ConfirmDialog(d, ConfirmProps{
+				@ConfirmModal(d, ConfirmProps{
 					ID:           "device-logout",
 					Title:        d.Tr("devices.logout_title"),
 					Body:         d.Tr("devices.logout_body"),
@@ -259,7 +259,7 @@ templ deviceDangerZone(d web.LayoutData, v DeviceDetailView) {
 					Action:       d.ProjectPath(v.ProjectSlug, "/devices/"+v.ID+"/unlink"),
 					Trigger:      ButtonProps{Kind: ButtonSecondary, Type: "button", Label: d.Tr("devices.logout"), Icon: "log-out"},
 				})
-				@ConfirmDialog(d, ConfirmProps{
+				@ConfirmModal(d, ConfirmProps{
 					ID:           "device-delete",
 					Title:        d.Tr("devices.delete_title"),
 					Body:         d.Tr("devices.delete_body"),

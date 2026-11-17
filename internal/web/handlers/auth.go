@@ -41,10 +41,10 @@ func NewAuthHandler(d Deps, authSvc *auth.Service, users *user.Service, orgs *or
 }
 
 func (h *AuthHandler) resolveActiveTenant(ctx context.Context, p session.Principal) session.Principal {
-	if p.ActiveOrgID != [16]byte{} && p.ActiveProjectID != [16]byte{} {
+	if h.Orgs == nil {
 		return p
 	}
-	if h.Orgs == nil {
+	if p.LastProjectID == uuid.Nil && p.ActiveOrgID != uuid.Nil && p.ActiveProjectID != uuid.Nil {
 		return p
 	}
 	orgs, err := h.Orgs.List(ctx, p.UserID)
@@ -52,6 +52,13 @@ func (h *AuthHandler) resolveActiveTenant(ctx context.Context, p session.Princip
 		if err != nil {
 			h.LogErr("web auth: resolve orgs", err)
 		}
+		return p
+	}
+	if o, pr := h.lastProject(ctx, p, orgs); pr != nil {
+		p.ActiveOrgID, p.ActiveProjectID = o.ID, pr.ID
+		return p
+	}
+	if p.ActiveOrgID != uuid.Nil && p.ActiveProjectID != uuid.Nil {
 		return p
 	}
 	if p.ActiveOrgID == [16]byte{} {
@@ -120,7 +127,7 @@ func (h *AuthHandler) GetLogin(w http.ResponseWriter, r *http.Request) {
 	if h.AltAuth != nil {
 		lastEmail = h.lastUser(r)
 	}
-	Render(w, r, templates.LoginLayout(h.Base(r, "Sign in"), templates.LoginView{
+	Render(w, r, templates.LoginLayout(h.Base(r, pageTitle(r, "login.title")), templates.LoginView{
 		ReturnTo:  SanitizeReturnTo(r.URL.Query().Get("return_to")),
 		LastEmail: lastEmail,
 		LocalAuth: h.localAuthEnabled(r.Context()),
@@ -133,7 +140,7 @@ func (h *AuthHandler) GetAdminLogin(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, ResolveReturnTo(h.Cfg.HTTP.BasePath, ""), http.StatusSeeOther)
 		return
 	}
-	Render(w, r, templates.LoginLayout(h.Base(r, "Admin sign-in"), templates.LoginView{
+	Render(w, r, templates.LoginLayout(h.Base(r, pageTitle(r, "title.admin_sign_in")), templates.LoginView{
 		AdminForce: true,
 		LocalAuth:  h.localAuthEnabled(r.Context()),
 	}))
@@ -156,7 +163,7 @@ func (h *AuthHandler) PostLogin(w http.ResponseWriter, r *http.Request) {
 			h.LogErr("web auth: local login", err)
 			msg = "Sign-in failed."
 		}
-		Render(w, r, templates.LoginLayout(h.Base(r, "Sign in"), templates.LoginView{
+		Render(w, r, templates.LoginLayout(h.Base(r, pageTitle(r, "login.title")), templates.LoginView{
 			Error:      msg,
 			AdminForce: admin,
 			ReturnTo:   SanitizeReturnTo(r.PostForm.Get("return_to")),
@@ -264,7 +271,7 @@ func isNotInvitedApp(err error) bool {
 }
 
 func (h *AuthHandler) renderNotInvited(w http.ResponseWriter, r *http.Request) {
-	base := h.Base(r, "Not invited")
+	base := h.errorBase(r, pageTitle(r, "title.not_invited"))
 	tr := base.Translator
 	title := "You haven't been invited"
 	body := "This deployment is invite-only. Please contact an administrator to request an invitation."
@@ -284,6 +291,7 @@ func (h *AuthHandler) PostLogout(w http.ResponseWriter, r *http.Request) {
 		idToken = p.IDToken
 	}
 	h.ClearSession(w, r)
+	web.ClearCookie(w, web.ThemeCookieName, h.Cfg.HTTP.BasePath, h.SecureCookie(r))
 	if h.Cfg.OIDC.EndSessionOnLogout && h.AltAuth != nil && idToken != "" {
 		endURL, err := h.AltAuth.EndSessionURL(r.Context(), idToken, h.postLogoutRedirectURL(), "")
 		if err != nil {

@@ -16,6 +16,10 @@ type Users struct {
 	PasswordHash    postgres.ColumnString
 	IsAdmin         postgres.ColumnBool
 	Locale          postgres.ColumnString
+	Theme           postgres.ColumnString
+	ColorMode       postgres.ColumnString
+	TipsSeen        postgres.ColumnString
+	LastProjectID   postgres.ColumnString
 	TermsAcceptedAt postgres.ColumnTimestampz
 	CreatedAt       postgres.ColumnTimestampz
 	UpdatedAt       postgres.ColumnTimestampz
@@ -38,10 +42,14 @@ func NewUsers(schema, tablePrefix string) *Users {
 		passwordHash    = postgres.StringColumn("password_hash")
 		isAdmin         = postgres.BoolColumn("is_admin")
 		locale          = postgres.StringColumn("locale")
+		theme           = postgres.StringColumn("theme")
+		colorMode       = postgres.StringColumn("color_mode")
+		tipsSeen        = postgres.StringColumn("tips_seen")
+		lastProjectID   = postgres.StringColumn("last_project_id")
 		termsAcceptedAt = postgres.TimestampzColumn("terms_accepted_at")
 		createdAt       = postgres.TimestampzColumn("created_at")
 		updatedAt       = postgres.TimestampzColumn("updated_at")
-		all             = postgres.ColumnList{id, idpIssuer, idpSubject, email, name, avatarURL, passwordHash, isAdmin, locale, termsAcceptedAt, createdAt, updatedAt}
+		all             = postgres.ColumnList{id, idpIssuer, idpSubject, email, name, avatarURL, passwordHash, isAdmin, locale, theme, colorMode, tipsSeen, lastProjectID, termsAcceptedAt, createdAt, updatedAt}
 	)
 	return &Users{
 		Table:           postgres.NewTable(schema, tablePrefix+"users", "users", all...),
@@ -54,6 +62,10 @@ func NewUsers(schema, tablePrefix string) *Users {
 		PasswordHash:    passwordHash,
 		IsAdmin:         isAdmin,
 		Locale:          locale,
+		Theme:           theme,
+		ColorMode:       colorMode,
+		TipsSeen:        tipsSeen,
+		LastProjectID:   lastProjectID,
 		TermsAcceptedAt: termsAcceptedAt,
 		CreatedAt:       createdAt,
 		UpdatedAt:       updatedAt,

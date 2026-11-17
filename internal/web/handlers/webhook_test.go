@@ -530,7 +530,7 @@ func TestWebhookHandler_DeliveryShowsThePayloadAndHeaders(t *testing.T) {
 		"the payload sits above the attempts")
 
 	page := x.do(t, http.MethodGet, webhookBase+"/"+e.ID.String(), nil)
-	assert.Contains(t, page.Body.String(), "openwaCopyBound", "the detail page binds the copy handler the fragment's button needs")
+	assert.Contains(t, page.Body.String(), "/static/copy.js", "the detail page binds the copy handler the fragment's button needs")
 }
 
 func TestWebhookHandler_DeliveryFallsBackToTheRawBody(t *testing.T) {
@@ -715,7 +715,7 @@ func TestWebhookHandler_IntegrationGuide(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, snippets)
 	for i, s := range snippets {
-		tab := regexp.MustCompile(`<button type="button" role="tab" id="webhook-verify-tab-` + s.Lang + `" aria-controls="webhook-verify-panel-` + s.Lang + `" aria-selected="` + strconv.FormatBool(i == 0) + `"`)
+		tab := regexp.MustCompile(`<button type="button" role="tab" class="tab whitespace-nowrap" id="webhook-verify-tab-` + s.Lang + `" aria-controls="webhook-verify-panel-` + s.Lang + `" aria-selected="` + strconv.FormatBool(i == 0) + `"`)
 		assert.Regexp(t, tab, body, "%s tab", s.Lang)
 		assert.Contains(t, body, html.EscapeString(s.Code), "%s snippet renders escaped in <code>", s.Lang)
 	}

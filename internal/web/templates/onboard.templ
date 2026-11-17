@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
 )
 
 type OnboardView struct {
@@ -36,7 +37,7 @@ templ OnboardPage(d web.LayoutData, v OnboardView) {
 		if v.Error != "" {
 			@ErrorBanner(d, v.Error, v.ErrorCode)
 		}
-		<div class="surface p-6">
+		<div class="rounded-box border border-base-300 bg-base-100 p-6">
 			if v.OIDCFinalize {
 				<div class="mb-4 rounded-md border border-border/60 bg-muted/40 p-3 text-sm">
 					<p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">{ d.Tr("onboard.finalize_signed_in") }</p>
@@ -61,10 +62,10 @@ templ OnboardPage(d web.LayoutData, v OnboardView) {
 					<button type="submit" class={ ButtonClass(ButtonPrimary), "w-full justify-center" }>{ d.Tr("onboard.submit") }</button>
 				</form>
 			} else if v.OIDCAuth {
-				<a class="btn-sso" href={ templ.SafeURL(d.Href("/onboard/oidc") + onboardTokenQuery(v.SetupToken)) }>
-					<img class="btn-sso__logo" src={ d.OIDCButtonLogoURL() } alt="" aria-hidden="true" width="24" height="24"/>
-					<span class="btn-sso__label">{ d.OIDCButtonLabel(d.Tr("onboard.oidc_button")) }</span>
-					<span class="btn-sso__chev" aria-hidden="true">→</span>
+				<a class="btn btn-outline btn-block mx-auto h-11 max-w-88 justify-start gap-3 font-medium" href={ templ.SafeURL(d.Href("/onboard/oidc") + onboardTokenQuery(v.SetupToken)) }>
+					<img class="size-6 shrink-0 rounded-sm object-contain" src={ d.OIDCButtonLogoURL() } alt="" aria-hidden="true" width="24" height="24"/>
+					<span class="min-w-0 flex-1 truncate text-start">{ d.OIDCButtonLabel(d.Tr("onboard.oidc_button")) }</span>
+					@icons.Icon("chevron-right", "size-4 shrink-0 text-base-content/70 rtl:rotate-180")
 				</a>
 				<p class="mt-2 text-center text-xs text-muted-foreground">{ d.Tr("onboard.oidc_hint") }</p>
 			}
@@ -128,7 +129,7 @@ func onboardTokenQuery(token string) string {
 
 templ onboardField(d web.LayoutData, id, label, kind, autocomplete, placeholder, value string, errs map[string]string, required bool) {
 	{{ f := FieldProps{ID: "onb-" + id, Label: label, Error: onboardFieldError(d, errs, id), Required: required} }}
-	@Field(d, f) {
+	@FormField(d, f) {
 		<input name={ id } type={ kind } autocomplete={ autocomplete } placeholder={ placeholder } value={ value } class={ InputClass() } { InputAttrs(f)... }/>
 	}
 }
@@ -220,7 +221,7 @@ templ slugEditScript(nonce string) {
 
 templ onboardPasswordField(d web.LayoutData, errs map[string]string) {
 	{{ f := FieldProps{ID: "onb-password", Label: d.Tr("onboard.password"), Error: onboardFieldError(d, errs, "password"), Required: true} }}
-	@Field(d, f) {
+	@FormField(d, f) {
 		<input name="password" type="password" minlength="8" autocomplete="new-password" placeholder={ d.Tr("onboard.password_placeholder") } class={ InputClass() } { InputAttrs(f)... }/>
 	}
 }

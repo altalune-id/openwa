@@ -4,10 +4,10 @@ import "altalune.id/openwa/internal/web"
 
 // ErrorBanner renders an inline form error with its code and the request id.
 templ ErrorBanner(d web.LayoutData, msg, code string) {
-	<div role="alert" class="mt-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-foreground">
+	<div role="alert" class="alert alert-soft alert-error mt-4 flex-col items-start gap-1 text-sm">
 		<p>{ msg }</p>
 		if code != "" || d.RequestID != "" {
-			<p class="mt-1.5 space-x-3 text-xs text-muted-foreground">
+			<p class="flex flex-wrap gap-x-3 text-xs">
 				if code != "" {
 					<span>
 						{ d.Tr("error.code") }

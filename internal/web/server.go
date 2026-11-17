@@ -24,7 +24,7 @@ func StaticFS() fs.FS {
 	return sub
 }
 
-// CacheImmutable marks successful static responses as immutable for a year; the URL carries the asset version.
+// CacheImmutable marks successful static responses as immutable for a year; the URL carries a content fingerprint.
 func CacheImmutable(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(&cachingWriter{ResponseWriter: w}, r)

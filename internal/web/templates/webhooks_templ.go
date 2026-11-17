@@ -201,7 +201,7 @@ func webhooksActions(d web.LayoutData, v WebhooksView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else if len(v.Items) < v.Limit {
-			templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("webhooks.new"), Href: d.ProjectPath(v.ProjectSlug, "/webhooks/new")}).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("webhooks.new"), Href: d.ProjectPath(v.ProjectSlug, "/webhooks/new")}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

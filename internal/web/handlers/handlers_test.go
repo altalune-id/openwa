@@ -100,6 +100,7 @@ func newFixture(t *testing.T) *handlerFixture {
 		Logger:   discardStdLogger(),
 		Orgs:     orgs,
 		Projects: projects,
+		Users:    users,
 		Secret:   []byte("0123456789abcdef0123456789abcdef"),
 	}
 	return &handlerFixture{
@@ -179,28 +180,6 @@ func TestHome_GetHome_RedirectsUnauth(t *testing.T) {
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	assert.Equal(t, http.StatusSeeOther, rec.Code)
 	assert.Equal(t, "/login", rec.Header().Get("Location"))
-}
-
-// TestHome_GetRoot_RedirectsToTheLastUsedOrg covers the new root: it names no org, so it forwards to one.
-func TestHome_GetRoot_RedirectsToTheLastUsedOrg(t *testing.T) {
-	t.Parallel()
-	f := newFixture(t)
-	ctx := context.Background()
-	u, err := f.Users.Create(ctx, user.CreateRequest{Email: "root@b.co", Name: "A", Source: user.SourceLocal})
-	require.NoError(t, err)
-	o, err := f.Orgs.Create(ctx, org.CreateRequest{Slug: "acme", Name: "Acme", OwnerID: u.ID})
-	require.NoError(t, err)
-
-	h := handlers.NewHomeHandler(f.Deps, f.Orgs, f.Projects)
-	mux := http.NewServeMux()
-	h.Register(mux)
-
-	p := session.Principal{UserID: u.ID, ActiveOrgID: o.ID, IssuedAt: time.Now().UTC()}
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodGet, "/", "", p))
-
-	assert.Equal(t, http.StatusSeeOther, rec.Code)
-	assert.Equal(t, "/orgs/acme", rec.Header().Get("Location"))
 }
 
 func TestHome_GetOverview_RendersForAuthedUser(t *testing.T) {
@@ -405,10 +384,10 @@ func TestProjectHandler_PostCreate_DuplicateSlug(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "already taken")
 }
 
-func TestProjectHandler_PostRename_MissingProject(t *testing.T) {
+func TestSettingsHandler_PostRename_MissingProject(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	h := handlers.NewProjectHandler(f.Deps, f.Projects)
+	h := handlers.NewSettingsHandler(f.Deps, f.Projects, nil)
 	mux := http.NewServeMux()
 	h.Register(mux)
 	rec := httptest.NewRecorder()
@@ -606,7 +585,7 @@ func TestOnboardHandler_Register_MountsRoutes(t *testing.T) {
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/onboard", nil))
 	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Contains(t, rec.Body.String(), "First-time setup")
+	assert.Contains(t, rec.Body.String(), "onboard.title")
 }
 
 func TestOnboardHandler_GetOnboard_RedirectsWhenNotRequired(t *testing.T) {
@@ -800,7 +779,7 @@ func TestOnboardingHandler_GetOnboarding_OK(t *testing.T) {
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodGet, "/onboarding", "", session.Principal{UserID: u.ID, Email: u.Email, Name: u.Name}))
 	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Contains(t, rec.Body.String(), "Welcome")
+	assert.Contains(t, rec.Body.String(), "welcome.eyebrow")
 }
 
 func TestOnboardingHandler_PostOnboarding_ValidationErrors(t *testing.T) {
@@ -1005,7 +984,7 @@ func TestAuthHandler_GetLogin_UnauthedRenders(t *testing.T) {
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/login", nil))
 	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Contains(t, rec.Body.String(), "Sign in")
+	assert.Contains(t, rec.Body.String(), "login.title")
 }
 
 func TestAuthHandler_GetLogin_AuthedRedirects(t *testing.T) {
@@ -1097,7 +1076,7 @@ func (a *authUserStore) ByEmail(ctx context.Context, email string) (*auth.UserRe
 	if err != nil {
 		return nil, err
 	}
-	return &auth.UserRef{ID: u.ID, Email: u.Email, Name: u.Name, Source: u.Source, IsAdmin: u.IsAdmin, Locale: u.Locale, PasswordHash: u.PasswordHash}, nil
+	return &auth.UserRef{ID: u.ID, Email: u.Email, Name: u.Name, Source: u.Source, IsAdmin: u.IsAdmin, Locale: u.Locale, LastProjectID: u.LastProjectID, PasswordHash: u.PasswordHash}, nil
 }
 
 // NOTE: mirrors the write-time rule both real stores apply (internal/user/pgwriter.go); fakes.User does not.
@@ -1242,15 +1221,13 @@ func setTenantProject(ctx context.Context, orgID, projectID, userID uuid.UUID) c
 	return tenant.Into(ctx, tenant.Context{OrgID: orgID, ProjectID: projectID, UserID: userID})
 }
 
-func TestBase_BrandAndAssetVersionAndCrumbs(t *testing.T) {
+func TestBase_BrandAndCrumbs(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	f.Cfg.Brand.Name = "Acme Chat"
 	deps := f.Deps
-	deps.AssetVersion = "v9"
 	d := deps.Base(httptest.NewRequest(http.MethodGet, "/", nil), "Sign in")
 	assert.Equal(t, "Acme Chat", d.BrandName)
-	assert.Equal(t, "v9", d.AssetVersion)
 	assert.Equal(t, "Sign in · Acme Chat", d.DocumentTitle())
 
 	uid := uuid.New()

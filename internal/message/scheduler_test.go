@@ -35,3 +35,11 @@ func TestScheduler_RunDelegatesToTheService(t *testing.T) {
 	require.NoError(t, job.Run(tenant.Into(t.Context(), tenant.Context{OrgID: e.tc.OrgID})))
 	require.Empty(t, e.store.All())
 }
+
+func TestRetentionSchedule_IsTheJobsSchedule(t *testing.T) {
+	jakarta := time.FixedZone("WIB", 7*3600)
+	from := time.Date(2026, 9, 28, 0, 0, 0, 0, time.UTC)
+	job := message.NewScheduler(newEnv(t).svc, discard(), scheduler.FixedLocation(jakarta)).SchedulerJobs()[0]
+	require.Equal(t, job.Schedule.Next(from), message.RetentionSchedule(jakarta).Next(from))
+	require.Equal(t, time.Date(2026, 9, 28, 20, 0, 0, 0, time.UTC), message.RetentionSchedule(jakarta).Next(from).UTC())
+}

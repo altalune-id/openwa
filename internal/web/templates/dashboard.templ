@@ -29,7 +29,7 @@ templ DashboardPage(d web.LayoutData, v DashboardView) {
 		@PageHeader(d, PageHeaderProps{
 			Title:    dashboardTitle(d, v),
 			Subtitle: d.Tr("dashboard.subtitle"),
-			Actions:  Button(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("dashboard.new_project"), Href: d.OrgPath("/projects/new")}),
+			Actions:  AppButton(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("dashboard.new_project"), Href: d.OrgPath("/projects/new")}),
 		})
 		if len(v.Projects) == 0 {
 			@EmptyState(d, EmptyStateProps{Icon: "folder", Title: d.Tr("dashboard.empty_title"), Body: d.Tr("dashboard.empty_body"), CTA: &ButtonProps{Kind: ButtonPrimary, Label: d.Tr("projects.create_first"), Href: d.OrgPath("/projects/new")}})
@@ -37,7 +37,7 @@ templ DashboardPage(d web.LayoutData, v DashboardView) {
 			<ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 				for _, p := range v.Projects {
 					<li>
-						<a href={ templ.SafeURL(d.ProjectPath(p.Slug, "/overview")) } class="surface block p-4 transition hover:shadow-md">
+						<a href={ templ.SafeURL(d.ProjectPath(p.Slug, "/overview")) } class="rounded-box border border-base-300 bg-base-100 block p-4 transition hover:shadow-md">
 							<div class="flex items-baseline justify-between gap-2">
 								<p class="truncate text-sm font-medium text-foreground">{ p.Name }</p>
 								<div class="flex shrink-0 items-center gap-1.5">

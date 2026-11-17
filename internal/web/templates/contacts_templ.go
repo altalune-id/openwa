@@ -112,7 +112,7 @@ func contactsActions(d web.LayoutData, v ContactsView) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("common.refresh"), Icon: "rotate-cw", Href: contactsRefreshHref(d, v)}).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("common.refresh"), Icon: "rotate-cw", Href: contactsRefreshHref(d, v)}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -321,7 +321,7 @@ func ContactsPage(d web.LayoutData, v ContactsView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("contacts.filter")}).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("contacts.filter")}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -410,7 +410,7 @@ func ContactsPage(d web.LayoutData, v ContactsView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						if c.Phone != "" && c.DeviceID != "" {
-							templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("contacts.message"), Icon: "send", Href: contactMessageHref(d, v.ProjectSlug, c)}).Render(ctx, templ_7745c5c3_Buffer)
+							templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("contacts.message"), Icon: "send", Href: contactMessageHref(d, v.ProjectSlug, c)}).Render(ctx, templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -433,7 +433,7 @@ func ContactsPage(d web.LayoutData, v ContactsView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if v.NextCursor != "" {
-				templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonGhost, Label: d.Tr("contacts.load_more"), Href: contactsMoreHref(d, v)}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("contacts.load_more"), Href: contactsMoreHref(d, v)}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

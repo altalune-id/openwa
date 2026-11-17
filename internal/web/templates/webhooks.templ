@@ -57,7 +57,7 @@ templ webhooksActions(d web.LayoutData, v WebhooksView) {
 	if !v.CanManage {
 		<span class="text-xs text-muted-foreground">{ d.Tr("common.managers_only") }</span>
 	} else if len(v.Items) < v.Limit {
-		@Button(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("webhooks.new"), Href: d.ProjectPath(v.ProjectSlug, "/webhooks/new")})
+		@AppButton(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("webhooks.new"), Href: d.ProjectPath(v.ProjectSlug, "/webhooks/new")})
 	}
 }
 

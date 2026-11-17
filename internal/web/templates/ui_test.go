@@ -3,6 +3,7 @@ package templates
 import (
 	"bytes"
 	"context"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -36,25 +37,25 @@ func uiData() web.LayoutData {
 var colourLiteral = regexp.MustCompile(`\b(bg|text|border|ring|from|to|via|fill|stroke|divide|outline|decoration|placeholder|accent|caret)-(red|green|amber|emerald|yellow|rose|orange)-[0-9]`)
 
 func TestButton_KindsAndIconLabel(t *testing.T) {
-	html := render(t, Button(ButtonProps{Kind: ButtonPrimary, Label: "Save"}))
+	html := render(t, AppButton(ButtonProps{Kind: ButtonPrimary, Label: "Save"}))
 	assert.Contains(t, html, `<button type="button"`)
-	assert.Contains(t, html, "bg-primary")
+	assert.Contains(t, html, "btn shrink-0 whitespace-nowrap lg:btn-sm btn-primary")
 	assert.Contains(t, html, ">Save<")
 
-	html = render(t, Button(ButtonProps{Kind: ButtonSecondary, Label: "Open", Href: "/x"}))
+	html = render(t, AppButton(ButtonProps{Kind: ButtonSecondary, Label: "Open", Href: "/x"}))
 	assert.Contains(t, html, `<a href="/x"`)
 
-	html = render(t, Button(ButtonProps{Kind: ButtonDanger, Type: "submit", Label: "Delete"}))
+	html = render(t, AppButton(ButtonProps{Kind: ButtonDanger, Type: "submit", Label: "Delete"}))
 	assert.Contains(t, html, `type="submit"`)
-	assert.Contains(t, html, "bg-destructive")
+	assert.Contains(t, html, "btn-error")
 	assert.NotRegexp(t, colourLiteral, html)
 
-	html = render(t, Button(ButtonProps{Kind: ButtonIcon, Icon: "trash-2", Attrs: templ.Attributes{"aria-label": "Remove"}}))
+	html = render(t, AppButton(ButtonProps{Kind: ButtonIcon, Icon: "trash-2", Attrs: templ.Attributes{"aria-label": "Remove"}}))
 	assert.Contains(t, html, `aria-label="Remove"`)
 	assert.Contains(t, html, "<svg")
 
 	var buf bytes.Buffer
-	err := Button(ButtonProps{Kind: ButtonIcon, Icon: "trash-2"}).Render(context.Background(), &buf)
+	err := AppButton(ButtonProps{Kind: ButtonIcon, Icon: "trash-2"}).Render(context.Background(), &buf)
 	require.Error(t, err)
 	assert.True(t, IsIconButtonUnlabelledError(err))
 }
@@ -64,14 +65,14 @@ func TestField_WiresDescribedByAndInvalid(t *testing.T) {
 	p := FieldProps{ID: "f", Label: "Name", Help: "help", Error: "bad"}
 	attrs := InputAttrs(p)
 	assert.Equal(t, "f", attrs["id"])
-	assert.Equal(t, "f-help f-error", attrs["aria-describedby"])
+	assert.Equal(t, "f-error", attrs["aria-describedby"], "the hint hides while an error shows")
 	assert.Equal(t, "true", attrs["aria-invalid"])
 
-	html := renderWith(t, Field(d, p), templ.Raw(`<input/>`))
+	html := renderWith(t, FormField(d, p), templ.Raw(`<input/>`))
 	assert.Contains(t, html, `<label for="f"`)
-	assert.Contains(t, html, `id="f-help"`)
-	assert.Contains(t, html, `<p role="alert" id="f-error" class="mt-1 flex items-center gap-1.5 text-xs text-foreground">`)
-	assert.Contains(t, html, "bg-destructive", "the status colour sits on the marker, the text stays foreground")
+	assert.NotContains(t, html, `id="f-help"`, "the hint hides while an error shows")
+	assert.Contains(t, render(t, FormField(d, FieldProps{ID: "h", Label: "Name", Help: "help"})), `id="h-help"`)
+	assert.Contains(t, html, `<p role="alert" id="f-error" class="label text-xs whitespace-normal text-error">`)
 
 	attrs = InputAttrs(FieldProps{ID: "g"})
 	_, hasDescribed := attrs["aria-describedby"]
@@ -88,8 +89,8 @@ func TestBadgeAndStatusDot_UseThemeTokensOnly(t *testing.T) {
 		assert.Contains(t, dot, `aria-label="connected"`)
 		assert.NotRegexp(t, colourLiteral, dot)
 	}
-	assert.Contains(t, render(t, Badge(ToneSuccess, "ok")), "text-success")
-	assert.Contains(t, render(t, StatusDot(ToneDanger, "down")), "bg-destructive")
+	assert.Contains(t, render(t, Badge(ToneSuccess, "ok")), "badge-success")
+	assert.Contains(t, render(t, StatusDot(ToneDanger, "down")), "status-error")
 }
 
 func TestListShellAndRow_AddNonceOnlyWithHTMXAttrs(t *testing.T) {
@@ -125,7 +126,7 @@ func TestPoll_DropsTriggerWhenDone(t *testing.T) {
 func TestToasts_RegionAndOOB(t *testing.T) {
 	d := uiData()
 	d.Flash = &web.FlashMessage{Kind: web.FlashOK, Message: "Saved"}
-	region := render(t, ToastRegion(d))
+	region := render(t, ToastHost(d))
 	assert.Contains(t, region, `id="hx-notice"`)
 	assert.Contains(t, region, `aria-live="polite"`)
 	assert.Contains(t, region, ">Saved<")
@@ -134,18 +135,16 @@ func TestToasts_RegionAndOOB(t *testing.T) {
 
 	oob := render(t, OOBToast(d, web.FlashErr, "Nope"))
 	assert.Contains(t, oob, `<template hx type="partial" hx-target="#hx-notice" hx-swap="beforeend" hx-nonce="n0nce">`)
-	assert.Contains(t, oob, "text-destructive")
+	assert.Contains(t, oob, "alert-error")
 	assert.Contains(t, oob, ">Nope<")
 }
 
-func TestCopyButton_CarriesLabelAndNoncedScript(t *testing.T) {
+func TestCopyButton_CarriesLabelAndSlot(t *testing.T) {
 	d := uiData()
 	html := render(t, CopyButton(d, "secret", "Copy secret"))
 	assert.Contains(t, html, `data-copy="secret"`)
 	assert.Contains(t, html, `aria-label="Copy secret"`)
-	script := render(t, copyScript("n0nce"))
-	assert.Contains(t, script, `<script nonce="n0nce">`)
-	assert.Contains(t, script, "window.openwaCopyBound")
+	assert.Contains(t, html, `data-copy-slot`)
 }
 
 func TestTabs_ARIAPattern(t *testing.T) {
@@ -154,11 +153,11 @@ func TestTabs_ARIAPattern(t *testing.T) {
 		{Key: "go", Label: "Go", Panel: templ.Raw("<pre>go</pre>"), Attrs: templ.Attributes{"data-snippet": "go"}},
 		{Key: "node", Label: "Node", Panel: templ.Raw("<pre>js</pre>")},
 	}}))
-	assert.Contains(t, html, `<nav role="tablist" aria-orientation="horizontal" aria-label="Languages" class="tab-bar">`)
-	assert.Contains(t, html, `<button type="button" role="tab" id="webhook-verify-tab-go" aria-controls="webhook-verify-panel-go" aria-selected="true" tabindex="0">Go</button>`)
-	assert.Contains(t, html, `<button type="button" role="tab" id="webhook-verify-tab-node" aria-controls="webhook-verify-panel-node" aria-selected="false" tabindex="-1">Node</button>`)
-	assert.Contains(t, html, `<div role="tabpanel" id="webhook-verify-panel-go" aria-labelledby="webhook-verify-tab-go" data-snippet="go" class="px-3 py-2">`)
-	assert.Contains(t, html, `<div role="tabpanel" id="webhook-verify-panel-node" aria-labelledby="webhook-verify-tab-node" hidden class="px-3 py-2">`)
+	assert.Contains(t, html, `<nav role="tablist" aria-orientation="horizontal" aria-label="Languages" class="tabs tabs-border overflow-x-auto px-2">`)
+	assert.Contains(t, html, `<button type="button" role="tab" class="tab whitespace-nowrap" id="webhook-verify-tab-go" aria-controls="webhook-verify-panel-go" aria-selected="true" tabindex="0">Go</button>`)
+	assert.Contains(t, html, `<button type="button" role="tab" class="tab whitespace-nowrap" id="webhook-verify-tab-node" aria-controls="webhook-verify-panel-node" aria-selected="false" tabindex="-1">Node</button>`)
+	assert.Contains(t, html, `<div role="tabpanel" id="webhook-verify-panel-go" aria-labelledby="webhook-verify-tab-go" data-snippet="go" class="border-t border-base-300 p-3">`)
+	assert.Contains(t, html, `<div role="tabpanel" id="webhook-verify-panel-node" aria-labelledby="webhook-verify-tab-node" hidden class="border-t border-base-300 p-3">`)
 	assert.Contains(t, html, "(function() {\n\tif (window.openwaTabsBound) return;")
 }
 
@@ -171,17 +170,17 @@ func TestEmptyStateAndPageHeader(t *testing.T) {
 
 	header := render(t, PageHeader(d, PageHeaderProps{Title: "Devices", Eyebrow: "Messaging", Subtitle: "Linked phones"}))
 	assert.Contains(t, header, "<header")
-	assert.Contains(t, header, `<h1 class="text-2xl font-semibold tracking-tight text-foreground">Devices</h1>`)
+	assert.Contains(t, header, `>Devices</h1>`)
+	assert.Contains(t, header, "text-xl font-semibold")
 	assert.Contains(t, header, ">Messaging<")
-	assert.Contains(t, header, "pb-4 mb-6")
 }
 
 func TestChipCardStatAvatarSpinnerDisclosure(t *testing.T) {
 	assert.Contains(t, render(t, Chip(ChipProps{Name: "scopes", Value: "a", Label: "A", Checked: true})), `class="chip`)
 	assert.Contains(t, render(t, Chip(ChipProps{Name: "scopes", Value: "a", Label: "A", Checked: true})), " checked")
 	card := renderWith(t, Card(CardProps{Title: "T", Description: "D"}), templ.Raw("<p>c</p>"))
-	assert.Contains(t, card, `class="surface p-5"`)
-	assert.Contains(t, card, `<h2 class="text-base font-semibold text-foreground">T</h2>`)
+	assert.Contains(t, card, `class="card min-w-0 border border-base-300 bg-base-100"`)
+	assert.Contains(t, card, `<h2 class="card-title text-base">T</h2>`)
 	stat := render(t, StatCard("Devices", "3"))
 	assert.Contains(t, stat, ">Devices<")
 	assert.Contains(t, stat, ">3<")
@@ -203,7 +202,7 @@ func TestBreadcrumb_RendersCrumbsWithSeparators(t *testing.T) {
 	assert.Contains(t, html, `<nav aria-label="nav.breadcrumb"`)
 	assert.Contains(t, html, `<a href="/orgs/acme"`)
 	assert.Contains(t, html, `aria-current="page"`)
-	assert.Contains(t, html, `aria-hidden="true"`)
+	assert.Contains(t, html, `class="breadcrumbs`)
 	assert.Empty(t, render(t, Breadcrumb(uiData())))
 
 	d.Crumbs = []web.Crumb{{Label: "Acme", Href: "/orgs/acme"}, {Label: "Alpha", Href: "/orgs/acme/projects/alpha/overview"}}
@@ -219,9 +218,9 @@ func TestTime_SetsDatetimeAndTitle(t *testing.T) {
 	assert.Contains(t, html, "time.on_date")
 }
 
-func TestConfirmDialog_StructureAndFormOrder(t *testing.T) {
+func TestConfirmModal_StructureAndFormOrder(t *testing.T) {
 	d := uiData()
-	html := render(t, ConfirmDialog(d, ConfirmProps{
+	html := render(t, ConfirmModal(d, ConfirmProps{
 		ID:           "revoke-k1",
 		Title:        "Revoke key?",
 		Body:         "Clients using it stop working.",
@@ -233,9 +232,9 @@ func TestConfirmDialog_StructureAndFormOrder(t *testing.T) {
 		Hidden:       []HiddenField{{Name: "a", Value: "1"}, {Name: "b", Value: "2"}},
 		Trigger:      ButtonProps{Kind: ButtonIcon, Icon: "trash-2", Attrs: templ.Attributes{"aria-label": "Revoke: k1"}},
 	}))
-	assert.Contains(t, html, `data-confirm-open="revoke-k1"`)
+	assert.Contains(t, html, `data-dialog-open="revoke-k1"`)
 	assert.Contains(t, html, `aria-haspopup="dialog"`)
-	assert.Contains(t, html, `<dialog id="revoke-k1" aria-labelledby="revoke-k1-title" data-confirm`)
+	assert.Contains(t, html, `<dialog id="revoke-k1" class="modal modal-bottom sm:modal-middle" aria-labelledby="revoke-k1-title" data-dialog-close-on-done`)
 	assert.Contains(t, html, `<form method="post" action="/orgs/acme/projects/alpha/apikeys/k1/revoke"`)
 	assert.Contains(t, html, `hx-post="/orgs/acme/projects/alpha/apikeys/k1/revoke"`)
 	assert.Contains(t, html, `hx-target="#apikey-list"`)
@@ -249,20 +248,20 @@ func TestConfirmDialog_StructureAndFormOrder(t *testing.T) {
 	require.Greater(t, a, 0)
 	require.Greater(t, b, a, "hidden fields keep their order")
 	assert.Contains(t, html, `id="revoke-k1-title"`)
-	assert.Contains(t, html, "bg-destructive")
+	assert.Contains(t, html, "btn-error")
 
-	plain := render(t, ConfirmDialog(d, ConfirmProps{ID: "rm", Title: "t", ConfirmLabel: "Remove", Kind: ButtonDanger, Action: "/x", Trigger: ButtonProps{Kind: ButtonSecondary, Label: "Remove"}}))
+	plain := render(t, ConfirmModal(d, ConfirmProps{ID: "rm", Title: "t", ConfirmLabel: "Remove", Kind: ButtonDanger, Action: "/x", Trigger: ButtonProps{Kind: ButtonSecondary, Label: "Remove"}}))
 	assert.NotContains(t, plain, "hx-post", "a full-page confirm carries no htmx attributes")
 	assert.NotContains(t, plain, "hx-nonce")
 
-	script := render(t, confirmScript("n0nce"))
-	assert.Contains(t, script, `<script nonce="n0nce">`)
-	assert.Contains(t, script, "showModal()")
-	assert.Contains(t, script, "htmx:finally:request", "the dialog must close on success, an error status and a network failure alike")
+	js, err := os.ReadFile("../static/dialog.js")
+	require.NoError(t, err)
+	assert.Contains(t, string(js), "showModal()")
+	assert.Contains(t, string(js), "'htmx:finally:request'", "a confirm must close on success, an error status and a network failure alike")
 }
 
-func TestConfirmDialog_FallsBackToCommonConfirm(t *testing.T) {
-	html := render(t, ConfirmDialog(uiData(), ConfirmProps{ID: "x", Title: "t", Action: "/x", Trigger: ButtonProps{Label: "Go"}}))
+func TestConfirmModal_FallsBackToCommonConfirm(t *testing.T) {
+	html := render(t, ConfirmModal(uiData(), ConfirmProps{ID: "x", Title: "t", Action: "/x", Trigger: ButtonProps{Label: "Go"}}))
 	assert.Contains(t, html, ">common.confirm<")
 	assert.Contains(t, render(t, CopyButton(uiData(), "v", "Copy")), `data-copied-label="common.copy_done"`)
 }

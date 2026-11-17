@@ -60,7 +60,7 @@ func DashboardPage(d web.LayoutData, v DashboardView) templ.Component {
 		templ_7745c5c3_Err = PageHeader(d, PageHeaderProps{
 			Title:    dashboardTitle(d, v),
 			Subtitle: d.Tr("dashboard.subtitle"),
-			Actions:  Button(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("dashboard.new_project"), Href: d.OrgPath("/projects/new")}),
+			Actions:  AppButton(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("dashboard.new_project"), Href: d.OrgPath("/projects/new")}),
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -89,7 +89,7 @@ func DashboardPage(d web.LayoutData, v DashboardView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" class=\"surface block p-4 transition hover:shadow-md\"><div class=\"flex items-baseline justify-between gap-2\"><p class=\"truncate text-sm font-medium text-foreground\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" class=\"rounded-box border border-base-300 bg-base-100 block p-4 transition hover:shadow-md\"><div class=\"flex items-baseline justify-between gap-2\"><p class=\"truncate text-sm font-medium text-foreground\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

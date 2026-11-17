@@ -58,6 +58,7 @@ func probeRoutes() []probeRoute {
 		{http.MethodGet, "/orgs", nil},
 		{http.MethodGet, "/orgs/new", nil},
 		{http.MethodGet, base, nil},
+		{http.MethodGet, base + "/switch", nil},
 		{http.MethodGet, base + "/members", nil},
 		{http.MethodGet, base + "/invites", nil},
 		{http.MethodGet, base + "/apikeys", nil},
@@ -76,6 +77,7 @@ func probeRoutes() []probeRoute {
 		{http.MethodGet, pbase + "/inbox/new", nil},
 		{http.MethodGet, pbase + "/contacts", nil},
 		{http.MethodGet, pbase + "/settings", nil},
+		{http.MethodGet, pbase + "/usage", nil},
 		{http.MethodGet, pbase + "/apikeys", nil},
 		{http.MethodGet, pbase + "/apikeys/scopes", nil},
 		{http.MethodGet, pbase + "/webhooks", nil},
@@ -149,6 +151,8 @@ func probeRoutes() []probeRoute {
 		{http.MethodPost, "/onboard/complete", url.Values{}},
 		{http.MethodPost, "/logout", url.Values{}},
 		{http.MethodPost, "/locale", url.Values{"locale": {"en-US"}, "redirect": {"/"}}},
+		{http.MethodPost, "/theme", url.Values{"mode": {"dark"}, "redirect": {"/"}}},
+		{http.MethodPost, "/tips/" + web.Tips()[0].ID + "/seen", url.Values{"redirect": {"/"}}},
 	}
 }
 
@@ -186,6 +190,9 @@ func newScopeProbeServer(t *testing.T, mode config.Mode) (*boot.Server, *bytes.B
 
 func probeCookie(t *testing.T, srv *boot.Server, p session.Principal) *http.Cookie {
 	t.Helper()
+	if p.Name == "" {
+		p.Name = "Probe"
+	}
 	sid, err := web.NewSID()
 	require.NoError(t, err)
 	require.NoError(t, srv.Platform.Sessions.Save(context.Background(), sid, p, time.Now().Add(time.Hour)))
@@ -290,6 +297,7 @@ func templatize(path string) string {
 		path = strings.Replace(path, "/members/{id}/", "/members/{user}/", 1)
 	}
 	path = strings.Replace(path, "/deliveries/{id}", "/deliveries/{did}", 1)
+	path = strings.Replace(path, "/tips/"+web.Tips()[0].ID+"/", "/tips/{id}/", 1)
 	path = strings.Replace(path, "/devices/dev_ProbeDevice00001", "/devices/{device}", 1)
 	path = strings.Replace(path, "/inbox/chats/cht_ProbeChat0000001", "/inbox/chats/{chat}", 1)
 	path = strings.Replace(path, "/inbox/messages/msg_ProbeMessage0001", "/inbox/messages/{message}", 1)
@@ -401,7 +409,7 @@ func TestOrgSwitcher_PinnedOrgIsNotAlsoOfferedToSwitchTo(t *testing.T) {
 
 func orgSwitcherPanel(t *testing.T, body string) string {
 	t.Helper()
-	i := strings.Index(body, "data-switcher")
+	i := strings.Index(body, `data-org-switcher="rail"`)
 	require.GreaterOrEqual(t, i, 0, "no org switcher rendered")
 	rest := body[i:]
 	open := strings.Index(rest, "</summary>")

@@ -146,7 +146,7 @@ templ WebhookDeliveryItem(d web.LayoutData, v WebhookDeliveriesView, row Webhook
 					}
 				</p>
 				if row.LastError != "" {
-					<p class="mt-1 break-all border-l-2 border-destructive/30 pl-2 font-mono text-xs text-foreground">{ row.LastError }</p>
+					<p class="mt-1 break-all border-s-2 border-destructive/30 ps-2 font-mono text-xs text-foreground">{ row.LastError }</p>
 				}
 			</div>
 			<button
@@ -258,17 +258,17 @@ templ WebhookRetryResult(d web.LayoutData, v WebhookDeliveriesView, row WebhookD
 
 templ webhookHeaderTable(d web.LayoutData, headers []WebhookHeaderRow) {
 	<div class="mt-1 overflow-x-auto">
-		<table class="w-full text-left text-xs">
+		<table class="w-full text-start text-xs">
 			<thead>
 				<tr class="text-muted-foreground">
-					<th scope="col" class="py-0.5 pr-3 font-medium">{ d.Tr("webhooks.header_name_label") }</th>
+					<th scope="col" class="py-0.5 pe-3 font-medium">{ d.Tr("webhooks.header_name_label") }</th>
 					<th scope="col" class="py-0.5 font-medium">{ d.Tr("webhooks.header_value_label") }</th>
 				</tr>
 			</thead>
 			<tbody>
 				for _, h := range headers {
 					<tr>
-						<td class="py-0.5 pr-3 align-top font-mono text-foreground">{ h.Name }</td>
+						<td class="py-0.5 pe-3 align-top font-mono text-foreground">{ h.Name }</td>
 						<td class="break-all py-0.5 align-top font-mono text-muted-foreground">{ h.Value }</td>
 					</tr>
 				}
@@ -345,7 +345,7 @@ templ WebhookDeliveryDetail(d web.LayoutData, payload WebhookPayloadView, items 
 					<span>·</span>
 					@Time(d, a.CreatedAt)
 					if a.Error != "" {
-						<p class="mt-0.5 break-all border-l-2 border-destructive/30 pl-2 font-mono text-foreground">{ a.Error }</p>
+						<p class="mt-0.5 break-all border-s-2 border-destructive/30 ps-2 font-mono text-foreground">{ a.Error }</p>
 					}
 					if a.StatusCode > 0 {
 						@webhookAttemptResponse(d, a.Response)
@@ -358,7 +358,7 @@ templ WebhookDeliveryDetail(d web.LayoutData, payload WebhookPayloadView, items 
 
 templ webhookDetailActions(d web.LayoutData, v WebhookDetailView) {
 	@webhookActiveBadge(d, v.Endpoint.Active)
-	@Button(ButtonProps{Kind: ButtonGhost, Label: d.Tr("webhooks.back"), Href: d.ProjectPath(v.ProjectSlug, "/webhooks")})
+	@AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("webhooks.back"), Href: d.ProjectPath(v.ProjectSlug, "/webhooks")})
 }
 
 templ WebhookDetailPage(d web.LayoutData, v WebhookDetailView) {
@@ -383,7 +383,7 @@ templ WebhookDetailPage(d web.LayoutData, v WebhookDetailView) {
 				}
 				if v.Endpoint.Rotating && v.CanManage {
 					<div class="mt-2">
-						@ConfirmDialog(d, ConfirmProps{
+						@ConfirmModal(d, ConfirmProps{
 							ID:           "retire-" + v.Endpoint.ID,
 							Title:        d.Tr("webhooks.retire_confirm_title"),
 							Body:         d.Tr("webhooks.retire_confirm_body"),
@@ -413,7 +413,7 @@ templ WebhookDetailPage(d web.LayoutData, v WebhookDetailView) {
 								hx-status:5xx="target:#hx-error swap:innerHTML"
 								class="mt-2"
 							>
-								@Button(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("webhooks.rotate_confirm")})
+								@AppButton(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("webhooks.rotate_confirm")})
 							</form>
 						}
 					</div>
@@ -435,7 +435,7 @@ templ WebhookDetailPage(d web.LayoutData, v WebhookDetailView) {
 		if v.CanManage {
 			<div class="mt-6">
 				@Card(CardProps{Title: d.Tr("webhooks.delete"), Description: d.Tr("webhooks.delete_warning")}) {
-					@ConfirmDialog(d, ConfirmProps{
+					@ConfirmModal(d, ConfirmProps{
 						ID:           "delete-" + v.Endpoint.ID,
 						Title:        d.Tr("webhooks.delete_confirm_title"),
 						Body:         d.Tr("webhooks.delete_confirm_body"),

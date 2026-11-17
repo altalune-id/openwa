@@ -42,7 +42,7 @@ func (h *InviteHandler) GetList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	canManage, _ := h.Orgs.IsManager(r.Context(), o.ID, p.UserID)
-	Render(w, r, templates.InvitesLayout(h.LayoutForOrg(r, "Invites", slug, "invites"), templates.InvitesView{
+	Render(w, r, templates.InvitesLayout(h.LayoutForOrg(r, pageTitle(r, "invites.title"), slug, "invites"), templates.InvitesView{
 		OrgSlug: slug, Invites: inviteRows(items), CanManage: canManage, Disabled: !h.Caps.InvitesEnabled,
 	}))
 }

@@ -2,11 +2,14 @@ package user
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/go-jet/jet/v2/postgres"
+	"github.com/go-jet/jet/v2/qrm"
 	"github.com/google/uuid"
 
 	pgent "altalune.id/openwa/internal/platform/db/entity/postgres"
@@ -95,4 +98,63 @@ func nullableTimeExpr(t *time.Time) postgres.TimestampzExpression {
 		return pgent.NullTimestampz()
 	}
 	return postgres.TimestampzT(t.UTC())
+}
+
+func (s *postgresStore) UpdateThemePrefs(ctx context.Context, id uuid.UUID, theme, colorMode string) error {
+	stmt := s.table.UPDATE(s.table.Theme, s.table.ColorMode, s.table.UpdatedAt).
+		SET(postgres.String(theme), postgres.String(colorMode), postgres.TimestampzT(time.Now().UTC())).
+		WHERE(s.table.ID.EQ(postgres.UUID(id)))
+	res, err := stmt.ExecContext(ctx, s.writer(ctx))
+	if err != nil {
+		return fmt.Errorf("user.postgres.UpdateThemePrefs: %w", err)
+	}
+	n, raErr := res.RowsAffected()
+	if raErr == nil && n == 0 {
+		return &NotFoundError{ID: id.String()}
+	}
+	return nil
+}
+
+func (s *postgresStore) MarkTipsSeen(ctx context.Context, id uuid.UUID, ids []string) ([]string, error) {
+	where := s.table.ID.EQ(postgres.UUID(id))
+	for range tipsSeenAttempts {
+		var row struct {
+			TipsSeen string `alias:"users.tips_seen"`
+		}
+		if err := postgres.SELECT(s.table.TipsSeen).FROM(s.table).WHERE(where).LIMIT(1).QueryContext(ctx, s.writer(ctx), &row); err != nil {
+			if errors.Is(err, qrm.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
+				return nil, &NotFoundError{ID: id.String()}
+			}
+			return nil, fmt.Errorf("user.postgres.MarkTipsSeen: %w", err)
+		}
+		merged, raw := mergeTipsSeen(row.TipsSeen, ids)
+		if raw == row.TipsSeen {
+			return merged, nil
+		}
+		res, err := s.table.UPDATE(s.table.TipsSeen, s.table.UpdatedAt).
+			SET(postgres.String(raw), postgres.TimestampzT(time.Now().UTC())).
+			WHERE(where.AND(s.table.TipsSeen.EQ(postgres.String(row.TipsSeen)))).
+			ExecContext(ctx, s.writer(ctx))
+		if err != nil {
+			return nil, fmt.Errorf("user.postgres.MarkTipsSeen: %w", err)
+		}
+		if n, err := res.RowsAffected(); err == nil && n == 1 {
+			return merged, nil
+		}
+	}
+	return nil, fmt.Errorf("user.postgres.MarkTipsSeen: %w", &TipsSeenContendedError{ID: id.String(), Attempts: tipsSeenAttempts})
+}
+
+func (s *postgresStore) SetLastProject(ctx context.Context, id, projectID uuid.UUID) error {
+	res, err := s.table.UPDATE(s.table.LastProjectID, s.table.UpdatedAt).
+		SET(postgres.UUID(projectID), postgres.TimestampzT(time.Now().UTC())).
+		WHERE(s.table.ID.EQ(postgres.UUID(id))).
+		ExecContext(ctx, s.writer(ctx))
+	if err != nil {
+		return fmt.Errorf("user.postgres.SetLastProject: %w", err)
+	}
+	if n, raErr := res.RowsAffected(); raErr == nil && n == 0 {
+		return &NotFoundError{ID: id.String()}
+	}
+	return nil
 }

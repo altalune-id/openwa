@@ -10,7 +10,7 @@ and `{{.Role}}` before goose applies them. Postgres is the only database.
 
 ```
 schema/
-├── migrations/postgres/    # 001_init … 014_org_api_keys, VERSION
+├── migrations/postgres/    # 001_init … 019_user_prefs, VERSION
 ├── migrator.go             # goose runner, template rendering, embed FS
 ├── migrator_templatefs.go  # per-boot template-rendered file system
 ├── rls_guard.go            # boot-time BYPASSRLS assertion
@@ -33,6 +33,7 @@ tenant-scoped and appears in `TenantTableSuffixes`.
 ```mermaid
 erDiagram
     users ||--o{ memberships : "belongs to"
+    projects |o--o{ users : "last opened by"
     orgs ||--o{ memberships : "has"
     orgs ||--o{ projects : "owns"
     orgs ||--o{ invites : "pending"
@@ -48,6 +49,14 @@ erDiagram
     projects ||--o{ devices : "pairs"
     devices ||--o{ messages : "carries"
 
+    users {
+        uuid id PK
+        text locale
+        text theme "theme family, '' until chosen"
+        text color_mode "light|dark|system, '' until chosen"
+        text tips_seen "JSON array, default []"
+        uuid last_project_id FK "null until a project is opened; set null on delete; partial index users_last_project_idx"
+    }
     memberships {
         uuid org_id FK
         uuid user_id FK

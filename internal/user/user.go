@@ -26,6 +26,10 @@ type User struct {
 	PasswordHash    string
 	IsAdmin         bool
 	Locale          string
+	Theme           string
+	ColorMode       string
+	TipsSeen        []string
+	LastProjectID   uuid.UUID
 	TermsAcceptedAt *time.Time
 	CreatedAt       time.Time
 }

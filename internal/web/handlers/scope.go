@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -70,7 +71,11 @@ func (d Deps) MemberOrgScopes(r *http.Request, p session.Principal, sid string) 
 }
 
 func orgScopedRequest(r *http.Request, p session.Principal, o *org.Org) *http.Request {
-	return r.WithContext(tenant.Into(r.Context(), tenant.Context{OrgID: o.ID, UserID: p.UserID}))
+	return r.WithContext(orgScopedCtx(r.Context(), p, o))
+}
+
+func orgScopedCtx(ctx context.Context, p session.Principal, o *org.Org) context.Context {
+	return tenant.Into(ctx, tenant.Context{OrgID: o.ID, UserID: p.UserID})
 }
 
 // RequireProject resolves the org and project the path names, gating org membership before the project is looked up. SECURITY: membership is org-level by design, so this admits ANY project in an org the caller belongs to — see ../../../docs/multitenancy/request-scope.md.
@@ -87,15 +92,40 @@ func (d Deps) RequireProject(w http.ResponseWriter, r *http.Request) (ProjectSco
 }
 
 func (d Deps) rememberProject(sc ProjectScope) {
-	if sc.principal.ActiveOrgID == sc.org.ID && sc.principal.ActiveProjectID == sc.project.ID {
+	p := sc.principal
+	if p.ActiveOrgID == sc.org.ID && p.ActiveProjectID == sc.project.ID && p.LastProjectID == sc.project.ID {
 		return
 	}
-	updated := sc.principal
-	updated.ActiveOrgID = sc.org.ID
-	updated.ActiveProjectID = sc.project.ID
+	updated := p
+	updated.ActiveOrgID, updated.ActiveProjectID, updated.LastProjectID = sc.org.ID, sc.project.ID, sc.project.ID
+	if d.Users != nil && p.LastProjectID != sc.project.ID {
+		if err := d.Users.SetLastProject(sc.req.Context(), p.UserID, sc.project.ID); err != nil {
+			d.LogErr("web project: remember last project", err)
+		}
+	}
 	if err := d.UpdateSession(sc.req, sc.sid, updated); err != nil {
 		d.LogErr("web project: update session", err)
 	}
+}
+
+// SECURITY: the remembered project counts only when the store finds it inside one of orgs, the caller's current memberships, so a stale or foreign id never names a target.
+func (d Deps) lastProject(ctx context.Context, p session.Principal, orgs []*org.Org) (*org.Org, *project.Project) {
+	if p.LastProjectID == uuid.Nil || d.Projects == nil {
+		return nil, nil
+	}
+	for _, o := range orgs {
+		pr, err := d.Projects.ByID(orgScopedCtx(ctx, p, o), p.LastProjectID)
+		if err != nil {
+			if !project.IsNotFoundError(err) {
+				d.LogErr("web project: last project", err)
+			}
+			continue
+		}
+		if pr.OrgID == o.ID {
+			return o, pr
+		}
+	}
+	return nil, nil
 }
 
 // SECURITY: project configuration writes need an org owner or admin; a failed lookup refuses.

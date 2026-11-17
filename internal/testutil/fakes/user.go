@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"sync"
 
@@ -22,6 +23,9 @@ type User struct {
 	ByEmailErr  error
 	ByIDPErr    error
 	StickyError bool
+	// SetLastProjectErr, if non-nil, is returned from every SetLastProject call.
+	SetLastProjectErr   error
+	setLastProjectCalls int
 }
 
 var _ user.Store = (*User)(nil)
@@ -153,6 +157,57 @@ func (f *User) HasLocalUsers(_ context.Context) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// UpdateThemePrefs sets the stored user's theme family and color mode.
+func (f *User) UpdateThemePrefs(_ context.Context, id uuid.UUID, theme, colorMode string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	u, ok := f.byID[id]
+	if !ok {
+		return &user.NotFoundError{ID: id.String()}
+	}
+	u.Theme, u.ColorMode = theme, colorMode
+	return nil
+}
+
+// MarkTipsSeen appends ids to the stored user's seen tips, once each.
+func (f *User) MarkTipsSeen(_ context.Context, id uuid.UUID, ids []string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	u, ok := f.byID[id]
+	if !ok {
+		return nil, &user.NotFoundError{ID: id.String()}
+	}
+	for _, t := range ids {
+		if !slices.Contains(u.TipsSeen, t) {
+			u.TipsSeen = append(u.TipsSeen, t)
+		}
+	}
+	return slices.Clone(u.TipsSeen), nil
+}
+
+// SetLastProject records the stored user's last opened project.
+func (f *User) SetLastProject(_ context.Context, id, projectID uuid.UUID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.setLastProjectCalls++
+	if f.SetLastProjectErr != nil {
+		return f.SetLastProjectErr
+	}
+	u, ok := f.byID[id]
+	if !ok {
+		return &user.NotFoundError{ID: id.String()}
+	}
+	u.LastProjectID = projectID
+	return nil
+}
+
+// SetLastProjectCalls reports how many times SetLastProject ran.
+func (f *User) SetLastProjectCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.setLastProjectCalls
 }
 
 // UpdateLocale sets the stored user's locale.

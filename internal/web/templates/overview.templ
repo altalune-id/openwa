@@ -20,14 +20,15 @@ type OverviewView struct {
 templ OverviewPage(d web.LayoutData, v OverviewView) {
 	<section class="space-y-6">
 		@PageHeader(d, PageHeaderProps{Eyebrow: d.Tr("nav.overview"), Title: v.ProjectName})
-		<div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-			@CopyValue(d, v.OrgSlug)
-			<span aria-hidden="true" class="text-muted-foreground/70">·</span>
-			@CopyValue(d, v.OrgID)
-			<span aria-hidden="true" class="text-muted-foreground/70">/</span>
-			@CopyValue(d, v.ProjectSlug)
-			<span aria-hidden="true" class="text-muted-foreground/70">·</span>
-			@CopyValue(d, v.ProjectID)
+		<div class="flex min-w-0 flex-wrap gap-x-4 gap-y-2 text-xs">
+			<div class="flex min-w-0 flex-wrap gap-2">
+				@CopyValue(d, v.OrgSlug)
+				@CopyValue(d, v.OrgID)
+			</div>
+			<div class="flex min-w-0 flex-wrap gap-2">
+				@CopyValue(d, v.ProjectSlug)
+				@CopyValue(d, v.ProjectID)
+			</div>
 		</div>
 		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 			@StatCard(d.Tr("overview.devices"), d.Tr("overview.devices_value", "Total", v.Devices, "Connected", v.DevicesConnected))

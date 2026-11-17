@@ -42,6 +42,10 @@ type Principal struct {
 	ResourceIDs     []uuid.UUID `json:"-"`
 	IsAdmin         bool
 	Locale          string
+	Theme           string
+	ColorMode       string
+	TipsSeen        []string
+	LastProjectID   uuid.UUID
 	TermsAcceptedAt time.Time
 	IssuedAt        time.Time
 }
