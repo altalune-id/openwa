@@ -112,7 +112,7 @@ func TodoRowFragment(d web.LayoutData, t TodoRow) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var7 = []any{"flex size-5 items-center justify-center rounded border text-xs transition",
-			templ.KV("border-success bg-success text-success-foreground", t.Done),
+			templ.KV("border-success bg-success text-success-content", t.Done),
 			templ.KV("border-border bg-card hover:border-muted-foreground", !t.Done),
 		}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var7...)

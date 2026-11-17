@@ -503,3 +503,26 @@ func logoutWithEndSession(t *testing.T, endSession string) (string, *httptest.Re
 	}))
 	return issuer.URL, rec
 }
+
+// SECURITY: the not-invited page must not echo the callback's code or state into the chrome's return path.
+func TestOIDC_NotInvitedPageDropsTheCallbackQuery(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.Cfg.OIDC.Issuer = "https://idp.example"
+	login := auth.NewOIDCLogin(
+		func(context.Context, auth.EnsureClaims) (*auth.UserRef, bool, error) {
+			return nil, false, &user.NotInvitedError{Email: "stranger@example.com"}
+		},
+		nil, discardLogger(), passthroughUnexpected(),
+	)
+	h := handlers.NewAuthHandler(f.Deps, auth.NewService(nil, login, discardLogger(), passthroughUnexpected()), f.Users, f.Orgs, f.Projects, nil, nil)
+	r := httptest.NewRequest(http.MethodGet, "/oauth/callback?code=x&state=y", nil)
+	rec := httptest.NewRecorder()
+
+	h.OIDCComplete(r.Context(), rec, r, &oidcrp.IDToken{Subject: "s", Email: "stranger@example.com", EmailVerified: true}, "")
+
+	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	assert.NotContains(t, rec.Body.String(), "code=x")
+	assert.NotContains(t, rec.Body.String(), "state=y")
+	require.Contains(t, rec.Body.String(), "<title>title.not_invited", "the not-invited page rendered")
+}

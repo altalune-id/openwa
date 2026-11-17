@@ -20,6 +20,7 @@ import (
 	"altalune.id/openwa/internal/platform/session"
 	"altalune.id/openwa/internal/platform/tenant"
 	"altalune.id/openwa/internal/project"
+	"altalune.id/openwa/internal/user"
 	"altalune.id/openwa/internal/web"
 	"altalune.id/openwa/internal/web/middleware"
 	"altalune.id/openwa/internal/web/templates"
@@ -36,10 +37,9 @@ type Deps struct {
 	Logger         *log.Logger
 	Orgs           *org.Service
 	Projects       *project.Service
+	Users          *user.Service
 	I18n           *i18n.Bundle
 	Secret         []byte
-
-	AssetVersion string
 }
 
 // Base builds a minimal LayoutData for chromeless pages (login, onboarding, error).
@@ -56,13 +56,13 @@ func (d Deps) Base(r *http.Request, title string) web.LayoutData {
 		dir = d.I18n.Dir(loc)
 		supported = d.I18n.All()
 	}
+	theme := themePref(r, pp)
 	base := web.LayoutData{
 		Title:         title,
 		BasePath:      d.Cfg.HTTP.BasePath,
 		BaseURL:       d.Cfg.HTTP.BaseURL,
 		Version:       version.Default(),
 		BrandName:     cmp.Or(d.Cfg.Brand.Name, "OpenWA"),
-		AssetVersion:  d.AssetVersion,
 		Caps:          d.Caps,
 		Principal:     pp,
 		Locale:        loc,
@@ -70,8 +70,8 @@ func (d Deps) Base(r *http.Request, title string) web.LayoutData {
 		Translator:    i18n.TranslatorFrom(r.Context()),
 		CurrentPath:   r.URL.RequestURI(),
 		SupportedLocs: supported,
-		Themes:        web.Themes(),
-		ColorModes:    web.ColorModes(),
+		Theme:         theme,
+		ThemeAttr:     theme.Attr(),
 		RequestID:     reqid.FromContext(r.Context()),
 		Nonce:         middleware.NonceFrom(r.Context()),
 		CSPEnforced:   d.Cfg.HTTP.CSP.Enabled && !d.Cfg.HTTP.CSP.ReportOnly,
@@ -107,6 +107,13 @@ func flashArgs(args []string) []any {
 	return out
 }
 
+//i18n:use title.*
+//i18n:use error_title.*
+
+func pageTitle(r *http.Request, key string) string {
+	return i18n.TranslatorFrom(r.Context()).T(key)
+}
+
 // Layout builds a LayoutData for a signed-in page and populates org/project switchers.
 func (d Deps) Layout(r *http.Request, title string, nav web.ActiveNav) web.LayoutData {
 	return d.layout(r, title, nav, uuid.Nil, uuid.Nil)
@@ -137,6 +144,7 @@ func (d Deps) layout(r *http.Request, title string, nav web.ActiveNav, pinnedOrg
 	orgID := uuidFromString(base.ActiveOrg.ID)
 	if m, mErr := d.Orgs.MembershipOf(ctx, orgID, p.UserID); mErr == nil && m != nil {
 		base.ActiveOrg.Role = capitaliseRole(string(m.Role))
+		base.ActiveOrg.CanManage = m.Role.CanManage()
 	}
 	if d.Projects == nil {
 		return base
@@ -181,7 +189,7 @@ func (d Deps) OrgFragmentBase(sc OrgScope) web.LayoutData { return d.fragmentBas
 
 func (d Deps) fragmentBase(r *http.Request, o *org.Org) web.LayoutData {
 	l := d.Base(r, "")
-	l.ActiveOrg = &web.ActiveOrg{ID: o.ID.String(), Slug: o.Slug, Name: o.Name}
+	l.ActiveOrg = &web.ActiveOrg{ID: o.ID.String(), Slug: o.Slug, Name: o.Name, System: o.System}
 	return l
 }
 
@@ -221,7 +229,7 @@ func (d Deps) ProjectScopeFor(w http.ResponseWriter, r *http.Request, orgID uuid
 func splitOrgs(items []*org.Org, activeID uuid.UUID) (active *web.ActiveOrg, others []web.ActiveOrg) { //nolint:nonamedreturns // two return values differ in role
 	others = make([]web.ActiveOrg, 0, len(items))
 	for _, o := range items {
-		summary := web.ActiveOrg{ID: o.ID.String(), Slug: o.Slug, Name: o.Name}
+		summary := web.ActiveOrg{ID: o.ID.String(), Slug: o.Slug, Name: o.Name, System: o.System}
 		if o.ID == activeID {
 			a := summary
 			active = &a
@@ -230,11 +238,11 @@ func splitOrgs(items []*org.Org, activeID uuid.UUID) (active *web.ActiveOrg, oth
 		others = append(others, summary)
 	}
 	if active == nil && len(items) > 0 {
-		a := web.ActiveOrg{ID: items[0].ID.String(), Slug: items[0].Slug, Name: items[0].Name}
+		a := web.ActiveOrg{ID: items[0].ID.String(), Slug: items[0].Slug, Name: items[0].Name, System: items[0].System}
 		active = &a
 		others = others[:0]
 		for _, o := range items[1:] {
-			others = append(others, web.ActiveOrg{ID: o.ID.String(), Slug: o.Slug, Name: o.Name})
+			others = append(others, web.ActiveOrg{ID: o.ID.String(), Slug: o.Slug, Name: o.Name, System: o.System})
 		}
 	}
 	return active, others
@@ -304,9 +312,16 @@ func RenderStatus(w http.ResponseWriter, r *http.Request, status int, c templ.Co
 	}
 }
 
+// SECURITY: a failed request's query can carry upstream text (an OIDC callback's code and state), so every error page's chrome links back to the bare path.
+func (d Deps) errorBase(r *http.Request, title string) web.LayoutData {
+	base := d.Base(r, title)
+	base.CurrentPath = r.URL.EscapedPath()
+	return base
+}
+
 // ErrorPage renders the error.templ full page with the given status/title/message.
 func (d Deps) ErrorPage(w http.ResponseWriter, r *http.Request, status int, title, msg string, cause ...error) {
-	base := d.Base(r, title)
+	base := d.errorBase(r, title)
 	view := templates.ErrorView{
 		Status: status, Title: title, Message: msg,
 		RequestID: reqid.FromContext(r.Context()),
@@ -322,7 +337,7 @@ func (d Deps) ErrorPage(w http.ResponseWriter, r *http.Request, status int, titl
 // ErrorPageKey renders the error page from the translated title and body pair stored under key.
 func (d Deps) ErrorPageKey(w http.ResponseWriter, r *http.Request, status int, key string, cause error) {
 	//i18n:use error.*
-	base := d.Base(r, "")
+	base := d.errorBase(r, "")
 	base.Title = base.Tr(key + "_title")
 	view := templates.ErrorView{
 		Status: status, Title: base.Title, Message: base.Tr(key + "_body"),

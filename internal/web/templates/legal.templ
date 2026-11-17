@@ -13,7 +13,7 @@ type LegalView struct {
 templ LegalPage(d web.LayoutData, v LegalView) {
 	<section class="mx-auto max-w-2xl">
 		@PageHeader(d, PageHeaderProps{Eyebrow: d.Tr("legal.eyebrow"), Title: v.Doc.Title, Subtitle: legalUpdated(d, v)})
-		<article class="surface prose p-6">
+		<article class={ "rounded-box border border-base-300 bg-base-100 p-6", proseClass }>
 			@templ.Raw(v.Doc.HTML)
 		</article>
 	</section>

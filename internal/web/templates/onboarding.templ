@@ -21,7 +21,7 @@ templ OnboardingPage(d web.LayoutData, v OnboardingView) {
 				<input type="hidden" name="return_to" value={ v.ReturnTo }/>
 			}
 			{{ nameField := FieldProps{ID: "display_name", Label: d.Tr("onboarding.display_name"), Required: true} }}
-			@Field(d, nameField) {
+			@FormField(d, nameField) {
 				<input name="display_name" type="text" value={ v.DisplayName } class={ InputClass() } { InputAttrs(nameField)... }/>
 			}
 			<label class="flex items-start gap-2 text-sm text-foreground">

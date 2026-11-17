@@ -40,7 +40,7 @@ templ webhookGuideNote(text, header string) {
 		<span class="min-w-0 flex-1">
 			{ text }
 			if header != "" {
-				<code class="ml-1 rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{ header }</code>
+				<code class="ms-1 rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{ header }</code>
 			}
 		</span>
 	</li>
@@ -48,7 +48,7 @@ templ webhookGuideNote(text, header string) {
 
 // WebhookGuide is the "How to integrate" panel on the endpoint list; it opens by default while the project has no endpoints.
 templ WebhookGuide(d web.LayoutData, g WebhookGuideView) {
-	<details data-webhook-guide open?={ g.Open } class="mt-6 surface p-5">
+	<details data-webhook-guide open?={ g.Open } class="mt-6 rounded-box border border-base-300 bg-base-100 p-5">
 		<summary class="cursor-pointer text-sm font-semibold text-foreground">{ d.Tr("webhooks.guide_heading") }</summary>
 		<p class="mt-2 text-sm text-muted-foreground">{ d.Tr("webhooks.guide_intro") }</p>
 		<ol class="mt-4 space-y-2 text-sm text-foreground/90">
@@ -91,7 +91,7 @@ func webhookSnippetTabs(d web.LayoutData, g WebhookGuideView) TabsProps {
 
 // WebhookVerifyPanel is the collapsible "Verify signatures" section: one copyable verifier per language, switched by tabs.
 templ WebhookVerifyPanel(d web.LayoutData, g WebhookGuideView) {
-	<details data-webhook-verify class="mt-6 surface p-5">
+	<details data-webhook-verify class="mt-6 rounded-box border border-base-300 bg-base-100 p-5">
 		<summary class="cursor-pointer text-sm font-semibold text-foreground">{ d.Tr("webhooks.verify_heading") }</summary>
 		<p class="mt-2 text-sm text-muted-foreground">{ d.Tr("webhooks.verify_intro") }</p>
 		<p class="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

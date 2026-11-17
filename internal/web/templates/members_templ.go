@@ -50,7 +50,7 @@ func membersActions(d web.LayoutData, v MembersView) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if v.CanManage {
-			templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonPrimary, Icon: "user-plus", Label: d.Tr("members.invite_button"), Href: d.Href("/orgs/" + v.OrgSlug + "/invites")}).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonPrimary, Icon: "user-plus", Label: d.Tr("members.invite_button"), Href: d.Href("/orgs/" + v.OrgSlug + "/invites")}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -125,7 +125,7 @@ func MembersPage(d web.LayoutData, v MembersView) templ.Component {
 							}()
 						}
 						ctx = templ.InitializeContext(ctx)
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"min-w-0 flex-1\"><p class=\"flex items-center gap-2 truncate text-sm font-medium text-foreground\"><span class=\"truncate\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"min-w-0 flex-1\"><p class=\"flex items-center gap-2 truncate text-sm font-medium text-base-content\"><span class=\"truncate\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -154,7 +154,7 @@ func MembersPage(d web.LayoutData, v MembersView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</p><p class=\"truncate text-xs text-muted-foreground\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</p><p class=\"text-xs break-all text-base-content/70\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -185,7 +185,7 @@ func MembersPage(d web.LayoutData, v MembersView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						if v.CanManage && m.Removable {
-							templ_7745c5c3_Err = ConfirmDialog(d, ConfirmProps{
+							templ_7745c5c3_Err = ConfirmModal(d, ConfirmProps{
 								ID:           "remove-" + m.UserID,
 								Title:        d.Tr("members.remove_confirm_title"),
 								Body:         d.Tr("members.remove_confirm_body", "Email", m.Email),

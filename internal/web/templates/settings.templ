@@ -2,19 +2,31 @@ package templates
 
 import (
 	"strconv"
+	"time"
 
 	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
 )
 
-// SettingsView is the project settings page model.
+// SettingsView is the project settings page model; NameError and Error hold translation keys.
 type SettingsView struct {
-	ProjectSlug string
-	Days        int
-	Pending     int64
-	Min         int
-	Max         int
-	Error       string
-	CanManage   bool
+	OrgSlug       string
+	OrgID         string
+	ProjectSlug   string
+	ProjectID     string
+	Name          string
+	NameError     string
+	NameSaved     bool
+	System        bool
+	CanManage     bool
+	CanRename     bool
+	Days          int
+	Pending       int64
+	Min           int
+	Max           int
+	RetentionAt   time.Time
+	RetentionZone string
+	Error         string
 }
 
 templ SettingsLayout(d web.LayoutData, v SettingsView) {
@@ -22,26 +34,156 @@ templ SettingsLayout(d web.LayoutData, v SettingsView) {
 }
 
 templ SettingsPage(d web.LayoutData, v SettingsView) {
-	<section class="max-w-2xl space-y-6">
+	<section class="max-w-2xl">
 		@PageHeader(d, PageHeaderProps{Title: d.Tr("settings.title"), Subtitle: d.Tr("settings.subtitle")})
-		@Card(CardProps{Title: d.Tr("settings.retention_title"), Description: d.Tr("settings.retention_description")}) {
+		<div class="flex flex-col gap-4 lg:gap-6">
+			if v.System {
+				<div role="note" class="alert alert-info alert-soft">
+					@icons.Icon("lock", "size-5 shrink-0")
+					<span>{ d.Tr("settings.name_locked") }</span>
+				</div>
+			} else if !v.CanRename {
+				<div role="note" class="alert alert-info alert-soft">
+					@icons.Icon("lock", "size-5 shrink-0")
+					<span>{ d.Tr("settings.name_member") }</span>
+				</div>
+			}
+			@settingsGeneral(d, v)
+			@settingsMessages(d, v)
+		</div>
+	</section>
+}
+
+func settingsNameField(d web.LayoutData, v SettingsView) FieldProps {
+	p := FieldProps{ID: "settings-name", Label: d.Tr("settings.name"), Help: d.Tr("settings.name_hint")}
+	if v.NameError != "" {
+		p.Error = d.Tr(v.NameError)
+	}
+	if !v.CanRename {
+		p.Help = ""
+	}
+	return p
+}
+
+templ settingsGeneral(d web.LayoutData, v SettingsView) {
+	<form method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/rename")) } class="card border border-base-300 bg-base-100" novalidate>
+		<div class="card-body min-w-0 gap-3 p-6">
+			<h2 class="card-title text-base">{ d.Tr("settings.general") }</h2>
+			if v.NameSaved {
+				<p role="status" class="alert alert-success alert-soft text-sm">{ d.Tr("settings.name_saved") }</p>
+			}
+			{{ name := settingsNameField(d, v) }}
+			@FormField(d, name) {
+				<input
+					name="name"
+					dir="auto"
+					type="text"
+					value={ v.Name }
+					maxlength="200"
+					autocomplete="off"
+					required
+					disabled?={ !v.CanRename }
+					class={ InputClass(), templ.KV("input-error", name.Error != "") }
+					{ InputAttrs(name)... }
+				/>
+			}
+			@settingsCopyField(d, "settings-project-id", d.Tr("settings.project_id"), d.Tr("settings.project_id_hint"), v.ProjectSlug)
+			@Disclosure(d.Tr("settings.advanced")) {
+				<dl class="grid min-w-0 gap-3">
+					@KeyValue(d.Tr("settings.org_uuid")) {
+						<span class="font-mono break-all" dir="ltr">{ v.OrgID }</span>
+					}
+					@KeyValue(d.Tr("settings.project_uuid")) {
+						<span class="font-mono break-all" dir="ltr">{ v.ProjectID }</span>
+					}
+				</dl>
+			}
+			if v.CanRename {
+				<div class="card-actions justify-end">
+					<button type="submit" class={ ButtonClass(ButtonPrimary) }>{ d.Tr("settings.save_name") }</button>
+				</div>
+			}
+		</div>
+	</form>
+}
+
+templ settingsCopyField(d web.LayoutData, id, label, hint, value string) {
+	@FormField(d, FieldProps{ID: id, Label: label, Help: hint}) {
+		<div class="join w-full">
+			<label class="input join-item h-11 w-full lg:input-sm">
+				@icons.Icon("lock", "size-4 shrink-0 opacity-70")
+				<input id={ id } class="min-w-0 font-mono" value={ value } dir="ltr" readonly aria-describedby={ id + "-help" }/>
+			</label>
+			<button
+				type="button"
+				class="btn join-item whitespace-nowrap lg:btn-sm"
+				data-copy={ value }
+				data-copy-label={ d.Tr("common.copy") + ": " + label }
+				data-copied-label={ d.Tr("common.copied") }
+				aria-label={ d.Tr("common.copy") + ": " + label }
+			>
+				<span data-copy-idle class="contents">
+					@icons.Icon("copy", "size-4")
+				</span>
+				<span data-copy-done hidden class="contents">
+					@icons.Icon("check", "size-4")
+				</span>
+				<span>{ d.Tr("common.copy") }</span>
+			</button>
+		</div>
+	}
+}
+
+templ settingsMessages(d web.LayoutData, v SettingsView) {
+	<section class="card border border-base-300 bg-base-100" aria-labelledby="settings-messages">
+		<div class="card-body min-w-0 gap-3 p-6">
+			<h2 id="settings-messages" class="card-title text-base">{ d.Tr("settings.messages_title") }</h2>
 			{{ days := FieldProps{ID: "retention-days", Label: d.Tr("settings.days_label"), Help: d.Tr("settings.days_help", "Min", v.Min, "Max", v.Max), Required: true} }}
 			if v.Error != "" {
 				{{ days.Error = d.Tr(v.Error, "Min", v.Min, "Max", v.Max) }}
 			}
 			if v.CanManage {
-				<form method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/settings/retention")) } class="space-y-4">
-					@Field(d, days) {
-						<input name="days" type="number" min={ strconv.Itoa(v.Min) } max={ strconv.Itoa(v.Max) } required value={ strconv.Itoa(v.Days) } class={ InputClass() + " w-32" } { InputAttrs(days)... }/>
+				<form method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/settings/retention")) } class="flex flex-col gap-3">
+					@FormField(d, days) {
+						<input name="days" type="number" min={ strconv.Itoa(v.Min) } max={ strconv.Itoa(v.Max) } required value={ strconv.Itoa(v.Days) } class={ InputClass(), "sm:w-40", templ.KV("input-error", days.Error != "") } { InputAttrs(days)... }/>
 					}
-					<p data-pending class="text-sm text-muted-foreground">{ d.TrN("settings.pending", int(v.Pending)) }</p>
-					@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("settings.save")})
+					@settingsRetentionTime(d, v)
+					<p data-pending class="text-sm text-base-content/70">{ d.TrN("settings.pending", int(v.Pending)) }</p>
+					<div class="card-actions justify-end">
+						<button type="submit" class={ ButtonClass(ButtonPrimary) }>{ d.Tr("settings.save") }</button>
+					</div>
 				</form>
 			} else {
-				<p class="text-sm text-foreground">{ d.Tr("settings.days_readonly", "Days", v.Days) }</p>
-				<p data-pending class="text-sm text-muted-foreground">{ d.TrN("settings.pending", int(v.Pending)) }</p>
-				<p class="text-sm text-muted-foreground">{ d.Tr("common.managers_only") }</p>
+				<p class="text-sm">{ d.Tr("settings.days_readonly", "Days", v.Days) }</p>
+				@settingsRetentionTime(d, v)
+				<p data-pending class="text-sm text-base-content/70">{ d.TrN("settings.pending", int(v.Pending)) }</p>
+				<p class="text-sm text-base-content/70">{ d.Tr("common.managers_only") }</p>
 			}
-		}
+		</div>
 	</section>
+}
+
+templ settingsRetentionTime(d web.LayoutData, v SettingsView) {
+	if !v.RetentionAt.IsZero() {
+		{{ at := v.RetentionAt.UTC().Format(time.RFC3339) }}
+		<div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-base-content/70">
+			<span>
+				{ d.Tr("settings.cleanup_prefix") }
+				<time datetime={ at } data-local="time" class="font-medium text-base-content">{ v.RetentionAt.UTC().Format("15:04 UTC") }</time>
+				{ d.Tr("settings.cleanup_suffix") }
+			</span>
+			if v.RetentionZone != "" {
+				<details class="dropdown" data-zone-alt data-zone={ v.RetentionZone } data-at={ at } hidden>
+					<summary class="btn btn-ghost btn-sm min-h-11 gap-1 px-2 font-normal whitespace-nowrap lg:btn-xs lg:min-h-6">
+						@icons.Icon("clock", "size-3.5")
+						{ d.Tr("settings.project_time") }
+					</summary>
+					<div class="dropdown-content z-10 mt-1 w-64 rounded-box border border-base-300 bg-base-100 p-3 text-sm shadow-md">
+						<time datetime={ at } data-local="time" data-tz={ v.RetentionZone } class="font-medium">{ v.RetentionAt.UTC().Format("15:04 UTC") }</time>
+						<p class="mt-1 text-base-content/70">{ d.Tr("settings.project_time_hint", "Zone", v.RetentionZone) }</p>
+					</div>
+				</details>
+			}
+		</div>
+	}
 }

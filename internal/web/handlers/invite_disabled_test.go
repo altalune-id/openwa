@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"altalune.id/openwa/internal/apperror"
 	"altalune.id/openwa/internal/invite"
 	"altalune.id/openwa/internal/org"
 	"altalune.id/openwa/internal/platform/capabilities"
@@ -54,5 +55,5 @@ func TestInviteHandler_PostSend_ReturnsConflictWhenDisabled(t *testing.T) {
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, f.authedRequest(t, http.MethodPost, "/orgs/acme/invites", "email=b@c.co&role=member", session.Principal{UserID: uid}))
 	assert.Equal(t, http.StatusConflict, rec.Code)
-	assert.Contains(t, rec.Body.String(), "disabled")
+	assert.Contains(t, rec.Body.String(), apperror.CodeInviteDisabled, "the error page names the disabled-invites code")
 }

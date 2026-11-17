@@ -10,7 +10,7 @@ type OrgsView struct {
 
 templ orgsActions(d web.LayoutData) {
 	if d.Caps.OrgCreation {
-		@Button(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("nav.new_organization"), Href: d.Href("/orgs/new")})
+		@AppButton(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("nav.new_organization"), Href: d.Href("/orgs/new")})
 	}
 }
 
@@ -27,15 +27,15 @@ templ OrgsPage(d web.LayoutData, v OrgsView) {
 				for _, o := range v.Orgs {
 					@ListRow(d, nil) {
 						<div class="min-w-0 flex-1">
-							<p class="flex items-center gap-2 truncate text-sm font-medium text-foreground">
+							<p class="flex items-center gap-2 truncate text-sm font-medium text-base-content">
 								<span class="truncate">{ o.Name }</span>
 								if o.System {
 									@Badge(ToneWarning, d.Tr("common.system"))
 								}
 							</p>
-							<p class="truncate text-xs text-muted-foreground">{ o.Slug }</p>
+							<p class="truncate text-xs text-base-content/70">{ o.Slug }</p>
 						</div>
-						@Button(ButtonProps{Kind: ButtonGhost, Label: d.Tr("common.open"), Href: d.Href("/orgs/" + o.Slug + "/projects")})
+						@AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("common.open"), Href: d.Href("/orgs/" + o.Slug)})
 					}
 				}
 			}

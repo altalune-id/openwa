@@ -1,6 +1,8 @@
 package web_test
 
 import (
+	"regexp"
+	"strings"
 	"testing"
 
 	"altalune.id/openwa/internal/i18n"
@@ -131,13 +133,13 @@ func TestLayoutData_DocumentTitle(t *testing.T) {
 	}
 }
 
-func TestLayoutData_StaticCarriesAssetVersion(t *testing.T) {
+func TestLayoutData_StaticCarriesTheContentFingerprint(t *testing.T) {
 	t.Parallel()
-	d := web.LayoutData{BasePath: "/app", AssetVersion: "1.2.3"}
-	if got := d.Static("app.css"); got != "/app/static/app.css?v=1.2.3" {
-		t.Errorf("Static=%q", got)
+	got := (web.LayoutData{BasePath: "/app"}).Static("app.css")
+	if !regexp.MustCompile(`^/app/static/app\.css\?v=[0-9a-f]{12}$`).MatchString(got) {
+		t.Errorf("Static=%q, want /app/static/app.css?v=<12 hex>", got)
 	}
-	if got := (web.LayoutData{}).Static("app.css"); got != "/static/app.css" {
-		t.Errorf("unversioned=%q", got)
+	if again := (web.LayoutData{}).Static("htmx.min.js"); !strings.HasSuffix(again, got[strings.Index(got, "?v="):]) {
+		t.Errorf("assets share one fingerprint: %q vs %q", again, got)
 	}
 }

@@ -98,7 +98,7 @@ func statusTone(status string) Tone {
 }
 
 templ ThreadPane(d web.LayoutData, v ThreadView) {
-	<div id="thread" class="surface flex flex-col">
+	<div id="thread" class="rounded-box border border-base-300 bg-base-100 flex flex-col">
 		@threadHeader(d, v)
 		<div id="thread-scroll" class="flex max-h-[60vh] flex-col-reverse overflow-y-auto px-4 py-3">
 			<div>
@@ -140,7 +140,7 @@ templ threadHeader(d web.LayoutData, v ThreadView) {
 			hx-status:5xx="target:#hx-error swap:innerHTML"
 			hx-nonce={ d.Nonce }
 		>
-			@Button(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("inbox.mark_read"), Icon: "check"})
+			@AppButton(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("inbox.mark_read"), Icon: "check"})
 		</form>
 		if v.Group != nil {
 			<div class="w-full">
@@ -162,7 +162,7 @@ templ threadHeader(d web.LayoutData, v ThreadView) {
 templ ThreadOlder(d web.LayoutData, v ThreadView) {
 	<div id="thread-older" class="mb-2 flex justify-center">
 		if v.OlderCursor != "" {
-			@Button(ButtonProps{Kind: ButtonGhost, Label: d.Tr("inbox.load_older"), Attrs: templ.Attributes{
+			@AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("inbox.load_older"), Attrs: templ.Attributes{
 				"hx-get":        threadPath(d, v, messagesQuery("before", v.OlderCursor)),
 				"hx-target":     "#thread-messages",
 				"hx-swap":       "afterbegin",
@@ -270,7 +270,7 @@ templ bubbleActions(d web.LayoutData, v ThreadView, b BubbleView) {
 				}
 			</form>
 			if b.Own {
-				@ConfirmDialog(d, ConfirmProps{
+				@ConfirmModal(d, ConfirmProps{
 					ID:           "revoke-" + b.ID,
 					Title:        d.Tr("inbox.revoke_title"),
 					Body:         d.Tr("inbox.revoke_body"),
@@ -309,7 +309,7 @@ templ Composer(d web.LayoutData, v ThreadView) {
 				<span>{ d.Tr("inbox.attach", "Max", v.MaxMediaMB) }</span>
 				<input type="file" name="file" class="text-xs"/>
 			</label>
-			@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("inbox.send"), Icon: "send"})
+			@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("inbox.send"), Icon: "send"})
 		</div>
 	</form>
 }

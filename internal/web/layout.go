@@ -1,9 +1,12 @@
 package web
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"io/fs"
 	"net/http"
-	"net/url"
 	"strings"
+	"sync"
 
 	"altalune.id/openwa/internal/i18n"
 	"altalune.id/openwa/internal/platform/capabilities"
@@ -17,6 +20,9 @@ func IsHTMXRequest(r *http.Request) bool { return r.Header.Get("HX-Request") == 
 
 // HeaderPushURL is the htmx response header that pushes a URL onto the browser history after the swap.
 const HeaderPushURL = "HX-Push-Url"
+
+// HeaderRedirect is the htmx response header that makes the browser load a URL as a full page.
+const HeaderRedirect = "HX-Redirect"
 
 // HeaderRetarget is the htmx response header that replaces the requesting element's swap target.
 const HeaderRetarget = "HX-Retarget"
@@ -49,10 +55,12 @@ type ActiveNav struct {
 
 // ActiveOrg is what the org switcher pill and menu heading show.
 type ActiveOrg struct {
-	ID   string
-	Slug string
-	Name string
-	Role string
+	ID        string
+	Slug      string
+	Name      string
+	Role      string
+	System    bool
+	CanManage bool
 }
 
 // ActiveProject is what the project switcher pill and sidebar heading show.
@@ -64,16 +72,17 @@ type ActiveProject struct {
 
 // LayoutData is the shape every page-level templ component receives.
 type LayoutData struct {
-	Title         string
-	BasePath      string
-	BaseURL       string
-	Version       string
-	BrandName     string
-	AssetVersion  string
-	Caps          capabilities.Capabilities
-	Principal     *session.Principal
-	Flash         *FlashMessage
-	Content       templ.Component
+	Title     string
+	BasePath  string
+	BaseURL   string
+	Version   string
+	BrandName string
+	Caps      capabilities.Capabilities
+	Principal *session.Principal
+	Flash     *FlashMessage
+	Content   templ.Component
+	// Dialogs renders in the body-level dialog host, outside every swap target.
+	Dialogs       templ.Component
 	ActiveOrg     *ActiveOrg
 	OtherOrgs     []ActiveOrg
 	ActiveProject *ActiveProject
@@ -85,8 +94,10 @@ type LayoutData struct {
 	Translator    *i18n.Translator
 	CurrentPath   string
 	SupportedLocs []i18n.Locale
-	Themes        []Theme
-	ColorModes    []ColorMode
+	// Theme is the resolved choice the picker shows checked.
+	Theme ThemePref
+	// ThemeAttr is the data-theme rendered on <html>; empty for System.
+	ThemeAttr string
 	// RequestID is echoed on every user-visible error so a report can be matched to a log line.
 	RequestID string
 	// SECURITY: every <script> the layout renders must carry this, or the browser refuses to run it.
@@ -165,11 +176,30 @@ type Crumb struct {
 
 // Static returns a basePath-aware, cache-busted URL for a vendored asset (e.g. static/htmx.min.js).
 func (d LayoutData) Static(sub string) string {
-	u := Path(d.BasePath, "static/"+sub)
-	if d.AssetVersion == "" {
-		return u
+	return Path(d.BasePath, "static/"+sub) + "?v=" + staticFingerprint()
+}
+
+// NOTE: hashes the embedded assets, not the build version, so an edited asset busts the immutable static cache.
+var staticFingerprint = sync.OnceValue(func() string { return computeStaticFingerprint(StaticFS()) }) //nolint:gochecknoglobals // memoized once, not runtime state.
+
+func computeStaticFingerprint(fsys fs.FS) string {
+	sum := sha256.New()
+	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		b, rErr := fs.ReadFile(fsys, path)
+		if rErr != nil {
+			return rErr
+		}
+		_, _ = sum.Write([]byte(path))
+		_, _ = sum.Write(b)
+		return nil
+	})
+	if err != nil {
+		return "dev"
 	}
-	return u + "?v=" + url.QueryEscape(d.AssetVersion)
+	return hex.EncodeToString(sum.Sum(nil))[:12]
 }
 
 // DocumentTitle composes the <title> as page, then org or project, then brand.
@@ -229,6 +259,12 @@ func (d LayoutData) OIDCButtonLogoURL() string {
 		return s
 	}
 	return d.Static("altalune-logo.png")
+}
+
+// WithDialogs returns a copy of d with Dialogs set.
+func WithDialogs(d LayoutData, c templ.Component) LayoutData {
+	d.Dialogs = c
+	return d
 }
 
 // WithContent returns a copy of d with Content set.

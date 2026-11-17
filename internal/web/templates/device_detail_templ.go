@@ -610,7 +610,7 @@ func DevicePairing(d web.LayoutData, v DevicePairingView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.pair_qr"), Icon: "qr-code"}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.pair_qr"), Icon: "qr-code"}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -714,11 +714,11 @@ func DevicePairing(d web.LayoutData, v DevicePairingView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = Field(d, FieldProps{ID: "phone", Label: d.Tr("devices.phone_label"), Help: d.Tr("devices.phone_help"), Error: v.PhoneError}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var31), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = FormField(d, FieldProps{ID: "phone", Label: d.Tr("devices.phone_label"), Help: d.Tr("devices.phone_help"), Error: v.PhoneError}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var31), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("devices.pair_phone")}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("devices.pair_phone")}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -836,7 +836,7 @@ func deviceRulesCard(d web.LayoutData, v DeviceDetailView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.save_rules")}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.save_rules")}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1041,7 +1041,7 @@ func deviceRulesFields(d web.LayoutData, v DeviceDetailView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = Field(d, FieldProps{ID: "allowed_senders", Label: d.Tr("devices.allowed_senders"), Help: d.Tr("devices.allowed_senders_help"), Error: v.Rules.Errors["allowed_senders"]}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var45), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = FormField(d, FieldProps{ID: "allowed_senders", Label: d.Tr("devices.allowed_senders"), Help: d.Tr("devices.allowed_senders_help"), Error: v.Rules.Errors["allowed_senders"]}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var45), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1115,7 +1115,7 @@ func deviceRulesFields(d web.LayoutData, v DeviceDetailView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = Field(d, FieldProps{ID: "allowed_groups", Label: d.Tr("devices.allowed_groups"), Help: d.Tr("devices.allowed_groups_help"), Error: v.Rules.Errors["allowed_groups"]}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var50), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = FormField(d, FieldProps{ID: "allowed_groups", Label: d.Tr("devices.allowed_groups"), Help: d.Tr("devices.allowed_groups_help"), Error: v.Rules.Errors["allowed_groups"]}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var50), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1176,7 +1176,7 @@ func deviceRulesFields(d web.LayoutData, v DeviceDetailView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = Field(d, FieldProps{ID: "trigger_prefix", Label: d.Tr("devices.trigger_prefix"), Help: d.Tr("devices.trigger_prefix_help"), Error: v.Rules.Errors["trigger_prefix"]}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var55), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = FormField(d, FieldProps{ID: "trigger_prefix", Label: d.Tr("devices.trigger_prefix"), Help: d.Tr("devices.trigger_prefix_help"), Error: v.Rules.Errors["trigger_prefix"]}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var55), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1245,7 +1245,7 @@ func groupModeOption(current, value, label string) templ.Component {
 			templ_7745c5c3_Var61 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "<label class=\"chip inline-flex cursor-pointer has-[:disabled]:cursor-not-allowed items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm\"><input type=\"radio\" name=\"group_mode\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "<label class=\"inline-flex cursor-pointer has-[:disabled]:cursor-not-allowed items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm has-checked:border-primary has-checked:bg-primary/10\"><input type=\"radio\" name=\"group_mode\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1409,7 +1409,7 @@ func deviceRenameCard(d web.LayoutData, v DeviceDetailView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = Field(d, FieldProps{ID: "rename-name", Label: d.Tr("devices.name"), Error: v.RenameError, Required: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var68), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = FormField(d, FieldProps{ID: "rename-name", Label: d.Tr("devices.name"), Error: v.RenameError, Required: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var68), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1417,7 +1417,7 @@ func deviceRenameCard(d web.LayoutData, v DeviceDetailView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("devices.rename")}).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("devices.rename")}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1491,7 +1491,7 @@ func deviceDangerZone(d web.LayoutData, v DeviceDetailView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = ConfirmDialog(d, ConfirmProps{
+				templ_7745c5c3_Err = ConfirmModal(d, ConfirmProps{
 					ID:           "device-logout",
 					Title:        d.Tr("devices.logout_title"),
 					Body:         d.Tr("devices.logout_body"),
@@ -1503,7 +1503,7 @@ func deviceDangerZone(d web.LayoutData, v DeviceDetailView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = ConfirmDialog(d, ConfirmProps{
+				templ_7745c5c3_Err = ConfirmModal(d, ConfirmProps{
 					ID:           "device-delete",
 					Title:        d.Tr("devices.delete_title"),
 					Body:         d.Tr("devices.delete_body"),

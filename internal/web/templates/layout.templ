@@ -7,221 +7,349 @@ import (
 
 templ Layout(d web.LayoutData) {
 	<!DOCTYPE html>
-	<html lang={ layoutLang(d) } dir={ layoutDir(d) } data-default-theme={ web.DefaultThemeKey }>
+	<html
+		lang={ layoutLang(d) }
+		dir={ layoutDir(d) }
+		if d.ThemeAttr != "" {
+			data-theme={ d.ThemeAttr }
+		}
+	>
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>{ d.DocumentTitle() }</title>
-			<link rel="icon" type="image/svg+xml" href={ d.Static("favicon.svg") }/>
-			<link rel="icon" href={ d.Static("favicon.ico") } sizes="any"/>
+			<link rel="icon" type="image/svg+xml" href={ d.Static(brandIcon) }/>
 			<link rel="icon" type="image/png" sizes="32x32" href={ d.Static("favicon-32x32.png") }/>
+			<link rel="icon" type="image/png" sizes="16x16" href={ d.Static("favicon-16x16.png") }/>
 			<link rel="apple-touch-icon" href={ d.Static("apple-touch-icon.png") }/>
-			@themeInitScript(d.Nonce)
+			@ThemeMetas(d)
 			if d.CSPEnforced {
 				<!-- SECURITY: whitelists the one extension we load, so a stray script cannot register another. -->
 				<meta name="htmx-config" content="extensions:&#34;hx-csp&#34;"/>
 			}
-			<link rel="stylesheet" href={ d.Static("basecoat.css") }/>
 			<link rel="stylesheet" href={ d.Static("app.css") }/>
 			<script src={ d.Static("htmx.min.js") } nonce={ d.Nonce } defer></script>
 			if d.CSPEnforced {
 				<script src={ d.Static("hx-csp.min.js") } nonce={ d.Nonce } defer></script>
 			}
 			@htmxRequestHooks(d.Nonce)
-			<link rel="stylesheet" href={ d.Static("themes.css") }/>
-			<style>
-				summary::-webkit-details-marker { display: none; }
-				summary { list-style: none; cursor: pointer; }
-				details[open] > summary .chev { transform: rotate(180deg); }
-			</style>
-			<noscript><style>dialog[data-confirm] { display: block; position: static; margin-top: 0.5rem; }</style></noscript>
+			<script src={ d.Static("dialog.js") } nonce={ d.Nonce } defer></script>
+			<script src={ d.Static("dropdown.js") } nonce={ d.Nonce } defer></script>
+			<script src={ d.Static("tips.js") } nonce={ d.Nonce } defer></script>
+			<script src={ d.Static("copy.js") } nonce={ d.Nonce } defer></script>
+			<script src={ d.Static("localtime.js") } nonce={ d.Nonce } defer></script>
 		</head>
-		<body class="min-h-screen bg-background text-foreground antialiased">
-			<a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:text-foreground focus:shadow-sm">{ d.Tr("nav.skip_to_content") }</a>
-			@topNav(d)
-			if d.Principal != nil && d.ActiveNav.Scope != web.NavScopeNone {
-				<div class="flex min-h-[calc(100vh-3.5rem)]">
-					<aside aria-label={ d.Tr("common.workspace") } class="sticky top-14 z-20 hidden h-[calc(100vh-3.5rem)] shrink-0 flex-col md:flex md:w-60 md:border-r border-subtle" style="background:hsl(var(--card));color:hsl(var(--card-foreground));">
-						@orgSwitcherHeader(d)
-						<div class="flex-1 overflow-y-auto">
-							@orgSidebar(d)
-						</div>
-						@sidebarFooterUtils(d)
-					</aside>
-					if d.ActiveNav.Scope == web.NavScopeProject || d.ActiveNav.Scope == web.NavScopeSettings {
-						<aside aria-label={ d.Tr("common.project") } class="sticky top-14 hidden h-[calc(100vh-3.5rem)] shrink-0 flex-col md:flex md:w-64 md:border-r border-subtle" style="background:hsl(var(--card));color:hsl(var(--card-foreground));">
-							<div class="flex-1 overflow-y-auto">
-								@secondarySidebar(d)
-							</div>
-						</aside>
-					}
-					<main id="main" tabindex="-1" class="flex-1 min-w-0 px-4 py-4 md:px-8 md:py-6">
-						@Breadcrumb(d)
-						<div id="hx-error" class="mb-4 empty:hidden empty:mb-0" aria-live="polite"></div>
-						@d.Content
-					</main>
+		<body class="min-h-dvh bg-base-200 font-sans text-base-content antialiased">
+			<a href="#main" class="btn btn-sm sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-50">{ d.Tr("nav.skip_to_content") }</a>
+			if hasShell(d) {
+				<div class="drawer lg:drawer-open">
+					<input id="alt-drawer" type="checkbox" class="drawer-toggle" tabindex="-1" autocomplete="off" aria-label={ d.Tr("nav.open_menu") }/>
+					<div class="drawer-content flex min-h-dvh min-w-0 flex-col">
+						@shellNavbar(d)
+						<main id="main" tabindex="-1" class="w-full max-w-6xl flex-1 p-4 outline-none lg:px-8 lg:py-6">
+							@Breadcrumb(d)
+							@pageNotices(d)
+							@d.Content
+						</main>
+					</div>
+					<div class="drawer-side z-40">
+						<label for="alt-drawer" aria-label={ d.Tr("nav.close_menu") } class="drawer-overlay"></label>
+						@rail(d)
+					</div>
 				</div>
 			} else {
-				<main id="main" tabindex="-1" class="mx-auto max-w-6xl px-4 py-6 md:py-10">
-					<div id="hx-error" class="mb-4 empty:hidden empty:mb-0" aria-live="polite"></div>
+				@topNav(d)
+				<main id="main" tabindex="-1" class="mx-auto max-w-6xl px-4 py-6 outline-none md:py-10">
+					@pageNotices(d)
 					@d.Content
 					if d.Principal == nil && len(d.SupportedLocs) > 1 {
 						@publicLocaleFooter(d)
 					}
 				</main>
 			}
-			if d.Principal != nil && d.ActiveNav.Scope != web.NavScopeNone {
-				@mobileDrawer(d)
-				@drawerScript(d.Nonce)
-			}
-			@ToastRegion(d)
-			@confirmScript(d.Nonce)
-			@copyScript(d.Nonce)
-			<script nonce={ d.Nonce }>
-				document.addEventListener('click', function(e) {
-					document.querySelectorAll('details[data-switcher][open]').forEach(function(d) {
-						if (!d.contains(e.target)) d.removeAttribute('open');
-					});
-				});
-				document.addEventListener('keydown', function(e) {
-					if (e.key === 'Escape') {
-						document.querySelectorAll('details[data-switcher][open]').forEach(function(d) {
-							d.removeAttribute('open');
-						});
-					}
-				});
-				document.querySelectorAll('details[data-switcher]').forEach(function(d) {
-					d.addEventListener('toggle', function() {
-						if (!d.open) return;
-						document.querySelectorAll('details[data-switcher][open]').forEach(function(o) {
-							if (o !== d) o.removeAttribute('open');
-						});
-					});
-				});
-			</script>
+			@ToastHost(d)
+			@dialogHost(d)
 		</body>
 	</html>
 }
 
+templ dialogHost(d web.LayoutData) {
+	<div id="dialog-host" hx-morph-skip hx-nonce={ d.Nonce }>
+		if hasShell(d) {
+			@switcherSheet(d)
+		}
+		if d.Dialogs != nil {
+			@d.Dialogs
+		}
+	</div>
+}
+
+func hasShell(d web.LayoutData) bool {
+	return d.Principal != nil && d.ActiveNav.Scope != web.NavScopeNone
+}
+
+templ pageNotices(d web.LayoutData) {
+	<div id="hx-error" class="mb-4 empty:hidden empty:mb-0" aria-live="polite"></div>
+}
+
 templ topNav(d web.LayoutData) {
-	<header class="sticky top-0 z-30 h-14 border-b border-subtle backdrop-blur" style="background:hsl(var(--card) / 0.92);color:hsl(var(--card-foreground));">
-		<div class="flex h-full items-center gap-3 px-4 md:px-6">
-			if d.Principal != nil && d.ActiveNav.Scope != web.NavScopeNone {
-				<button type="button" id="drawer-toggle" aria-controls="drawer" aria-expanded="false" aria-label={ d.Tr("nav.open_menu") } class="md:hidden inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted">
-					@icons.Icon("menu", "h-5 w-5")
-				</button>
-			}
+	<header class="navbar sticky top-0 z-30 min-h-14 border-b border-base-300 bg-base-100 px-4 md:px-6">
+		<div class="navbar-start">
 			<a href={ templ.SafeURL(d.Href("/")) } class="flex items-center gap-2">
-				<img src={ d.Static("openwa-mark.svg") } alt={ d.BrandName } width="20" height="20" class="h-5 w-5"/>
-				<span aria-hidden="true" class="hidden text-sm font-semibold tracking-tight text-foreground sm:inline">{ d.BrandName }</span>
+				@brandMark("size-7")
+				@brandName(d.BrandName)
 			</a>
-			if d.ActiveProject != nil {
-				<span aria-hidden="true" class="hidden text-muted-foreground/70 md:inline">/</span>
-				<div class="hidden md:block">
-					@projectSwitcherPill(d)
-				</div>
-			}
-			<div class="ml-auto flex items-center gap-2">
-				if d.Principal == nil {
-					@publicUtilityBar(d)
-				} else if d.Principal.Email != "" {
-					@userMenu(d)
-					@themeApplyScript(d.Nonce)
+		</div>
+		<div class="navbar-end">
+			if d.Principal == nil {
+				@AppDropdown(modeTrigger(d), d.Tr("theme.mode"), "", "btn-ghost lg:btn-sm", "end-0 top-full mt-1 max-h-[70dvh] w-64 overflow-y-auto") {
+					@ThemePicker(d)
 				}
-			</div>
+			} else if d.Principal.Email != "" {
+				@userMenu(d, "", "btn-ghost max-w-60 justify-start lg:btn-sm", "end-0 top-full mt-1 w-64")
+			}
 		</div>
 	</header>
 }
 
-templ publicUtilityBar(d web.LayoutData) {
-	if len(d.ColorModes) > 0 {
-		<div>
-			@colorModeSelectorPill(d, false)
-		</div>
+templ modeTrigger(d web.LayoutData) {
+	@modeIcon(d.Theme.Mode)
+	<span class="max-sm:sr-only">{ d.Tr(themeModeKey(d.Theme.Mode)) }</span>
+}
+
+templ modeIcon(m string) {
+	switch m {
+		case web.ModeLight:
+			@icons.Icon("sun", "size-4")
+		case web.ModeDark:
+			@icons.Icon("moon", "size-4")
+		default:
+			@icons.Icon("monitor", "size-4")
 	}
-	@themeApplyScript(d.Nonce)
+}
+
+templ shellNavbar(d web.LayoutData) {
+	<header class="navbar sticky top-0 z-30 min-h-14 gap-1 border-b border-base-300 bg-base-100 px-4 py-1.5 lg:hidden">
+		<label for="alt-drawer" role="button" tabindex="0" aria-expanded="false" data-drawer-toggle class="btn btn-ghost btn-square drawer-button" aria-label={ d.Tr("nav.open_menu") }>
+			@icons.Icon("menu", "size-5")
+		</label>
+		<div class="min-w-0 flex-1">
+			@switcherPhoneTrigger(d)
+		</div>
+	</header>
+}
+
+templ rail(d web.LayoutData) {
+	<aside class="flex min-h-full w-72 max-w-[86vw] flex-col gap-4 border-e border-base-300 bg-base-100 p-4 lg:h-dvh lg:w-64">
+		<a href={ templ.SafeURL(d.Href("/")) } class="flex shrink-0 items-center gap-2 px-3">
+			@brandMark("size-7")
+			@brandName(d.BrandName)
+		</a>
+		@switcherRail(d)
+		<ul class="menu min-h-0 w-full grow flex-nowrap gap-1 overflow-y-auto p-0 max-lg:[&_a]:min-h-11 max-lg:[&_a]:content-center max-lg:[&_summary]:min-h-11 max-lg:[&_summary]:content-center">
+			switch d.ActiveNav.Scope {
+				case web.NavScopeProject:
+					@projectMenu(d)
+				case web.NavScopeSettings:
+					@settingsMenu(d)
+					@orgMenu(d)
+				default:
+					@orgMenu(d)
+			}
+		</ul>
+		if d.ActiveNav.Scope == web.NavScopeProject && d.ActiveProject != nil {
+			<ul class="menu w-full shrink-0 gap-1 border-t border-base-300 p-0 pt-3 max-lg:[&_a]:min-h-11 max-lg:[&_a]:content-center">
+				for _, it := range projectFooterNav() {
+					if it.Org {
+						@menuLink(d.OrgPath(it.Path), it.Icon, d.Tr(it.LabelKey), false)
+					} else {
+						@menuLink(d.ProjectPath(d.ActiveProject.Slug, it.Path), it.Icon, d.Tr(it.LabelKey), d.ProjectMenuActive(it.Key))
+					}
+				}
+			</ul>
+		}
+		@railFooter(d)
+	</aside>
+}
+
+templ menuLink(href, icon, label string, active bool) {
+	<li>
+		<a
+			href={ templ.SafeURL(href) }
+			if active {
+				class="menu-active"
+				aria-current="page"
+			}
+		>
+			@icons.Icon(icon, "size-4 shrink-0")
+			<span class="truncate">{ label }</span>
+		</a>
+	</li>
+}
+
+templ projectMenu(d web.LayoutData) {
+	if p := d.ActiveProject; p != nil {
+		for _, g := range projectNav() {
+			if g.LabelKey == "" {
+				for _, it := range g.Items {
+					@menuLink(d.ProjectPath(p.Slug, it.Path), it.Icon, d.Tr(it.LabelKey), d.ProjectMenuActive(it.Key))
+				}
+			} else if g.Collapsed {
+				<li class="mt-1">
+					<details open?={ groupActive(d, g) }>
+						<summary>
+							@icons.Icon("code", "size-4 shrink-0")
+							<span class="truncate">{ d.Tr(g.LabelKey) }</span>
+						</summary>
+						<ul>
+							for _, it := range g.Items {
+								@menuLink(d.ProjectPath(p.Slug, it.Path), it.Icon, d.Tr(it.LabelKey), d.ProjectMenuActive(it.Key))
+							}
+						</ul>
+					</details>
+				</li>
+			} else {
+				<li class="menu-title mt-1 flex h-8 justify-center px-3 py-0">{ d.Tr(g.LabelKey) }</li>
+				for _, it := range g.Items {
+					@menuLink(d.ProjectPath(p.Slug, it.Path), it.Icon, d.Tr(it.LabelKey), d.ProjectMenuActive(it.Key))
+				}
+			}
+		}
+	} else {
+		if canCreateProject(d) {
+			<li class="menu-title flex h-8 justify-center px-3 py-0">{ d.Tr("common.project") }</li>
+			@menuLink(d.OrgPath("/projects/new"), "plus", d.Tr("nav.create_project"), false)
+		}
+	}
+}
+
+func groupActive(d web.LayoutData, g navGroup) bool {
+	for _, it := range g.Items {
+		if d.ProjectMenuActive(it.Key) {
+			return true
+		}
+	}
+	return false
+}
+
+templ settingsMenu(d web.LayoutData) {
+	<li class="menu-title flex h-8 justify-center px-3 py-0">{ d.Tr("nav.settings") }</li>
+	@menuLink(d.Href("/settings/tokens"), "key", d.Tr("nav.personal_tokens"), d.ActiveNav.SettingsKey == "tokens")
+}
+
+templ orgMenu(d web.LayoutData) {
+	if o := d.ActiveOrg; o != nil {
+		<li class="menu-title mt-1 flex h-8 justify-center truncate px-3 py-0">{ o.Name }</li>
+		@orgLinks(d, o.Slug)
+	} else {
+		<li class="menu-title mt-1 flex h-8 justify-center px-3 py-0">{ d.Tr("common.workspace") }</li>
+		@menuLink(d.Href("/orgs/new"), "plus", d.Tr("nav.create_organization"), false)
+	}
+}
+
+templ orgLinks(d web.LayoutData, slug string) {
+	@menuLink(d.Href("/orgs/"+slug), "layout-dashboard", d.Tr("nav.overview"), d.ActiveNav.OrgKey == "overview")
+	@menuLink(d.Href("/orgs/"+slug+"/members"), "users", d.Tr("nav.members"), d.ActiveNav.OrgKey == "members")
+	@menuLink(d.Href("/orgs/"+slug+"/invites"), "mail", d.Tr("nav.invites"), d.ActiveNav.OrgKey == "invites")
+	@menuLink(d.Href("/orgs/"+slug+"/apikeys"), "key", d.Tr("nav.apikeys"), d.ActiveNav.OrgKey == "apikeys")
+}
+
+const railRow = "btn-ghost h-11 min-h-11 w-full list-none justify-start gap-2 border-0 px-3 text-sm font-normal [&::-webkit-details-marker]:hidden"
+
+templ railChevron() {
+	@icons.Icon("chevron-down", "ms-auto size-4 shrink-0 transition-transform group-open:rotate-180")
+}
+
+templ railFooter(d web.LayoutData) {
+	<div class="flex flex-col gap-2 border-t border-base-300 pt-3">
+		<details id="appearance" class="group w-full">
+			<summary class={ "btn", railRow }>
+				<span class="grid size-4 shrink-0 place-items-center">
+					@icons.Icon("palette", "size-4")
+				</span>
+				<span class="truncate">{ d.Tr("theme.mode") }</span>
+				@railChevron()
+			</summary>
+			<div class="p-3">
+				@ThemePicker(d)
+			</div>
+		</details>
+		if len(d.SupportedLocs) > 1 {
+			@localeMenu(d, "dropdown-top group w-full", railRow, "bottom-full start-0 mb-1 w-full")
+		}
+		if d.Principal.Email != "" {
+			@userMenu(d, "dropdown-top group w-full", railRow, "bottom-full start-0 mb-1 w-full")
+		}
+	</div>
 }
 
 templ publicLocaleFooter(d web.LayoutData) {
 	<div class="mt-10 flex justify-center">
-		<div class="w-full max-w-xs">
-			@localeSelectorPill(d, true)
-		</div>
+		@localeMenu(d, "dropdown-top", "btn-ghost w-56 justify-start lg:btn-sm", "bottom-full start-0 mb-1 w-56")
 	</div>
 }
 
-templ userMenu(d web.LayoutData) {
-	<details class="relative" data-switcher>
-		<summary class="flex items-center gap-2 rounded-md border border-border px-2 py-1 text-sm shadow-sm transition-colors hover:bg-muted/60" style="background:hsl(var(--card));color:hsl(var(--card-foreground));" aria-label={ d.Tr("common.account_menu") }>
-			@Avatar(d.Principal.Email, "h-6 w-6 text-[11px]")
-			<span class="hidden max-w-[12rem] truncate text-foreground sm:inline">{ d.Principal.Email }</span>
-			@icons.Icon("chevron-down", "chev h-4 w-4 text-muted-foreground/70 transition-transform")
-		</summary>
-		<div class="absolute right-0 top-full z-40 mt-2 w-64 popover-surface p-1" style="background:hsl(var(--popover));color:hsl(var(--popover-foreground));">
-			<div class="px-3 py-2">
-				<p class="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{ d.Tr("common.signed_in_as") }</p>
-				<p class="mt-0.5 truncate text-sm font-medium text-foreground">{ d.Principal.Email }</p>
-			</div>
-			<div class="my-1 border-t border-subtle"></div>
-			<a href={ templ.SafeURL(d.Href("/settings/tokens")) } class="flex w-full items-center gap-2 rounded px-3 py-2 text-sm text-foreground/90 hover:bg-muted">
-				@icons.Icon("settings", "h-4 w-4 text-muted-foreground")
-				<span>{ d.Tr("nav.settings") }</span>
-			</a>
-			<form method="post" action={ templ.SafeURL(d.Href("/logout")) } class="block">
-				<button type="submit" class="flex w-full items-center gap-2 rounded px-3 py-2 text-sm text-foreground/90 hover:bg-muted">
-					@icons.Icon("log-out", "h-4 w-4 text-muted-foreground")
+templ localeTrigger(d web.LayoutData) {
+	<span class="grid size-4 shrink-0 place-items-center">
+		@icons.Icon("globe", "size-4")
+	</span>
+	<span class="truncate">{ d.LocaleLabel() }</span>
+	@railChevron()
+}
+
+templ localeMenu(d web.LayoutData, class, triggerClass, contentClass string) {
+	<form id="alt-locale" method="post" action={ templ.SafeURL(d.Href("/locale")) } class="hidden">
+		<input type="hidden" name="redirect" value={ d.CurrentPath }/>
+	</form>
+	@AppDropdown(localeTrigger(d), d.Tr("common.language"), class, triggerClass, contentClass) {
+		<ul class="menu w-full p-0 max-lg:[&_button]:min-h-11 max-lg:[&_button]:content-center">
+			for _, opt := range d.LocaleOptions() {
+				<li>
+					<button
+						type="submit"
+						form="alt-locale"
+						name="locale"
+						value={ opt.Code }
+						lang={ opt.Code }
+						if opt.Active {
+							class="menu-active"
+							aria-current="true"
+						}
+					>
+						{ opt.Native }
+					</button>
+				</li>
+			}
+		</ul>
+	}
+}
+
+templ userTrigger(d web.LayoutData) {
+	@Avatar(d.Principal.Email, "size-6 text-xs")
+	<span class="min-w-0 truncate" dir="ltr">{ d.Principal.Email }</span>
+	@railChevron()
+}
+
+templ userMenu(d web.LayoutData, class, triggerClass, contentClass string) {
+	<form id="alt-logout" method="post" action={ templ.SafeURL(d.Href("/logout")) } class="hidden"></form>
+	@AppDropdown(userTrigger(d), d.Tr("common.account_menu"), class, triggerClass, contentClass) {
+		<div class="px-3 py-2">
+			<p class="text-xs font-medium text-base-content/70">{ d.Tr("common.signed_in_as") }</p>
+			<p class="truncate text-sm font-medium" dir="ltr">{ d.Principal.Email }</p>
+		</div>
+		<ul class="menu w-full p-0 max-lg:[&_a]:min-h-11 max-lg:[&_a]:content-center max-lg:[&_button]:min-h-11 max-lg:[&_button]:content-center">
+			@menuLink(d.Href("/settings/tokens"), "settings", d.Tr("nav.settings"), false)
+			<li>
+				<button type="submit" form="alt-logout">
+					@icons.Icon("log-out", "size-4")
 					<span>{ d.Tr("common.sign_out") }</span>
 				</button>
-			</form>
-			if d.Version != "" {
-				<div class="my-1 border-t border-subtle"></div>
-				<p class="px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{ d.BrandName } · { d.Version }</p>
-			}
-		</div>
-	</details>
-}
-
-// NOTE: renders outside the sidebar's scroll container; an overflow ancestor clips an absolutely positioned dropdown.
-templ orgSwitcherHeader(d web.LayoutData) {
-	<div class="shrink-0 px-3 pt-3">
-		@orgSwitcherPill(d)
-	</div>
-}
-
-templ orgSidebar(d web.LayoutData) {
-	<div class="flex flex-col gap-1 p-3">
-		if d.ActiveOrg != nil {
-			<p class="mt-4 mb-2 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">{ d.ActiveOrg.Name }</p>
-			@orgMenu(d, d.ActiveOrg.Slug)
-		} else {
-			<p class="mt-4 mb-2 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">{ d.Tr("common.workspace") }</p>
-			<a href={ templ.SafeURL(d.Href("/orgs/new")) } class={ orgItemClass(false) }>
-				@icons.Icon("plus", "h-4 w-4 text-muted-foreground")
-				<span>{ d.Tr("nav.create_organization") }</span>
-			</a>
+			</li>
+		</ul>
+		if d.Version != "" {
+			<p class="border-t border-base-300 px-3 pt-2 text-xs text-base-content/70">{ d.BrandName } { d.Version }</p>
 		}
-	</div>
-}
-
-templ sidebarFooterUtils(d web.LayoutData) {
-	<div class="flex shrink-0 flex-col gap-2 border-t border-subtle p-2 pb-2">
-		if len(d.Themes) > 0 {
-			<div class="px-1">
-				@themeSelectorPill(d, true)
-			</div>
-		}
-		if len(d.ColorModes) > 0 {
-			<div class="px-1">
-				@colorModeSelectorPill(d, true)
-			</div>
-		}
-		if len(d.SupportedLocs) > 1 {
-			<div class="px-1">
-				@localeSelectorPill(d, true)
-			</div>
-		}
-		@themeApplyScript(d.Nonce)
-	</div>
+	}
 }
 
 // SECURITY: this replaces per-element hx-on handlers so script-src needs no 'unsafe-eval'.
@@ -232,7 +360,7 @@ templ htmxRequestHooks(nonce string) {
 		var status = ctx && ctx.response && ctx.response.status;
 		if (typeof status !== 'number' || status >= 400) return;
 		var banner = document.getElementById('hx-error');
-		if (banner) banner.innerHTML = '';
+		if (banner) banner.replaceChildren();
 		var elt = e.target || (ctx && ctx.sourceElement);
 		if (!elt || !elt.getAttribute) return;
 		if (elt.hasAttribute('data-reset-on-success') && elt.reset) elt.reset();
@@ -242,423 +370,6 @@ templ htmxRequestHooks(nonce string) {
 		}
 	});
 	</script>
-}
-
-templ themeInitScript(nonce string) {
-	<script nonce={ nonce }>
-	(function() {
-		var root = document.documentElement;
-		var mql = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
-		function applyMode() {
-			var m = root.getAttribute('data-color-mode') || 'auto';
-			root.classList.toggle('dark', m === 'dark' || (m === 'auto' && !!mql && mql.matches));
-		}
-		try {
-			root.setAttribute('data-theme', localStorage.getItem('openwa.theme') || root.getAttribute('data-default-theme'));
-			root.setAttribute('data-color-mode', localStorage.getItem('openwa.mode') || 'auto');
-		} catch (e) {}
-		applyMode();
-		if (mql && mql.addEventListener) mql.addEventListener('change', applyMode);
-	})();
-	</script>
-}
-
-templ themeSelectorPill(d web.LayoutData, dropUp bool) {
-	<details class="relative" data-switcher>
-		<summary class="flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm shadow-sm transition-colors hover:bg-muted/60" style="background:hsl(var(--card));color:hsl(var(--card-foreground));">
-			@icons.Icon("palette", "h-4 w-4 text-muted-foreground")
-			<span class="truncate capitalize" data-theme-label>{ defaultThemeName(d) }</span>
-			@icons.Icon("chevron-down", "chev ms-auto h-4 w-4 text-muted-foreground/70 transition-transform")
-		</summary>
-		<div class={ dropdownPos(dropUp), "absolute z-40 w-56 popover-surface p-1" } style="background:hsl(var(--popover));color:hsl(var(--popover-foreground));">
-			for _, t := range d.Themes {
-				<button type="button" data-theme-key={ t.Key } class="theme-opt flex w-full items-center gap-2 rounded px-3 py-2 text-sm hover:bg-muted focus:bg-muted focus:outline-none aria-[current=true]:bg-muted aria-[current=true]:font-medium">
-					<span class="inline-block h-3 w-3 rounded-full ring-1 ring-border" style={ "background:" + t.SwatchHex }></span>
-					<span class="capitalize">{ t.DisplayName }</span>
-					<span class="ms-auto opacity-0 aria-[current=true]:opacity-100" data-check aria-hidden="true">
-						@icons.Icon("check", "h-4 w-4 text-primary")
-					</span>
-				</button>
-			}
-		</div>
-	</details>
-}
-
-templ colorModeSelectorPill(d web.LayoutData, dropUp bool) {
-	<details class="relative" data-switcher>
-		<summary class="flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm shadow-sm transition-colors hover:bg-muted/60" style="background:hsl(var(--card));color:hsl(var(--card-foreground));">
-			@icons.Icon("sun-moon", "h-4 w-4 text-muted-foreground")
-			<span class="truncate capitalize" data-mode-label>Auto</span>
-			@icons.Icon("chevron-down", "chev ms-auto h-4 w-4 text-muted-foreground/70 transition-transform")
-		</summary>
-		<div class={ dropdownPos(dropUp), "absolute z-40 w-56 popover-surface p-1" } style="background:hsl(var(--popover));color:hsl(var(--popover-foreground));">
-			for _, m := range d.ColorModes {
-				<button type="button" data-color-mode={ string(m) } class="mode-opt flex w-full items-center gap-2 rounded px-3 py-2 text-sm hover:bg-muted focus:bg-muted focus:outline-none aria-[current=true]:bg-muted aria-[current=true]:font-medium capitalize">
-					@modeIcon(string(m))
-					<span>{ string(m) }</span>
-					<span class="ms-auto opacity-0 aria-[current=true]:opacity-100" data-check aria-hidden="true">
-						@icons.Icon("check", "h-4 w-4 text-primary")
-					</span>
-				</button>
-			}
-		</div>
-	</details>
-}
-
-func dropdownPos(up bool) string {
-	if up {
-		return "bottom-full start-0 mb-2"
-	}
-	return "top-full end-0 mt-2"
-}
-
-templ modeIcon(m string) {
-	if m == "light" {
-		@icons.Icon("sun", "h-4 w-4 text-muted-foreground")
-	} else if m == "dark" {
-		@icons.Icon("moon", "h-4 w-4 text-muted-foreground")
-	} else {
-		@icons.Icon("monitor", "h-4 w-4 text-muted-foreground")
-	}
-}
-
-templ themeApplyScript(nonce string) {
-	<script nonce={ nonce }>
-	(function() {
-		var root = document.documentElement;
-		function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
-		function refreshActiveMarks() {
-			var t = root.getAttribute('data-theme') || root.getAttribute('data-default-theme');
-			var m = root.getAttribute('data-color-mode') || 'auto';
-			document.querySelectorAll('button[data-theme-key]').forEach(function(b) {
-				b.setAttribute('aria-current', String(b.getAttribute('data-theme-key') === t));
-			});
-			document.querySelectorAll('button[data-color-mode]').forEach(function(b) {
-				b.setAttribute('aria-current', String(b.getAttribute('data-color-mode') === m));
-			});
-		}
-		function refreshLabels() {
-			var tl = document.querySelector('[data-theme-label]');
-			var ml = document.querySelector('[data-mode-label]');
-			if (tl) tl.textContent = cap(root.getAttribute('data-theme') || root.getAttribute('data-default-theme'));
-			if (ml) ml.textContent = cap(root.getAttribute('data-color-mode') || 'auto');
-			refreshActiveMarks();
-		}
-		function setTheme(k) {
-			try { localStorage.setItem('openwa.theme', k); } catch(e) {}
-			root.setAttribute('data-theme', k);
-			refreshLabels();
-		}
-		function setMode(m) {
-			try { localStorage.setItem('openwa.mode', m); } catch(e) {}
-			root.setAttribute('data-color-mode', m);
-			var dark = m === 'dark' || (m === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-			root.classList.toggle('dark', dark);
-			refreshLabels();
-		}
-		function closeParentDetails(el) {
-			var d = el.closest('details[data-switcher]');
-			if (d) d.removeAttribute('open');
-		}
-		if (!window.__openwaThemeWired) {
-			window.__openwaThemeWired = true;
-			document.addEventListener('click', function(e) {
-				var t = e.target.closest('button[data-theme-key]');
-				if (t) { setTheme(t.getAttribute('data-theme-key')); closeParentDetails(t); return; }
-				var m = e.target.closest('button[data-color-mode]');
-				if (m) { setMode(m.getAttribute('data-color-mode')); closeParentDetails(m); return; }
-			});
-		}
-		if (document.readyState === 'loading') {
-			document.addEventListener('DOMContentLoaded', refreshLabels);
-		} else {
-			refreshLabels();
-		}
-	})();
-	</script>
-}
-
-templ localeSelectorPill(d web.LayoutData, dropUp bool) {
-	<details class="relative" data-switcher>
-		<summary class="flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm shadow-sm transition-colors hover:bg-muted/60" style="background:hsl(var(--card));color:hsl(var(--card-foreground));">
-			@icons.Icon("globe", "h-4 w-4 text-muted-foreground")
-			<span class="truncate">{ d.LocaleLabel() }</span>
-			@icons.Icon("chevron-down", "chev ms-auto h-4 w-4 text-muted-foreground/70 transition-transform")
-		</summary>
-		<div class={ dropdownPos(dropUp), "absolute z-40 w-56 popover-surface p-1" } style="background:hsl(var(--popover));color:hsl(var(--popover-foreground));">
-			for _, opt := range d.LocaleOptions() {
-				<form method="post" action={ templ.SafeURL(d.Href("/locale")) } class="block">
-					<input type="hidden" name="locale" value={ opt.Code }/>
-					<input type="hidden" name="redirect" value={ d.CurrentPath }/>
-					<button type="submit" class={ localeOptionClass(opt.Active) }>
-						<span>{ opt.Native }</span>
-						<span class="text-xs text-muted-foreground">{ opt.Code }</span>
-					</button>
-				</form>
-			}
-		</div>
-	</details>
-}
-
-func localeOptionClass(active bool) string {
-	if active {
-		return "flex w-full items-center justify-between gap-2 rounded px-3 py-2 text-sm font-medium text-foreground bg-muted"
-	}
-	return "flex w-full items-center justify-between gap-2 rounded px-3 py-2 text-sm text-foreground/90 hover:bg-muted"
-}
-
-templ orgMenu(d web.LayoutData, slug string) {
-	<nav aria-label={ d.Tr("common.workspace") } class="flex flex-col gap-0.5">
-		<a href={ templ.SafeURL(d.Href("/orgs/" + slug)) } class={ orgItemClass(d.ActiveNav.OrgKey == "overview") }>
-			@icons.Icon("layout-dashboard", "h-4 w-4 shrink-0")
-			<span>{ d.Tr("nav.overview") }</span>
-		</a>
-		<a href={ templ.SafeURL(d.OrgPath("/projects")) } class={ orgItemClass(d.ActiveNav.OrgKey == "projects") }>
-			@icons.Icon("folder", "h-4 w-4 shrink-0")
-			<span>{ d.Tr("nav.projects") }</span>
-		</a>
-		<a href={ templ.SafeURL(d.Href("/orgs/" + slug + "/members")) } class={ orgItemClass(d.ActiveNav.OrgKey == "members") }>
-			@icons.Icon("users", "h-4 w-4 shrink-0")
-			<span>{ d.Tr("nav.members") }</span>
-		</a>
-		<a href={ templ.SafeURL(d.Href("/orgs/" + slug + "/invites")) } class={ orgItemClass(d.ActiveNav.OrgKey == "invites") }>
-			@icons.Icon("mail", "h-4 w-4 shrink-0")
-			<span>{ d.Tr("nav.invites") }</span>
-		</a>
-		<a href={ templ.SafeURL(d.Href("/orgs/" + slug + "/apikeys")) } class={ orgItemClass(d.ActiveNav.OrgKey == "apikeys") }>
-			@icons.Icon("key", "h-4 w-4 shrink-0")
-			<span>{ d.Tr("nav.apikeys") }</span>
-		</a>
-	</nav>
-}
-
-templ secondarySidebar(d web.LayoutData) {
-	if d.ActiveNav.Scope == web.NavScopeSettings {
-		@settingsSidebar(d)
-	} else {
-		@projectSidebar(d)
-	}
-}
-
-templ settingsSidebar(d web.LayoutData) {
-	<div class="flex flex-col gap-1 p-3">
-		<p class="mt-1 mb-2 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">{ d.Tr("nav.settings") }</p>
-		<nav aria-label={ d.Tr("nav.settings") } class="flex flex-col gap-0.5">
-			<a href={ templ.SafeURL(d.Href("/settings/tokens")) } class={ orgItemClass(d.ActiveNav.SettingsKey == "tokens") }>
-				@icons.Icon("key", "h-4 w-4 shrink-0")
-				<span>{ d.Tr("nav.personal_tokens") }</span>
-			</a>
-		</nav>
-	</div>
-}
-
-templ projectSidebar(d web.LayoutData) {
-	<div class="flex flex-col gap-1 p-3">
-		if d.ActiveProject != nil {
-			<p class="mt-1 mb-2 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">{ d.ActiveProject.Name }</p>
-			@projectMenu(d, d.ActiveProject.Slug)
-		} else {
-			<p class="mt-1 mb-2 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">{ d.Tr("common.project") }</p>
-			<a href={ templ.SafeURL(d.OrgPath("/projects/new")) } class={ orgItemClass(false) }>
-				@icons.Icon("plus", "h-4 w-4 text-muted-foreground")
-				<span>{ d.Tr("nav.create_project") }</span>
-			</a>
-		}
-	</div>
-}
-
-templ navGroup(d web.LayoutData, heading string) {
-	<div class="mt-3 first:mt-0">
-		<p class="mb-1 px-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{ heading }</p>
-		<div class="flex flex-col gap-0.5">
-			{ children... }
-		</div>
-	</div>
-}
-
-templ projectMenu(d web.LayoutData, slug string) {
-	<nav aria-label={ d.Tr("common.project") }>
-		@navGroup(d, d.Tr("nav.group_project")) {
-			<a href={ templ.SafeURL(d.ProjectPath(slug, "/overview")) } class={ orgItemClass(d.ProjectMenuActive("overview")) }>
-				@icons.Icon("layout-dashboard", "h-4 w-4 shrink-0")
-				<span>{ d.Tr("nav.overview") }</span>
-			</a>
-		}
-		@navGroup(d, d.Tr("nav.group_messaging")) {
-			<a href={ templ.SafeURL(d.ProjectPath(slug, "/devices")) } class={ orgItemClass(d.ProjectMenuActive("devices")) }>
-				@icons.Icon("smartphone", "h-4 w-4 shrink-0")
-				<span>{ d.Tr("nav.devices") }</span>
-			</a>
-			<a href={ templ.SafeURL(d.ProjectPath(slug, "/inbox")) } class={ orgItemClass(d.ProjectMenuActive("inbox")) }>
-				@icons.Icon("mail", "h-4 w-4 shrink-0")
-				<span>{ d.Tr("nav.inbox") }</span>
-			</a>
-			<a href={ templ.SafeURL(d.ProjectPath(slug, "/contacts")) } class={ orgItemClass(d.ProjectMenuActive("contacts")) }>
-				@icons.Icon("users", "h-4 w-4 shrink-0")
-				<span>{ d.Tr("nav.contacts") }</span>
-			</a>
-		}
-		@navGroup(d, d.Tr("nav.group_developer")) {
-			<a href={ templ.SafeURL(d.ProjectPath(slug, "/apikeys")) } class={ orgItemClass(d.ProjectMenuActive("apikeys")) }>
-				@icons.Icon("key", "h-4 w-4 shrink-0")
-				<span>{ d.Tr("nav.apikeys") }</span>
-			</a>
-			<a href={ templ.SafeURL(d.ProjectPath(slug, "/webhooks")) } class={ orgItemClass(d.ProjectMenuActive("webhooks")) }>
-				@icons.Icon("send", "h-4 w-4 shrink-0")
-				<span>{ d.Tr("nav.webhooks") }</span>
-			</a>
-		}
-		@navGroup(d, d.Tr("nav.group_settings")) {
-			<a href={ templ.SafeURL(d.ProjectPath(slug, "/settings")) } class={ orgItemClass(d.ProjectMenuActive("settings")) }>
-				@icons.Icon("settings", "h-4 w-4 shrink-0")
-				<span>{ d.Tr("nav.project_settings") }</span>
-			</a>
-		}
-	</nav>
-}
-
-templ orgSwitcherPill(d web.LayoutData) {
-	<details class="relative" data-switcher>
-		<summary class="flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm shadow-sm" style="background:hsl(var(--card));color:hsl(var(--card-foreground));">
-			@icons.Icon("building-2", "h-4 w-4 text-muted-foreground")
-			<span class="truncate">
-				if d.ActiveOrg != nil {
-					{ d.ActiveOrg.Name }
-				} else {
-					{ d.Tr("common.no_organization") }
-				}
-			</span>
-			@icons.Icon("chevron-down", "chev ml-auto h-4 w-4 text-muted-foreground/70 transition-transform")
-		</summary>
-		<div class="absolute left-0 z-40 mt-2 w-64 popover-surface p-1" style="background:hsl(var(--popover));color:hsl(var(--popover-foreground));">
-			if d.ActiveOrg != nil {
-				<div class="px-3 py-2">
-					<p class="text-xs uppercase tracking-wider text-muted-foreground">{ d.Tr("switcher.current") }</p>
-					<p class="mt-0.5 truncate text-sm font-medium text-foreground">{ d.ActiveOrg.Name }</p>
-					if d.ActiveOrg.Role != "" {
-						<p class="text-xs text-muted-foreground">{ d.ActiveOrg.Role }</p>
-					}
-				</div>
-			}
-			if len(d.OtherOrgs) > 0 {
-				<div class="my-1 border-t border-subtle"></div>
-				<p class="px-3 py-1 text-xs uppercase tracking-wider text-muted-foreground">{ d.Tr("switcher.switch") }</p>
-				for _, o := range d.OtherOrgs {
-					<a href={ templ.SafeURL(d.Href("/orgs/" + o.Slug + "/projects")) } class="block rounded px-3 py-2 text-sm text-foreground/90 hover:bg-muted">{ o.Name }</a>
-				}
-			}
-			if d.Caps.OrgCreation {
-				<div class="my-1 border-t border-subtle"></div>
-				<a href={ templ.SafeURL(d.Href("/orgs/new")) } class="flex items-center gap-2 rounded px-3 py-2 text-sm text-foreground/90 hover:bg-muted">
-					@icons.Icon("plus", "h-4 w-4 text-muted-foreground")
-					<span>{ d.Tr("nav.new_organization") }</span>
-				</a>
-			}
-		</div>
-	</details>
-}
-
-templ projectSwitcherPill(d web.LayoutData) {
-	<details class="relative" data-switcher>
-		<summary class="flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm shadow-sm" style="background:hsl(var(--card));color:hsl(var(--card-foreground));">
-			@icons.Icon("folder", "h-4 w-4 text-muted-foreground")
-			<span class="truncate">
-				if d.ActiveProject != nil {
-					{ d.ActiveProject.Name }
-				} else {
-					{ d.Tr("common.select_project") }
-				}
-			</span>
-			@icons.Icon("chevron-down", "chev ml-auto h-4 w-4 text-muted-foreground/70 transition-transform")
-		</summary>
-		<div class="absolute left-0 z-40 mt-2 w-64 popover-surface p-1" style="background:hsl(var(--popover));color:hsl(var(--popover-foreground));">
-			if d.ActiveProject != nil {
-				<div class="px-3 py-2">
-					<p class="text-xs uppercase tracking-wider text-muted-foreground">{ d.Tr("switcher.current") }</p>
-					<p class="mt-0.5 truncate text-sm font-medium text-foreground">{ d.ActiveProject.Name }</p>
-				</div>
-			}
-			if len(d.OtherProjects) > 0 {
-				<div class="my-1 border-t border-subtle"></div>
-				<p class="px-3 py-1 text-xs uppercase tracking-wider text-muted-foreground">{ d.Tr("switcher.switch") }</p>
-				for _, p := range d.OtherProjects {
-					<a href={ templ.SafeURL(d.ProjectPath(p.Slug, "/overview")) } class="block rounded px-3 py-2 text-sm text-foreground/90 hover:bg-muted">{ p.Name }</a>
-				}
-			}
-			<div class="my-1 border-t border-subtle"></div>
-			<a href={ templ.SafeURL(d.OrgPath("/projects/new")) } class="flex items-center gap-2 rounded px-3 py-2 text-sm text-foreground/90 hover:bg-muted">
-				@icons.Icon("plus", "h-4 w-4 text-muted-foreground")
-				<span>{ d.Tr("nav.new_project") }</span>
-			</a>
-		</div>
-	</details>
-}
-
-templ mobileDrawer(d web.LayoutData) {
-	<div id="drawer-backdrop" class="hidden fixed inset-0 z-40 bg-primary/40 backdrop-blur-sm md:hidden" data-drawer-close aria-hidden="true"></div>
-	<aside id="drawer" aria-label={ d.Tr("common.menu") } class="hidden fixed inset-y-0 left-0 z-50 w-80 max-w-[86vw] flex-col shadow-2xl md:hidden" style="background:hsl(var(--card));color:hsl(var(--card-foreground));">
-		<div class="flex h-14 shrink-0 items-center justify-between border-b border-subtle px-3">
-			<span class="text-sm font-semibold">{ d.Tr("common.menu") }</span>
-			<button type="button" data-drawer-close aria-label={ d.Tr("nav.close_menu") } class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted">
-				@icons.Icon("x", "h-5 w-5")
-			</button>
-		</div>
-		@orgSwitcherHeader(d)
-		if d.ActiveProject != nil {
-			<div class="shrink-0 px-3 pt-2">
-				@projectSwitcherPill(d)
-			</div>
-		}
-		<div class="flex-1 overflow-y-auto">
-			@orgSidebar(d)
-			if d.ActiveNav.Scope == web.NavScopeProject || d.ActiveNav.Scope == web.NavScopeSettings {
-				<div class="mx-3 border-t border-subtle"></div>
-				@secondarySidebar(d)
-			}
-		</div>
-		@sidebarFooterUtils(d)
-	</aside>
-}
-
-templ drawerScript(nonce string) {
-	<script nonce={ nonce }>
-	(function() {
-		var toggle = document.getElementById('drawer-toggle');
-		var drawer = document.getElementById('drawer');
-		var backdrop = document.getElementById('drawer-backdrop');
-		if (!toggle || !drawer) return;
-		function isOpen() { return !drawer.classList.contains('hidden'); }
-		function setOpen(open) {
-			drawer.classList.toggle('hidden', !open);
-			drawer.classList.toggle('flex', open);
-			if (backdrop) {
-				backdrop.classList.toggle('hidden', !open);
-				backdrop.classList.toggle('block', open);
-			}
-			toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-			if (open) {
-				var first = drawer.querySelector('button, a, input, summary');
-				if (first) first.focus();
-			} else {
-				toggle.focus();
-			}
-		}
-		toggle.addEventListener('click', function() { setOpen(!isOpen()); });
-		document.addEventListener('click', function(e) {
-			if (e.target && e.target.closest && e.target.closest('[data-drawer-close]')) setOpen(false);
-		});
-		document.addEventListener('keydown', function(e) {
-			if (e.key === 'Escape' && isOpen()) setOpen(false);
-		});
-	})();
-	</script>
-}
-
-func orgItemClass(active bool) string {
-	if active {
-		return "flex items-center gap-2 min-h-[40px] rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
-	}
-	return "flex items-center gap-2 min-h-[40px] rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
 }
 
 func layoutLang(d web.LayoutData) string {
@@ -673,13 +384,4 @@ func layoutDir(d web.LayoutData) string {
 		return d.Dir
 	}
 	return "ltr"
-}
-
-func defaultThemeName(d web.LayoutData) string {
-	for _, t := range d.Themes {
-		if t.Key == web.DefaultThemeKey {
-			return t.DisplayName
-		}
-	}
-	return web.DefaultThemeKey
 }

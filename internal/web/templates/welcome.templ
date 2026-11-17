@@ -24,35 +24,36 @@ templ WelcomePage(d web.LayoutData, v WelcomeView) {
 			@ErrorBanner(d, v.Error, v.ErrorCode)
 		}
 		if v.TermsChangedOn != "" {
-			<div role="status" class="mt-4 rounded-md border border-info/30 bg-info/10 p-3 text-sm text-foreground">{ d.Tr("welcome.terms_changed", "Date", v.TermsChangedOn) }</div>
+			<div role="status" class="alert alert-soft alert-info mt-4 text-sm">{ d.Tr("welcome.terms_changed", "Date", v.TermsChangedOn) }</div>
 		}
-		<form method="post" action={ templ.SafeURL(d.Href("/welcome")) } class="mt-6 space-y-5" novalidate>
+		<form method="post" action={ templ.SafeURL(d.Href("/welcome")) } class="mt-6 flex flex-col gap-3" novalidate>
 			<input type="hidden" name="return_to" value={ v.ReturnTo }/>
 			if v.AskDisplayName {
-				@Field(d, nameField) {
+				@FormField(d, nameField) {
 					<input name="name" type="text" autofocus value={ v.Name } placeholder={ d.Tr("welcome.display_name_placeholder") } class={ InputClass() } { InputAttrs(nameField)... }/>
 				}
 			}
 			if v.AskAccept {
 				<div class="flex items-start gap-2">
-					<input id="welcome-accept" name="accept_terms" type="checkbox" value="1" required class="mt-0.5 h-4 w-4 rounded border-border"/>
-					<label for="welcome-accept" class="text-sm text-foreground">
+					<input id="welcome-accept" name="accept_terms" type="checkbox" value="1" required class="checkbox checkbox-sm mt-0.5"/>
+					<label for="welcome-accept" class="text-sm text-base-content">
 						{ d.Tr("welcome.accept_prefix") }
 						if v.TermsURL != "" {
-							<a href={ templ.SafeURL(v.TermsURL) } target="_blank" rel="noopener" class="font-medium underline hover:no-underline">{ d.Tr("welcome.terms_link") }</a>
+							<a href={ templ.SafeURL(v.TermsURL) } target="_blank" rel="noopener" class="link">{ d.Tr("welcome.terms_link") }</a>
 						}
 						if v.TermsURL != "" && v.PrivacyURL != "" {
 							{ " " }{ d.Tr("welcome.and") }{ " " }
 						}
 						if v.PrivacyURL != "" {
-							<a href={ templ.SafeURL(v.PrivacyURL) } target="_blank" rel="noopener" class="font-medium underline hover:no-underline">{ d.Tr("welcome.privacy_link") }</a>
+							<a href={ templ.SafeURL(v.PrivacyURL) } target="_blank" rel="noopener" class="link">{ d.Tr("welcome.privacy_link") }</a>{ d.Tr("welcome.accept_suffix") }
+						} else {
+							{ d.Tr("welcome.accept_suffix") }
 						}
-						{ d.Tr("welcome.accept_suffix") }
 					</label>
 				</div>
 			}
 			<div class="pt-2">
-				@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("welcome.submit")})
+				@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("welcome.submit")})
 			</div>
 		</form>
 		<form method="post" action={ templ.SafeURL(d.Href("/logout")) } class="mt-3">

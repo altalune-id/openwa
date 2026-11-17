@@ -14,13 +14,21 @@ func startNATS(t *testing.T) string {
 	return ns.ClientURL()
 }
 
+// NOTE: the streams reserve 576 MiB; without a fixed cap JetStream sizes the store from free host disk, so a full laptop disk failed these tests.
+const natsTestMaxStore = 2 << 30
+
 func startNATSServer(t *testing.T) *server.Server {
 	t.Helper()
-	opts := &server.Options{Host: "127.0.0.1", Port: -1, JetStream: true, StoreDir: t.TempDir(), NoLog: true, NoSigs: true}
+	opts := &server.Options{Host: "127.0.0.1", Port: -1, JetStream: true, JetStreamMaxStore: natsTestMaxStore, StoreDir: t.TempDir(), NoLog: true, NoSigs: true}
 	ns, err := server.NewServer(opts)
 	require.NoError(t, err)
 	go ns.Start()
 	require.True(t, ns.ReadyForConnections(5*time.Second))
 	t.Cleanup(ns.Shutdown)
 	return ns
+}
+
+func TestStartNATSServer_StoreLimitIgnoresHostDisk(t *testing.T) {
+	ns := startNATSServer(t)
+	require.Equal(t, int64(natsTestMaxStore), ns.JetStreamConfig().MaxStore)
 }

@@ -36,9 +36,14 @@ func (a *Scheduler) SchedulerJobs() []scheduler.Job {
 	return []scheduler.Job{{
 		Name:      RetentionJobName,
 		Scope:     scheduler.ScopeTenant,
-		Schedule:  scheduler.MustDailyAt(retentionHour, 0, a.loc(RetentionJobName)),
+		Schedule:  RetentionSchedule(a.loc(RetentionJobName)),
 		Timeout:   retentionTimeout,
 		Singleton: true,
 		Run:       func(ctx context.Context) error { return a.svc.RunRetention(ctx) },
 	}}
+}
+
+// RetentionSchedule returns the nightly retention sweep's schedule in loc.
+func RetentionSchedule(loc *time.Location) scheduler.Schedule {
+	return scheduler.MustDailyAt(retentionHour, 0, loc)
 }

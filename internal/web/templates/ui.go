@@ -22,7 +22,7 @@ const (
 	ButtonIcon
 )
 
-// ButtonProps configures Button; Href renders an <a>, otherwise a <button>.
+// ButtonProps configures AppButton; Href renders an <a>, otherwise a <button>.
 type ButtonProps struct {
 	Kind     ButtonKind
 	Type     string
@@ -46,8 +46,8 @@ func IsIconButtonUnlabelledError(err error) bool {
 	return errors.As(err, &target)
 }
 
-// Button renders a themed button or link; an Icon kind without aria-label fails at render time.
-func Button(p ButtonProps) templ.Component {
+// AppButton renders a themed button or link that never wraps; an Icon kind without aria-label fails at render time.
+func AppButton(p ButtonProps) templ.Component {
 	if p.Kind == ButtonIcon {
 		if _, ok := p.Attrs["aria-label"]; !ok {
 			return templ.ComponentFunc(func(_ context.Context, _ io.Writer) error {
@@ -58,21 +58,20 @@ func Button(p ButtonProps) templ.Component {
 	return button(p)
 }
 
-const buttonBase = "inline-flex items-center gap-2 rounded-md text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50"
-
-// ButtonClass returns the class string for kind, for the rare inline case.
+// ButtonClass returns the daisyUI class string for kind: 44px on phones, btn-sm from lg.
 func ButtonClass(kind ButtonKind) string {
+	const base = "btn shrink-0 whitespace-nowrap lg:btn-sm"
 	switch kind {
 	case ButtonSecondary:
-		return buttonBase + " border border-border bg-card px-4 py-2 text-foreground shadow-sm hover:bg-muted"
+		return base + " btn-outline"
 	case ButtonDanger:
-		return buttonBase + " bg-destructive px-4 py-2 text-destructive-foreground shadow-sm hover:bg-destructive/90"
+		return base + " btn-error"
 	case ButtonGhost:
-		return buttonBase + " px-3 py-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+		return base + " btn-ghost"
 	case ButtonIcon:
-		return "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+		return base + " btn-ghost btn-square"
 	default:
-		return buttonBase + " bg-primary px-4 py-2 text-primary-foreground shadow-sm hover:bg-primary/90"
+		return base + " btn-primary"
 	}
 }
 
@@ -83,7 +82,7 @@ func buttonType(p ButtonProps) string {
 	return p.Type
 }
 
-// FieldProps configures Field and InputAttrs.
+// FieldProps configures FormField and InputAttrs.
 type FieldProps struct {
 	ID       string
 	Label    string
@@ -92,11 +91,11 @@ type FieldProps struct {
 	Required bool
 }
 
-// InputAttrs returns the id, aria-describedby and aria-invalid attributes for the control inside Field.
+// InputAttrs returns the id, aria-describedby and aria-invalid attributes for the control inside FormField.
 func InputAttrs(p FieldProps) templ.Attributes {
 	attrs := templ.Attributes{"id": p.ID}
 	var described []string
-	if p.Help != "" {
+	if p.Help != "" && p.Error == "" {
 		described = append(described, p.ID+"-help")
 	}
 	if p.Error != "" {
@@ -114,7 +113,7 @@ func InputAttrs(p FieldProps) templ.Attributes {
 
 // InputClass returns the text input recipe.
 func InputClass() string {
-	return "mt-1.5 block w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground shadow-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-70"
+	return "input w-full lg:input-sm"
 }
 
 // ChipProps configures a checkbox chip.
@@ -138,54 +137,36 @@ const (
 )
 
 func badgeClass(tone Tone) string {
-	const base = "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium "
 	switch tone {
 	case TonePrimary:
-		return base + "bg-primary/10 text-primary"
+		return "badge badge-soft badge-primary shrink-0"
 	case ToneSuccess:
-		return base + "bg-success/10 text-success"
+		return "badge badge-soft badge-success shrink-0"
 	case ToneWarning:
-		return base + "bg-warning/10 text-warning"
+		return "badge badge-soft badge-warning shrink-0"
 	case ToneDanger:
-		return base + "bg-destructive/10 text-destructive"
+		return "badge badge-soft badge-error shrink-0"
 	case ToneInfo:
-		return base + "bg-info/10 text-info"
+		return "badge badge-soft badge-info shrink-0"
 	default:
-		return base + "bg-muted text-muted-foreground"
+		return "badge badge-ghost shrink-0"
 	}
 }
 
 func dotClass(tone Tone) string {
-	const base = "inline-block h-2 w-2 shrink-0 rounded-full "
 	switch tone {
 	case TonePrimary:
-		return base + "bg-primary"
+		return "status status-primary"
 	case ToneSuccess:
-		return base + "bg-success"
+		return "status status-success"
 	case ToneWarning:
-		return base + "bg-warning"
+		return "status status-warning"
 	case ToneDanger:
-		return base + "bg-destructive"
+		return "status status-error"
 	case ToneInfo:
-		return base + "bg-info"
+		return "status status-info"
 	default:
-		return base + "bg-border"
-	}
-}
-
-func toastClass(kind web.FlashKind) string {
-	const base = "flex items-start gap-3 rounded-md border p-3 shadow-sm "
-	switch kind {
-	case web.FlashOK:
-		return base + "border-success/30 bg-success/10 text-success"
-	case web.FlashWarn:
-		return base + "border-warning/30 bg-warning/10 text-warning"
-	case web.FlashErr:
-		return base + "border-destructive/30 bg-destructive/10 text-destructive"
-	case web.FlashInfo:
-		return base + "border-info/30 bg-info/10 text-info"
-	default:
-		return base + "border-border bg-card text-foreground"
+		return "status"
 	}
 }
 
@@ -264,7 +245,7 @@ func tabIndex(selected bool) string {
 	return "-1"
 }
 
-// HiddenField is one hidden input inside a ConfirmDialog form.
+// HiddenField is one hidden input inside a ConfirmModal form.
 type HiddenField struct {
 	Name  string
 	Value string
@@ -277,7 +258,7 @@ func confirmLabel(d web.LayoutData, p ConfirmProps) string {
 	return d.Tr("common.confirm")
 }
 
-// ConfirmProps configures ConfirmDialog; HxTarget empty means a full-page POST that ends in a redirect and a flash.
+// ConfirmProps configures ConfirmModal; HxTarget empty means a full-page POST that ends in a redirect and a flash.
 type ConfirmProps struct {
 	ID           string
 	Title        string
@@ -297,9 +278,11 @@ func confirmTrigger(p ConfirmProps) ButtonProps {
 	for k, v := range trig.Attrs {
 		attrs[k] = v
 	}
-	attrs["data-confirm-open"] = p.ID
+	attrs["data-dialog-open"] = p.ID
 	attrs["aria-haspopup"] = "dialog"
 	attrs["aria-controls"] = p.ID
 	trig.Attrs = attrs
 	return trig
 }
+
+const proseClass = "[&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mt-7 [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_p]:mb-3 [&_p]:leading-relaxed [&_ul]:mb-3 [&_ul]:list-disc [&_ul]:ps-5 [&_ol]:mb-3 [&_ol]:list-decimal [&_ol]:ps-5 [&_li]:mb-1 [&_a]:underline [&_strong]:font-semibold"

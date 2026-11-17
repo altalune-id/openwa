@@ -182,11 +182,11 @@ templ apikeyPromote(d web.LayoutData, v APIKeysView, k APIKeyRow) {
 							@Chip(ChipProps{Name: "project_ids", Value: p.ID, Label: p.Name})
 						}
 					</div>
-					<button type="submit" class="mt-2 rounded-md border border-border px-3 py-1 font-medium text-foreground hover:bg-muted">{ d.Tr("apikey.add_projects") }</button>
+					<button type="submit" class={ ButtonClass(ButtonSecondary), "mt-2" }>{ d.Tr("apikey.add_projects") }</button>
 				}
 			}
 			@apikeyAction(d, k.Base+"/"+k.ID+"/all-projects", d.Tr("apikey.all_projects_confirm")) {
-				<button type="submit" class="rounded-md border border-border px-3 py-1 font-medium text-foreground hover:bg-muted">{ d.Tr("apikey.grant_all_projects") }</button>
+				<button type="submit" class={ ButtonClass(ButtonSecondary) }>{ d.Tr("apikey.grant_all_projects") }</button>
 			}
 			<p class="text-muted-foreground">{ d.Tr("apikey.widen_note") }</p>
 		</div>
@@ -249,7 +249,7 @@ templ apikeyRowItem(d web.LayoutData, v APIKeysView, k APIKeyRow) {
 				@Time(d, *k.RevokedAt)
 			</span>
 		} else if !k.Revoked && v.CanManage {
-			@ConfirmDialog(d, ConfirmProps{
+			@ConfirmModal(d, ConfirmProps{
 				ID:           "revoke-" + k.ID,
 				Title:        d.Tr("apikey.revoke_confirm_title"),
 				Body:         d.Tr("apikey.revoke_confirm_body", "Name", k.Name),
@@ -291,11 +291,11 @@ templ apikeyGrantFields(d web.LayoutData, v APIKeysView) {
 	<fieldset class="group">
 		<legend class="block text-sm font-medium text-foreground/90">{ d.Tr("apikey.access_label") }</legend>
 		<div class="mt-1.5 flex flex-wrap gap-2">
-			<label class="chip inline-flex cursor-pointer items-center gap-2 rounded-full border border-border px-3 py-1 text-sm text-foreground hover:bg-muted">
+			<label class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border px-3 py-1 text-sm text-foreground hover:bg-muted has-checked:border-primary has-checked:bg-primary/10">
 				<input type="radio" name="grant" value="selected" checked class="h-3.5 w-3.5"/>
 				<span>{ d.Tr("apikey.selected_projects") }</span>
 			</label>
-			<label class="chip inline-flex cursor-pointer items-center gap-2 rounded-full border border-border px-3 py-1 text-sm text-foreground hover:bg-muted">
+			<label class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border px-3 py-1 text-sm text-foreground hover:bg-muted has-checked:border-primary has-checked:bg-primary/10">
 				<input type="radio" name="grant" value="all" class="h-3.5 w-3.5"/>
 				<span>{ d.Tr("apikey.all_projects") }</span>
 			</label>
@@ -454,7 +454,7 @@ templ apikeyMintForm(d web.LayoutData, v APIKeysView) {
 				}
 			</select>
 		</div>
-		<button type="submit" class="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90">
+		<button type="submit" class={ ButtonClass(ButtonPrimary) }>
 			@icons.Icon("plus", "h-4 w-4")
 			if v.Personal {
 				<span>{ d.Tr("pat.create") }</span>

@@ -15,7 +15,7 @@ type ErrorView struct {
 
 templ ErrorPage(d web.LayoutData, v ErrorView) {
 	<section class="mx-auto max-w-md text-center py-12">
-		<p class="text-sm uppercase tracking-widest text-muted-foreground">
+		<p class="text-sm uppercase tracking-widest text-base-content/70">
 			if v.Status > 0 {
 				{ d.Tr("error.label") + " " + strconv.Itoa(v.Status) }
 			} else {
@@ -24,13 +24,13 @@ templ ErrorPage(d web.LayoutData, v ErrorView) {
 		</p>
 		<h1 class="mt-2 text-2xl font-semibold">{ v.Title }</h1>
 		if v.Message != "" {
-			<p class="mt-2 text-muted-foreground">{ v.Message }</p>
+			<p class="mt-2 text-base-content/70">{ v.Message }</p>
 		}
 		<div class="mt-6 flex justify-center">
-			@Button(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("error.return_home"), Href: d.Href("/")})
+			@AppButton(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("error.return_home"), Href: d.Href("/")})
 		</div>
 		if v.Code != "" || v.RequestID != "" {
-			<p class="mt-6 space-x-3 text-xs text-muted-foreground">
+			<p class="mt-6 flex flex-wrap justify-center gap-x-3 text-xs text-base-content/70">
 				if v.Code != "" {
 					<span>
 						{ d.Tr("error.code") }
@@ -50,13 +50,13 @@ templ ErrorPage(d web.LayoutData, v ErrorView) {
 
 // ErrorFragment is the compact banner htmx requests get instead of a full page.
 templ ErrorFragment(d web.LayoutData, v ErrorView) {
-	<div class="alt-error rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-foreground" role="alert" data-status={ strconv.Itoa(v.Status) }>
+	<div class="alt-error alert alert-soft alert-error flex-col items-start gap-1 text-sm" role="alert" data-status={ strconv.Itoa(v.Status) }>
 		<strong class="font-medium">{ v.Title }</strong>
 		if v.Message != "" {
-			<span class="ml-1">{ v.Message }</span>
+			<span class="ms-1">{ v.Message }</span>
 		}
 		if v.Code != "" || v.RequestID != "" {
-			<p class="mt-1 space-x-3 text-xs text-muted-foreground">
+			<p class="mt-1 flex flex-wrap gap-x-3 text-xs text-base-content/70">
 				if v.Code != "" {
 					<span>
 						{ d.Tr("error.code") }

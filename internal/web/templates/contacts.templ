@@ -59,7 +59,7 @@ templ ContactsLayout(d web.LayoutData, v ContactsView) {
 }
 
 templ contactsActions(d web.LayoutData, v ContactsView) {
-	@Button(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("common.refresh"), Icon: "rotate-cw", Href: contactsRefreshHref(d, v)})
+	@AppButton(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("common.refresh"), Icon: "rotate-cw", Href: contactsRefreshHref(d, v)})
 }
 
 templ ContactsPage(d web.LayoutData, v ContactsView) {
@@ -75,7 +75,7 @@ templ ContactsPage(d web.LayoutData, v ContactsView) {
 			</select>
 			<label for="contacts-q" class="sr-only">{ d.Tr("contacts.search_label") }</label>
 			<input id="contacts-q" type="search" name="q" value={ v.Query } placeholder={ d.Tr("contacts.search_placeholder") } class={ InputClass() + " w-auto flex-1" }/>
-			@Button(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("contacts.filter")})
+			@AppButton(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("contacts.filter")})
 		</form>
 		if len(v.Rows) == 0 {
 			@EmptyState(d, EmptyStateProps{Icon: "users", Title: d.Tr("contacts.empty_title"), Body: d.Tr("contacts.empty_body")})
@@ -93,13 +93,13 @@ templ ContactsPage(d web.LayoutData, v ContactsView) {
 							}
 						</div>
 						if c.Phone != "" && c.DeviceID != "" {
-							@Button(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("contacts.message"), Icon: "send", Href: contactMessageHref(d, v.ProjectSlug, c)})
+							@AppButton(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("contacts.message"), Icon: "send", Href: contactMessageHref(d, v.ProjectSlug, c)})
 						}
 					}
 				}
 			}
 			if v.NextCursor != "" {
-				@Button(ButtonProps{Kind: ButtonGhost, Label: d.Tr("contacts.load_more"), Href: contactsMoreHref(d, v)})
+				@AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("contacts.load_more"), Href: contactsMoreHref(d, v)})
 			}
 		}
 	</section>

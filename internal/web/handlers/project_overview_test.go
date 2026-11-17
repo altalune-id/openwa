@@ -81,7 +81,7 @@ func TestOverview_ShowsCopyableIdentifiers(t *testing.T) {
 
 var namedCopyControl = regexp.MustCompile(`<button[^>]*data-copy="[^"]*"[^>]*aria-label="[^"]+"`)
 
-var noncedCopyScript = regexp.MustCompile(`<script nonce="[^"]*">[^<]*navigator\.clipboard`)
+var noncedCopyScript = regexp.MustCompile(`<script src="[^"]*/static/copy\.js[^"]*" nonce="[^"]*"`)
 
 func TestOverview_CopyScriptCarriesNonce(t *testing.T) {
 	x := newOverviewFixture(t)

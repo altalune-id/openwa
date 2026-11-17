@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"altalune.id/openwa/internal/web"
 )
 
 func serveWithHeaders(t *testing.T, f *mcpFixture, method, path, body string, headers map[string]string) *httptest.ResponseRecorder {
@@ -75,6 +77,24 @@ func TestCrossOriginCheckLeavesBearerSurfacesAlone(t *testing.T) {
 			tc.headers["Origin"] = "https://evil.example"
 			got := serveWithHeaders(t, f, http.MethodPost, tc.path, tc.body, tc.headers)
 			require.Equal(t, want.Code, got.Code, got.Body.String())
+		})
+	}
+}
+
+// SECURITY: a sibling site must not flip a stored theme, mark tips seen, rename a project or provision a workspace.
+func TestConsoleRefusesCrossOriginPreferenceAndWorkspacePosts(t *testing.T) {
+	f := newMCPFixture(t, mcpOpts{enabled: true})
+	h := map[string]string{"Content-Type": "application/x-www-form-urlencoded", "Sec-Fetch-Site": "cross-site", "Origin": "https://evil.example"}
+	for _, tc := range []struct{ path, body string }{
+		{"/theme", "mode=dark&redirect=/"},
+		{"/tips/" + web.Tips()[0].ID + "/seen", "all=1&redirect=/"},
+		{"/orgs/acme/projects/alpha/rename", "name=Evil"},
+		{"/orgs/acme/projects", "name=Evil"},
+		{"/signup/complete", "workspace_name=Evil"},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			rec := serveWithHeaders(t, f, http.MethodPost, tc.path, tc.body, h)
+			require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 		})
 	}
 }

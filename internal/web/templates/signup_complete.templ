@@ -2,83 +2,75 @@ package templates
 
 import "altalune.id/openwa/internal/web"
 
-// SignupCompleteView backs the /signup/complete form.
+// SignupCompleteView backs the /signup/complete form; FieldErrors and Error hold translation keys.
 type SignupCompleteView struct {
-	Email          string
-	Name           string
-	AskDisplayName bool
-	AskAccept      bool
-	TermsURL       string
-	PrivacyURL     string
-	OrgName        string
-	OrgSlug        string
-	ProjectName    string
-	ProjectSlug    string
-	FieldErrors    map[string]string
-	Error          string
-	ErrorCode      string
+	Email         string
+	Name          string
+	WorkspaceName string
+	AskAccept     bool
+	TermsURL      string
+	PrivacyURL    string
+	FieldErrors   map[string]string
+	Error         string
+	ErrorCode     string
+}
+
+func trKey(d web.LayoutData, key string) string {
+	if key == "" {
+		return ""
+	}
+	return d.Tr(key)
 }
 
 templ SignupCompletePage(d web.LayoutData, v SignupCompleteView) {
-	{{ nameField := FieldProps{ID: "signup-name", Label: d.Tr("welcome.display_name_label"), Error: v.FieldErrors["name"], Required: true} }}
-	{{ orgNameField := FieldProps{ID: "signup-org-name", Label: d.Tr("common.name"), Error: v.FieldErrors["org_name"], Required: true} }}
-	{{ orgSlugField := FieldProps{ID: "signup-org-slug", Label: d.Tr("common.slug"), Help: d.Tr("common.slug_hint"), Error: v.FieldErrors["org_slug"]} }}
-	{{ projectNameField := FieldProps{ID: "signup-project-name", Label: d.Tr("common.name")} }}
-	{{ projectSlugField := FieldProps{ID: "signup-project-slug", Label: d.Tr("common.slug")} }}
-	<section class="mx-auto max-w-xl">
-		@PageHeader(d, PageHeaderProps{Eyebrow: d.Tr("welcome.eyebrow"), Title: d.Tr("signup.title"), Subtitle: d.Tr("signup.subtitle") + " " + v.Email})
-		if v.Error != "" {
-			@ErrorBanner(d, v.Error, v.ErrorCode)
-		}
-		<form method="post" action={ templ.SafeURL(d.Href("/signup/complete")) } class="mt-6 space-y-6" novalidate>
-			if v.AskDisplayName {
-				@Field(d, nameField) {
-					<input name="name" type="text" value={ v.Name } placeholder={ d.Tr("welcome.display_name_placeholder") } class={ InputClass() } { InputAttrs(nameField)... }/>
+	{{ nameField := FieldProps{ID: "signup-name", Label: d.Tr("signup.name_label"), Help: d.Tr("signup.name_hint"), Error: trKey(d, v.FieldErrors["workspace_name"]), Required: true} }}
+	<section class="mx-auto flex w-full max-w-xl flex-col gap-4 lg:gap-6">
+		<form method="post" action={ templ.SafeURL(d.Href("/signup/complete")) } class="card border border-base-300 bg-base-100" novalidate>
+			<div class="card-body gap-4 p-4 sm:p-6">
+				<h1 class="text-2xl font-semibold text-balance">{ d.Tr("signup.title") }</h1>
+				<p class="text-base-content/70">{ d.Tr("signup.lead") }</p>
+				if v.Error != "" {
+					@ErrorBanner(d, d.Tr(v.Error), v.ErrorCode)
 				}
-			}
-			<fieldset class="space-y-3">
-				<legend class="text-sm font-semibold text-foreground">{ d.Tr("signup.org_section") }</legend>
-				@Field(d, orgNameField) {
-					<input name="org_name" type="text" value={ v.OrgName } placeholder={ d.Tr("org_new.name_placeholder") } class={ InputClass() } { InputAttrs(orgNameField)... }/>
+				@FormField(d, nameField) {
+					<input
+						name="workspace_name"
+						type="text"
+						maxlength="200"
+						autocomplete="organization"
+						value={ v.WorkspaceName }
+						class={ InputClass(), templ.KV("input-error", nameField.Error != "") }
+						{ InputAttrs(nameField)... }
+					/>
 				}
-				@Field(d, orgSlugField) {
-					<input name="org_slug" type="text" value={ v.OrgSlug } placeholder={ d.Tr("org_new.slug_placeholder") } class={ InputClass() } { InputAttrs(orgSlugField)... }/>
-				}
-			</fieldset>
-			<fieldset class="space-y-3">
-				<legend class="text-sm font-semibold text-foreground">{ d.Tr("signup.project_section") }</legend>
-				@Field(d, projectNameField) {
-					<input name="project_name" type="text" value={ v.ProjectName } placeholder={ d.Tr("project_new.name_placeholder") } class={ InputClass() } { InputAttrs(projectNameField)... }/>
-				}
-				@Field(d, projectSlugField) {
-					<input name="project_slug" type="text" value={ v.ProjectSlug } placeholder={ d.Tr("project_new.slug_placeholder") } class={ InputClass() } { InputAttrs(projectSlugField)... }/>
-				}
-			</fieldset>
-			if v.AskAccept {
-				<div class="flex items-start gap-2">
-					<input id="signup-accept" name="accept_terms" type="checkbox" value="1" required class="mt-0.5 h-4 w-4 rounded border-border"/>
-					<label for="signup-accept" class="text-sm text-foreground">
-						{ d.Tr("welcome.accept_prefix") }
-						if v.TermsURL != "" {
-							<a href={ templ.SafeURL(v.TermsURL) } target="_blank" rel="noopener" class="font-medium underline hover:no-underline">{ d.Tr("welcome.terms_link") }</a>
-						}
-						if v.TermsURL != "" && v.PrivacyURL != "" {
-							{ " " }{ d.Tr("welcome.and") }{ " " }
-						}
-						if v.PrivacyURL != "" {
-							<a href={ templ.SafeURL(v.PrivacyURL) } target="_blank" rel="noopener" class="font-medium underline hover:no-underline">{ d.Tr("welcome.privacy_link") }</a>
-						}
-						{ d.Tr("welcome.accept_suffix") }
+				if v.AskAccept {
+					<label for="signup-accept" class="label min-h-11 cursor-pointer gap-3 text-sm whitespace-normal text-base-content">
+						<input id="signup-accept" name="accept_terms" type="checkbox" value="1" required class="checkbox checkbox-sm"/>
+						<span>
+							{ d.Tr("welcome.accept_prefix") }
+							if v.TermsURL != "" {
+								<a href={ templ.SafeURL(v.TermsURL) } target="_blank" rel="noopener" class="link">{ d.Tr("welcome.terms_link") }</a>
+							}
+							if v.TermsURL != "" && v.PrivacyURL != "" {
+								{ " " }{ d.Tr("welcome.and") }{ " " }
+							}
+							if v.PrivacyURL != "" {
+								<a href={ templ.SafeURL(v.PrivacyURL) } target="_blank" rel="noopener" class="link">{ d.Tr("welcome.privacy_link") }</a>{ d.Tr("welcome.accept_suffix") }
+							} else {
+								{ d.Tr("welcome.accept_suffix") }
+							}
+						</span>
 					</label>
-				</div>
-			}
-			<div class="pt-2">
-				@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("signup.submit")})
+				}
+				<button type="submit" class="btn btn-primary btn-block whitespace-nowrap lg:btn-sm">{ d.Tr("signup.submit") }</button>
 			</div>
 		</form>
-		<form method="post" action={ templ.SafeURL(d.Href("/logout")) } class="mt-3">
-			<button type="submit" class={ ButtonClass(ButtonGhost) }>{ d.Tr("welcome.wrong_account") }</button>
-		</form>
+		<div class="flex flex-wrap items-center justify-center gap-x-2 text-sm text-base-content/70">
+			<span>{ d.Tr("common.signed_in_as") } <strong class="break-all font-medium text-base-content">{ v.Email }</strong></span>
+			<form method="post" action={ templ.SafeURL(d.Href("/logout")) }>
+				<button type="submit" class={ ButtonClass(ButtonGhost) }>{ d.Tr("welcome.wrong_account") }</button>
+			</form>
+		</div>
 	</section>
 }
 

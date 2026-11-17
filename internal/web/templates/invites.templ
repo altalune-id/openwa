@@ -26,7 +26,7 @@ templ InvitesPage(d web.LayoutData, v InvitesView) {
 	<section>
 		@PageHeader(d, PageHeaderProps{Title: d.Tr("invites.title"), Subtitle: d.Tr("invites.subtitle")})
 		if v.Disabled {
-			<div role="status" class="mt-4 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-foreground">{ d.Tr("invites.disabled_banner") }</div>
+			<div role="status" class="alert alert-soft alert-warning mb-6 text-sm">{ d.Tr("invites.disabled_banner") }</div>
 		}
 		if v.Error != "" {
 			@ErrorBanner(d, v.Error, v.ErrorCode)
@@ -38,14 +38,14 @@ templ InvitesPage(d web.LayoutData, v InvitesView) {
 				for _, i := range v.Invites {
 					@ListRow(d, nil) {
 						<div class="min-w-0 flex-1">
-							<p class="truncate text-sm font-medium text-foreground">{ i.Email }</p>
-							<p class="truncate text-xs text-muted-foreground">
+							<p class="text-sm font-medium break-all">{ i.Email }</p>
+							<p class="truncate text-xs text-base-content/70">
 								{ i.Role } · { d.Tr("invites.expires") }
 								@Time(d, i.ExpiresAt)
 							</p>
 						</div>
 						if v.CanManage {
-							@ConfirmDialog(d, ConfirmProps{
+							@ConfirmModal(d, ConfirmProps{
 								ID:           "revoke-" + i.ID,
 								Title:        d.Tr("invites.revoke_confirm_title"),
 								Body:         d.Tr("invites.revoke_confirm_body", "Email", i.Email),
@@ -64,17 +64,17 @@ templ InvitesPage(d web.LayoutData, v InvitesView) {
 			{{ roleField := FieldProps{ID: "invite-role", Label: d.Tr("invites.form_role"), Required: true} }}
 			<div class="mt-8">
 				@Card(CardProps{Title: d.Tr("invites.form_heading"), Description: d.Tr("invites.form_subtitle")}) {
-					<form method="post" action={ templ.SafeURL(d.Href("/orgs/" + v.OrgSlug + "/invites")) } class="space-y-5">
-						@Field(d, emailField) {
+					<form method="post" action={ templ.SafeURL(d.Href("/orgs/" + v.OrgSlug + "/invites")) } class="flex flex-col gap-3">
+						@FormField(d, emailField) {
 							<input name="email" type="email" class={ InputClass() } { InputAttrs(emailField)... }/>
 						}
-						@Field(d, roleField) {
+						@FormField(d, roleField) {
 							<select name="role" class={ InputClass() } { InputAttrs(roleField)... }>
 								<option value="member">{ d.Tr("invites.role_member") }</option>
 								<option value="admin">{ d.Tr("invites.role_admin") }</option>
 							</select>
 						}
-						@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Icon: "send", Label: d.Tr("invites.submit")})
+						@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Icon: "send", Label: d.Tr("invites.submit")})
 					</form>
 				}
 			</div>

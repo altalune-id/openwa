@@ -92,14 +92,14 @@ templ InboxPage(d web.LayoutData, v InboxView) {
 
 templ inboxActions(d web.LayoutData, v InboxView) {
 	<div class="flex items-center gap-2">
-		@Button(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("common.refresh"), Icon: "rotate-cw", Attrs: templ.Attributes{
+		@AppButton(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("common.refresh"), Icon: "rotate-cw", Attrs: templ.Attributes{
 			"hx-get":     d.ProjectPath(v.ProjectSlug, "/inbox/chats"),
 			"hx-target":  "#chat-list-panel",
 			"hx-swap":    "outerHTML",
 			"hx-include": "#inbox-device, #inbox-search",
 			"hx-nonce":   d.Nonce,
 		}})
-		@Button(ButtonProps{Kind: ButtonPrimary, Label: d.Tr("inbox.new_chat"), Icon: "plus", Href: d.ProjectPath(v.ProjectSlug, "/inbox/new")})
+		@AppButton(ButtonProps{Kind: ButtonPrimary, Label: d.Tr("inbox.new_chat"), Icon: "plus", Href: d.ProjectPath(v.ProjectSlug, "/inbox/new")})
 	</div>
 }
 
@@ -172,7 +172,7 @@ templ ChatListPanel(d web.LayoutData, v ChatListView) {
 			<p class="px-4 text-xs text-muted-foreground">{ d.Tr("inbox.list_capped", "Max", v.Limit) }</p>
 		}
 		if v.HasMore {
-			@Button(ButtonProps{Kind: ButtonGhost, Label: d.Tr("inbox.load_more"), Attrs: templ.Attributes{
+			@AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("inbox.load_more"), Attrs: templ.Attributes{
 				"hx-get":    d.ProjectPath(v.ProjectSlug, "/inbox/chats"+chatListQuery(v, url.Values{"limit": {strconv.Itoa(v.Limit + ChatPageSize)}})),
 				"hx-target": "#chat-list-panel",
 				"hx-swap":   "outerHTML",
@@ -238,27 +238,27 @@ templ NewChatPage(d web.LayoutData, v NewChatView) {
 		if len(v.Devices) == 0 {
 			@EmptyState(d, EmptyStateProps{Icon: "plus", Title: d.Tr("inbox.error.no_device"), CTA: &ButtonProps{Kind: ButtonPrimary, Label: d.Tr("nav.devices"), Href: d.ProjectPath(v.ProjectSlug, "/devices")}})
 		} else {
-			<form method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/inbox/new")) } class="surface space-y-4 p-5">
+			<form method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/inbox/new")) } class="rounded-box border border-base-300 bg-base-100 space-y-4 p-5">
 				if v.Error != "" {
 					<p role="alert" class="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{ d.Tr(v.Error) }</p>
 				}
 				{{ deviceField := FieldProps{ID: "new-device", Label: d.Tr("inbox.device_label"), Required: true} }}
 				{{ phoneField := FieldProps{ID: "new-phone", Label: d.Tr("inbox.phone_label"), Help: d.Tr("inbox.phone_help"), Required: true} }}
 				{{ textField := FieldProps{ID: "new-text", Label: d.Tr("inbox.text_label"), Required: true} }}
-				@Field(d, deviceField) {
+				@FormField(d, deviceField) {
 					<select name="device" class={ InputClass() } { InputAttrs(deviceField)... }>
 						for _, dev := range v.Devices {
 							<option value={ dev.ID } selected?={ dev.Selected }>{ dev.Name }</option>
 						}
 					</select>
 				}
-				@Field(d, phoneField) {
+				@FormField(d, phoneField) {
 					<input name="phone" type="tel" inputmode="tel" required value={ v.Phone } class={ InputClass() } { InputAttrs(phoneField)... }/>
 				}
-				@Field(d, textField) {
+				@FormField(d, textField) {
 					<textarea name="text" rows="4" required class={ InputClass() } { InputAttrs(textField)... }>{ v.Text }</textarea>
 				}
-				@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("inbox.start"), Icon: "send"})
+				@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("inbox.start"), Icon: "send"})
 			</form>
 		}
 	</section>

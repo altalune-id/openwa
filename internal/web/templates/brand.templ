@@ -1,0 +1,12 @@
+package templates
+
+templ brandMark(class string) {
+	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class={ "shrink-0 text-brand", class }>
+		<path d="M5 3h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-9l-4 4v-4H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"></path>
+		<path d="M7.5 10H11l4.5-3M11 10l4.5 3"></path>
+	</svg>
+}
+
+templ brandName(name string) {
+	<span class="font-semibold">{ name }</span>
+}

@@ -72,7 +72,7 @@ func (h *WebhookHandler) GetWebhooks(w http.ResponseWriter, r *http.Request) {
 		Guide:       webhookGuide(len(rows) == 0),
 		CanManage:   h.canManageProject(sc),
 	}
-	Render(w, sc.req, templates.WebhooksLayout(h.layout(sc, "Webhooks"), v))
+	Render(w, sc.req, templates.WebhooksLayout(h.layout(sc, pageTitle(sc.req, "webhooks.title")), v))
 }
 
 // GetWebhookNew renders the empty endpoint form.
@@ -398,7 +398,7 @@ func (h *WebhookHandler) writeDetail(w http.ResponseWriter, sc ProjectScope, e *
 		Render(w, sc.req, templates.WebhookDetailPage(h.ProjectFragmentBase(sc), v))
 		return
 	}
-	l := h.layout(sc, "Webhook")
+	l := h.layout(sc, pageTitle(sc.req, "title.webhook"))
 	l.Crumbs = append(l.Crumbs, web.Crumb{Label: l.Tr("nav.webhooks"), Href: h.ProjectURL(sc, "/webhooks")})
 	l.Flash = o.flash
 	Render(w, sc.req, templates.WebhookDetailLayout(l, v))
@@ -410,7 +410,7 @@ func (h *WebhookHandler) writeNewForm(w http.ResponseWriter, sc ProjectScope, fo
 		Render(w, sc.req, templates.WebhookNewPage(h.ProjectFragmentBase(sc), form))
 		return
 	}
-	l := h.layout(sc, "New webhook")
+	l := h.layout(sc, pageTitle(sc.req, "webhooks.new_title"))
 	l.Crumbs = append(l.Crumbs, web.Crumb{Label: l.Tr("nav.webhooks"), Href: h.ProjectURL(sc, "/webhooks")})
 	Render(w, sc.req, templates.WebhookNewLayout(l, form))
 }

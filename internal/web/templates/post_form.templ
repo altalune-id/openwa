@@ -63,7 +63,7 @@ templ postQuickTag(d web.LayoutData, v PostFormView) {
 			@icons.Icon("plus", "h-3.5 w-3.5")
 			<span>{ d.Tr("blog.post_quick_tag") }</span>
 		</summary>
-		<div class="absolute start-0 top-full z-40 mt-2 w-72 popover-surface p-3" style="background:hsl(var(--popover));color:hsl(var(--popover-foreground));">
+		<div class="absolute start-0 top-full z-40 mt-2 w-72 rounded-box border border-base-300 bg-base-100 p-3 shadow-md">
 			<p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">{ d.Tr("blog.post_quick_tag") }</p>
 			<div id="quick-tag-fields" class="mt-2">
 				<input type="hidden" name="picker" value="1"/>
@@ -132,7 +132,7 @@ templ postEditorAssets(d web.LayoutData) {
 }
 
 templ PostPreviewFragment(d web.LayoutData, html string) {
-	<div id="post-preview" class="prose max-w-none text-sm text-foreground">
+	<div id="post-preview" class={ proseClass, "max-w-none text-sm text-foreground" }>
 		if html == "" {
 			<p class="text-sm text-muted-foreground">{ d.Tr("blog.post_preview_empty") }</p>
 		} else {
@@ -246,7 +246,7 @@ templ PostFormPage(d web.LayoutData, v PostFormView) {
 						class={ ButtonClass(ButtonSecondary) }
 					>
 						{ d.Tr("blog.post_preview") }
-						<span id="post-preview-spinner" class="htmx-indicator ml-1.5 inline-block align-middle">…</span>
+						<span id="post-preview-spinner" class="htmx-indicator ms-1.5 inline-block align-middle">…</span>
 					</button>
 					<div class="mt-2 rounded-lg border border-border bg-card p-4 shadow-sm">
 						@PostPreviewFragment(d, v.PreviewHTML)

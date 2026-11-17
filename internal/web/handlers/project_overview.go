@@ -62,7 +62,7 @@ func (h *ProjectOverviewHandler) GetOverview(w http.ResponseWriter, r *http.Requ
 		v.MessagesToday = int(n)
 	}
 	Render(w, sc.req, templates.OverviewLayout(
-		h.LayoutForProject(sc.req, "Overview", sc.org.Slug, sc.project, "overview"),
+		h.LayoutForProject(sc.req, pageTitle(sc.req, "nav.overview"), sc.org.Slug, sc.project, "overview"),
 		v,
 	))
 }

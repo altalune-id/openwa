@@ -1,0 +1,70 @@
+# route<TAB>state<TAB>seed step. Widths: 390, 768, 1024, 1280. Modes: light, dark; plus ar-SA (POST /locale) at 390. Placeholders: {o} org slug, {p} project slug, {d} device id, {c} chat id, {w} webhook id, {dl} delivery id. Pass the drawer selector ".drawer-side" for every signed-in route.
+/login	default	none, signed out
+/login	error	submit a wrong credential
+/login	theme open	open the appearance dropdown in the top bar
+/admin-login	default	none, signed out
+/terms	default	none, signed out
+/privacy	default	none, signed out
+/welcome	default	sign in as a fresh user with no accepted terms
+/welcome	error	submit without accepting the terms
+/onboarding	default	sign in as a fresh user with no org
+/signup/complete	default	sign in as a fresh user with no org
+/signup/complete	error	submit with an empty name
+/signup/complete	terms	set compliance.require_acceptance and sign in fresh
+/invites/accept	default	open an invite link from the Invites page
+/orgs	empty	sign in as a user with no org
+/orgs	data	create 2 orgs
+/orgs/new	forbidden	selfhosted mode: 403 (org creation is off); walk only in cloud mode
+/orgs/{o}	empty	create an org with no project
+/orgs/{o}	data	create 2 projects
+/orgs/{o}	member	sign in as a plain member (no New project)
+/orgs/{o}/projects/new	default	none
+/orgs/{o}/projects/new	error	submit with an empty name
+/orgs/{o}/members	data	create an org, invite one person, accept
+/orgs/{o}/members	dialog open	click remove on a member
+/orgs/{o}/invites	empty	create an org
+/orgs/{o}/invites	data	create 2 invites
+/orgs/{o}/invites	dialog open	click revoke on an invite
+/orgs/{o}/apikeys	empty	create an org
+/orgs/{o}/apikeys	data	create 2 org API keys
+/settings/tokens	empty	sign in
+/settings/tokens	data	create a personal token
+/orgs/{o}/projects/{p}/overview	empty	create a project with no number
+/orgs/{o}/projects/{p}/overview	data	pair a number and receive messages
+/orgs/{o}/projects/{p}/overview	switcher open	click the rail switcher (desktop) or the navbar title (390); the panel must sit inside the rail (no ancestor-clip hit)
+/orgs/{o}/projects/{p}/overview	switcher one org	sign in as a user with one org and one project, open the switcher
+/orgs/{o}/projects/{p}/overview	switcher system org	sign in as admin@altalune.id with the system org, open the switcher
+/orgs/{o}/projects/{p}/overview	drawer open	at 390, tap the menu button
+/orgs/{o}/projects/{p}/overview	appearance open	open Appearance in the rail footer
+/orgs/{o}/projects/{p}/overview	language open	open the language menu in the rail footer
+/orgs/{o}/projects/{p}/overview	account open	open the account menu in the rail footer
+/orgs/{o}/projects/{p}/devices	empty	create a project
+/orgs/{o}/projects/{p}/devices	data	pair 2 numbers
+/orgs/{o}/projects/{p}/devices/new	default	none
+/orgs/{o}/projects/{p}/devices/{d}	default	pair a number
+/orgs/{o}/projects/{p}/devices/{d}	dialog open	click delete on the number
+/orgs/{o}/projects/{p}/inbox	empty	pair a number with no messages
+/orgs/{o}/projects/{p}/inbox	data	receive messages from 3 contacts
+/orgs/{o}/projects/{p}/inbox/chats/{c}	default	open a chat with 20 messages
+/orgs/{o}/projects/{p}/inbox/new	default	pair a number
+/orgs/{o}/projects/{p}/contacts	empty	pair a number
+/orgs/{o}/projects/{p}/contacts	data	receive messages from 3 contacts
+/orgs/{o}/projects/{p}/webhooks	empty	create a project (Developers group opens)
+/orgs/{o}/projects/{p}/webhooks	data	create 2 webhooks
+/orgs/{o}/projects/{p}/webhooks/new	default	none
+/orgs/{o}/projects/{p}/webhooks/new	error	submit with an invalid URL
+/orgs/{o}/projects/{p}/webhooks/{w}	default	create a webhook and send a test delivery
+/orgs/{o}/projects/{p}/webhooks/{w}/deliveries/{dl}	default	send a test delivery
+/orgs/{o}/projects/{p}/apikeys	empty	create a project
+/orgs/{o}/projects/{p}/apikeys	data	create 2 project API keys
+/orgs/{o}/projects/{p}/apikeys	dialog open	click revoke on a key
+/orgs/{o}/projects/{p}/usage	default	create a project
+/orgs/{o}/projects/{p}/settings	default	sign in as an org owner
+/orgs/{o}/projects/{p}/settings	saved	rename the project (lands on ?saved=name)
+/orgs/{o}/projects/{p}/settings	error	rename to an empty name (inline field error)
+/orgs/{o}/projects/{p}/settings	member	sign in as a plain member (read-only, lock note)
+/orgs/{o}/projects/{p}/settings	system	open the self-hosted system project (name locked)
+/orgs/{o}/projects/{p}/settings	project time open	set scheduler zone to one that differs from the browser, open Project time
+/orgs/{o}/projects/{p}/settings	advanced open	open Advanced
+/orgs/{o}/projects/{p}/settings	retention error	save retention days 0
+/onboard	default	open an onboarding link as a signed-out visitor

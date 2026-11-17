@@ -43,7 +43,7 @@ func (h *WelcomeHandler) GetWelcome(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, ResolveReturnTo(h.Cfg.HTTP.BasePath, retTo), http.StatusSeeOther) //nolint:gosec // G710: return_to sanitized via ResolveReturnTo → SanitizeReturnTo
 		return
 	}
-	Render(w, r, templates.WelcomeLayout(h.Base(r, "Welcome"), h.view(p, retTo, "")))
+	Render(w, r, templates.WelcomeLayout(h.Base(r, pageTitle(r, "welcome.eyebrow")), h.view(p, retTo, "")))
 }
 
 // PostWelcome stamps TermsAcceptedAt and updates the display name.
@@ -62,18 +62,18 @@ func (h *WelcomeHandler) PostWelcome(w http.ResponseWriter, r *http.Request) {
 	askName := strings.TrimSpace(p.Name) == ""
 
 	if askAccept && r.PostForm.Get("accept_terms") != "1" {
-		Render(w, r, templates.WelcomeLayout(h.Base(r, "Welcome"), h.view(p, retTo, "Please tick the box to continue.")))
+		Render(w, r, templates.WelcomeLayout(h.Base(r, pageTitle(r, "welcome.eyebrow")), h.view(p, retTo, "Please tick the box to continue.")))
 		return
 	}
 	if askName {
 		name := strings.TrimSpace(r.PostForm.Get("name"))
 		if name == "" {
-			Render(w, r, templates.WelcomeLayout(h.Base(r, "Welcome"), h.view(p, retTo, "Enter your display name.")))
+			Render(w, r, templates.WelcomeLayout(h.Base(r, pageTitle(r, "welcome.eyebrow")), h.view(p, retTo, "Enter your display name.")))
 			return
 		}
 		if err := h.Users.Rename(r.Context(), p.UserID, name); err != nil {
 			h.LogErr("welcome: rename", err)
-			Render(w, r, templates.WelcomeLayout(h.Base(r, "Welcome"), h.view(p, retTo, "Could not save your name.")))
+			Render(w, r, templates.WelcomeLayout(h.Base(r, pageTitle(r, "welcome.eyebrow")), h.view(p, retTo, "Could not save your name.")))
 			return
 		}
 		p.Name = name
@@ -81,7 +81,7 @@ func (h *WelcomeHandler) PostWelcome(w http.ResponseWriter, r *http.Request) {
 	if askAccept {
 		if err := h.Users.AcceptTerms(r.Context(), p.UserID); err != nil {
 			h.LogErr("welcome: accept terms", err)
-			Render(w, r, templates.WelcomeLayout(h.Base(r, "Welcome"), h.view(p, retTo, "Could not record your acceptance.")))
+			Render(w, r, templates.WelcomeLayout(h.Base(r, pageTitle(r, "welcome.eyebrow")), h.view(p, retTo, "Could not record your acceptance.")))
 			return
 		}
 		p.TermsAcceptedAt = time.Now().UTC()
@@ -132,16 +132,16 @@ func (h *WelcomeHandler) privacyURL() string {
 	return cmp.Or(strings.TrimSpace(h.Cfg.Compliance.PrivacyURL), web.Path(h.Cfg.HTTP.BasePath, "/privacy"))
 }
 
-// WelcomeGate redirects signed-in users to /welcome while compliance requires acceptance and their last acceptance predates termsUpdatedAt; a zero date gates first acceptance only.
+// WelcomeGate redirects a signed-in user to /welcome while they have no display name, or while compliance requires acceptance and their last acceptance predates termsUpdatedAt; a zero date gates first acceptance only.
 func WelcomeGate(basePath string, requireAcceptance bool, termsUpdatedAt time.Time) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !requireAcceptance || isWelcomeSkipped(r.URL.Path) {
+			if isWelcomeSkipped(r.URL.Path) {
 				next.ServeHTTP(w, r)
 				return
 			}
 			p := session.PrincipalFrom(r.Context())
-			if p.UserID == uuid.Nil || !needsTerms(p, termsUpdatedAt, true) {
+			if p.UserID == uuid.Nil || (!needsTerms(p, termsUpdatedAt, requireAcceptance) && strings.TrimSpace(p.Name) != "") {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -156,6 +156,8 @@ func isWelcomeSkipped(path string) bool {
 	case path == "/welcome",
 		path == "/login",
 		path == "/logout",
+		path == "/locale",
+		path == "/theme",
 		path == "/onboard",
 		path == "/signup/complete",
 		path == "/terms",

@@ -22,7 +22,7 @@ type MembersView struct {
 
 templ membersActions(d web.LayoutData, v MembersView) {
 	if v.CanManage {
-		@Button(ButtonProps{Kind: ButtonPrimary, Icon: "user-plus", Label: d.Tr("members.invite_button"), Href: d.Href("/orgs/" + v.OrgSlug + "/invites")})
+		@AppButton(ButtonProps{Kind: ButtonPrimary, Icon: "user-plus", Label: d.Tr("members.invite_button"), Href: d.Href("/orgs/" + v.OrgSlug + "/invites")})
 	}
 }
 
@@ -39,7 +39,7 @@ templ MembersPage(d web.LayoutData, v MembersView) {
 				for _, m := range v.Members {
 					@ListRow(d, nil) {
 						<div class="min-w-0 flex-1">
-							<p class="flex items-center gap-2 truncate text-sm font-medium text-foreground">
+							<p class="flex items-center gap-2 truncate text-sm font-medium text-base-content">
 								<span class="truncate">{ memberDisplayName(m) }</span>
 								if m.IsSelf {
 									@Badge(ToneNeutral, d.Tr("members.you"))
@@ -48,10 +48,10 @@ templ MembersPage(d web.LayoutData, v MembersView) {
 									@Badge(ToneWarning, d.Tr("common.system"))
 								}
 							</p>
-							<p class="truncate text-xs text-muted-foreground">{ m.Email } · { m.Role }</p>
+							<p class="text-xs break-all text-base-content/70">{ m.Email } · { m.Role }</p>
 						</div>
 						if v.CanManage && m.Removable {
-							@ConfirmDialog(d, ConfirmProps{
+							@ConfirmModal(d, ConfirmProps{
 								ID:           "remove-" + m.UserID,
 								Title:        d.Tr("members.remove_confirm_title"),
 								Body:         d.Tr("members.remove_confirm_body", "Email", m.Email),

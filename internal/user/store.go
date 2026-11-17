@@ -15,4 +15,7 @@ type Store interface {
 	ByIDP(ctx context.Context, issuer, subject string) (*User, error)
 	HasLocalUsers(ctx context.Context) (bool, error)
 	UpdateLocale(ctx context.Context, id uuid.UUID, locale string) error
+	UpdateThemePrefs(ctx context.Context, id uuid.UUID, theme, colorMode string) error
+	MarkTipsSeen(ctx context.Context, id uuid.UUID, ids []string) ([]string, error)
+	SetLastProject(ctx context.Context, id, projectID uuid.UUID) error
 }

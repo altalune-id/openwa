@@ -16,11 +16,11 @@ func NewLegalHandler(d Deps) *LegalHandler { return &LegalHandler{Deps: d} }
 
 // Register mounts the /terms and /privacy routes on mux.
 func (h *LegalHandler) Register(mux web.Mux) {
-	mux.HandleFunc("GET /terms", h.get(legal.TermsSlug, "Terms of Service"))
-	mux.HandleFunc("GET /privacy", h.get(legal.PrivacySlug, "Privacy Policy"))
+	mux.HandleFunc("GET /terms", h.get(legal.TermsSlug, "title.terms"))
+	mux.HandleFunc("GET /privacy", h.get(legal.PrivacySlug, "title.privacy"))
 }
 
-func (h *LegalHandler) get(slug, fallbackTitle string) http.HandlerFunc {
+func (h *LegalHandler) get(slug, fallbackKey string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		doc, err := legal.BySlug(slug)
 		if err != nil {
@@ -30,7 +30,7 @@ func (h *LegalHandler) get(slug, fallbackTitle string) http.HandlerFunc {
 		}
 		title := doc.Title
 		if title == "" {
-			title = fallbackTitle
+			title = pageTitle(r, fallbackKey)
 		}
 		Render(w, r, templates.LegalLayout(h.Base(r, title), templates.LegalView{Doc: doc}))
 	}

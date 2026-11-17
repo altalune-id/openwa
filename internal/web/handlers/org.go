@@ -34,7 +34,7 @@ func (h *OrgHandler) GetList(w http.ResponseWriter, r *http.Request) {
 		h.ErrorPageKey(w, r, http.StatusInternalServerError, "error.load_failed", err)
 		return
 	}
-	Render(w, r, templates.OrgsLayout(h.Layout(r, "Organizations", web.ActiveNav{Scope: web.NavScopeOrg}), templates.OrgsView{Orgs: orgSummaries(items)}))
+	Render(w, r, templates.OrgsLayout(h.Layout(r, pageTitle(r, "orgs.title"), web.ActiveNav{Scope: web.NavScopeOrg}), templates.OrgsView{Orgs: orgSummaries(items)}))
 }
 
 // GetNew renders /orgs/new.
@@ -46,7 +46,7 @@ func (h *OrgHandler) GetNew(w http.ResponseWriter, r *http.Request) {
 		h.ErrorPageKey(w, r, http.StatusForbidden, "error.forbidden", nil)
 		return
 	}
-	Render(w, r, templates.OrgNewLayout(h.Layout(r, "Create organization", web.ActiveNav{Scope: web.NavScopeOrg}), templates.OrgNewView{Slug: slugs.Generate()}))
+	Render(w, r, templates.OrgNewLayout(h.Layout(r, pageTitle(r, "nav.create_organization"), web.ActiveNav{Scope: web.NavScopeOrg}), templates.OrgNewView{Slug: slugs.Generate()}))
 }
 
 // PostCreate handles POST /orgs (org creation is capability-gated).
@@ -79,7 +79,7 @@ func (h *OrgHandler) PostCreate(w http.ResponseWriter, r *http.Request) {
 		h.LogErr("web org: update session", err)
 	}
 	h.SetFlash(w, r, web.FlashOK, "flash.org_created", "Name", created.Name)
-	http.Redirect(w, r, web.Path(h.Cfg.HTTP.BasePath, "/orgs/"+created.Slug+"/projects"), http.StatusSeeOther)
+	http.Redirect(w, r, web.Path(h.Cfg.HTTP.BasePath, "/orgs/"+created.Slug), http.StatusSeeOther)
 }
 
 // PostRename handles POST /orgs/{slug}/rename.
@@ -126,7 +126,7 @@ func (h *OrgHandler) GetShow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	canManage, _ := h.Orgs.IsManager(r.Context(), o.ID, p.UserID)
-	Render(w, r, templates.MembersLayout(h.LayoutForOrg(r, "Members", o.Slug, "members"), templates.MembersView{
+	Render(w, r, templates.MembersLayout(h.LayoutForOrg(r, pageTitle(r, "members.title"), o.Slug, "members"), templates.MembersView{
 		OrgSlug:   o.Slug,
 		Members:   memberProfileRows(profiles, o.ID, p.UserID),
 		CanManage: canManage,
@@ -197,7 +197,7 @@ func (h *OrgHandler) renderNewErr(w http.ResponseWriter, r *http.Request, slug, 
 		msg = "Organization creation is disabled."
 	}
 	Render(w, r, templates.OrgNewLayout(
-		h.Layout(r, "Create organization", web.ActiveNav{Scope: web.NavScopeOrg}),
+		h.Layout(r, pageTitle(r, "nav.create_organization"), web.ActiveNav{Scope: web.NavScopeOrg}),
 		templates.OrgNewView{Slug: slug, Name: name, Error: msg, ErrorCode: ErrorRef(err)},
 	))
 }

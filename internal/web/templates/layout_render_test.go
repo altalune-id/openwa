@@ -35,31 +35,42 @@ func projectShell() web.LayoutData {
 		ActiveOrg:     &web.ActiveOrg{ID: "o", Slug: "acme", Name: "Acme"},
 		ActiveProject: &web.ActiveProject{ID: "p", Slug: "alpha", Name: "Alpha"},
 		ActiveNav:     web.ActiveNav{Scope: web.NavScopeProject, ProjectKey: "overview"},
-		Themes:        web.Themes(),
-		ColorModes:    web.ColorModes(),
+		Theme:         web.ParseThemePref("", ""),
 	}
 }
 
-func TestLayout_ThemeScriptsUseDefaultThemeKey(t *testing.T) {
+func TestLayout_SystemModeRendersNoDataThemeAndBothMetas(t *testing.T) {
 	html := renderShell(t, projectShell())
-	require.NotContains(t, html, "'slate'")
-	require.Contains(t, html, `data-default-theme="`+web.DefaultThemeKey+`"`)
-	require.Regexp(t, regexp.MustCompile(`data-theme-label>Tide<`), html)
+	require.NotContains(t, html, "data-theme=")
+	require.Equal(t, 2, strings.Count(html, `<meta name="theme-color" media="(prefers-color-scheme:`))
+	require.NotContains(t, html, "localStorage")
 }
 
-func TestLayout_RendersToastRegionWithFlash(t *testing.T) {
+func TestLayout_ChosenModeRendersDataTheme(t *testing.T) {
+	d := projectShell()
+	d.Theme = web.ParseThemePref("openwa", web.ModeDark)
+	d.ThemeAttr = d.Theme.Attr()
+	html := renderShell(t, d)
+	require.Contains(t, html, `data-theme="openwa-dark"`)
+	require.Equal(t, 1, strings.Count(html, `<meta name="theme-color"`))
+}
+
+func TestLayout_RendersToastHostWithFlash(t *testing.T) {
 	d := projectShell()
 	d.Flash = &web.FlashMessage{Kind: web.FlashOK, Message: "Saved"}
 	html := renderShell(t, d)
-	require.Contains(t, html, `id="hx-notice" aria-live="polite"`)
+	require.Contains(t, html, `id="hx-notice" aria-live="polite" class="toast`)
+	require.Contains(t, html, "alert-success")
 	require.Contains(t, html, ">Saved<")
 	require.NotRegexp(t, colourLiteral, html)
 }
 
-func TestLayout_ShipsConfirmScriptOnce(t *testing.T) {
+func TestLayout_LoadsOwnScriptsOnce(t *testing.T) {
 	html := renderShell(t, projectShell())
-	require.Equal(t, 1, strings.Count(html, "window.openwaConfirmBound = true"))
-	require.Contains(t, html, "<noscript><style>dialog[data-confirm]", "the no-JS dialog fallback lives once in the layout head, not per dialog")
+	for _, js := range []string{"dialog.js", "dropdown.js", "tips.js", "copy.js", "localtime.js"} {
+		require.Equal(t, 1, strings.Count(html, `src="/static/`+js), js)
+	}
+	require.NotContains(t, html, "basecoat")
 }
 
 func TestLayout_ShellStructure(t *testing.T) {
@@ -70,28 +81,83 @@ func TestLayout_ShellStructure(t *testing.T) {
 	html := renderShell(t, d)
 
 	require.Contains(t, html, "<title>Overview · Alpha · OpenWA</title>")
-	require.Regexp(t, `<body[^>]*>\s*<a href="#main" class="sr-only focus:not-sr-only`, html)
+	require.Regexp(t, `<body[^>]*>\s*<a href="#main" class="btn btn-sm sr-only focus:not-sr-only`, html)
+	require.Contains(t, html, `<div class="drawer lg:drawer-open">`)
+	require.Contains(t, html, `<input id="alt-drawer" type="checkbox" class="drawer-toggle"`)
 	require.Contains(t, html, `<main id="main" tabindex="-1"`)
-	require.Contains(t, html, `<button type="button" id="drawer-toggle" aria-controls="drawer" aria-expanded="false"`)
-	require.Contains(t, html, `<aside id="drawer" aria-label="common.menu" class="hidden fixed`, "the drawer is closed by the hidden class; a hidden attribute loses to .flex")
-	require.NotContains(t, html, `id="drawer" hidden`)
-	require.Contains(t, html, `data-drawer-close`)
-	require.Contains(t, html, `openwa-mark.svg`)
+	require.Contains(t, html, `class="drawer-overlay"`)
+	require.Contains(t, html, `data-drawer-toggle`)
+	require.Contains(t, html, `/static/openwa-mark-16.svg`)
 	require.Contains(t, html, `>OpenWA<`)
-	require.Contains(t, html, "nav.group_project")
-	require.Contains(t, html, "nav.group_developer")
 	require.Contains(t, html, `aria-label="nav.breadcrumb"`)
-	require.Contains(t, html, "OpenWA · 0.1.0-test")
+	require.Contains(t, html, "OpenWA 0.1.0-test")
 	require.Equal(t, 1, strings.Count(html, "0.1.0-test"), "the version shows once, in the user menu")
-	require.Equal(t, 2, strings.Count(html, "bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"), "webhooks lights up once per menu copy (desktop + drawer) and nothing else does")
-	require.NotContains(t, html, "text-muted-foreground/60")
-	require.NotContains(t, html, "text-muted-foreground/50")
-	require.NotContains(t, html, `for="alt-drawer"`)
+	require.Len(t, regexp.MustCompile(`<a href="[^"]*" class="menu-active"`).FindAllString(html, -1), 1, "webhooks lights up once and nothing else does")
+	require.Contains(t, html, `<a href="/orgs/acme/projects/alpha/webhooks" class="menu-active" aria-current="page">`)
+	require.Regexp(t, `<details open>\s*<summary>`, html, "Developers opens when one of its pages is active")
+	require.NotContains(t, html, "style=")
 }
 
-func TestLayout_OrgProjectsItemDoesNotLightUpOnProjectPages(t *testing.T) {
+func TestLayout_ProjectNavGroups(t *testing.T) {
 	html := renderShell(t, projectShell())
-	require.Regexp(t, `<a href="/orgs/acme/projects" class="flex items-center gap-2 min-h-\[40px\] rounded-md px-3 py-2 text-sm text-muted-foreground`, html)
+	order := []string{
+		`href="/orgs/acme/projects/alpha/overview"`,
+		"nav.group_messages",
+		`href="/orgs/acme/projects/alpha/devices"`,
+		`href="/orgs/acme/projects/alpha/inbox"`,
+		`href="/orgs/acme/projects/alpha/contacts"`,
+		"nav.group_developers",
+		`href="/orgs/acme/projects/alpha/webhooks"`,
+		`href="/orgs/acme/projects/alpha/apikeys"`,
+		`href="/orgs/acme/projects/alpha/usage"`,
+		`href="/orgs/acme"`,
+		`href="/orgs/acme/projects/alpha/settings"`,
+	}
+	at := 0
+	for _, want := range order {
+		i := strings.Index(html[at:], want)
+		require.GreaterOrEqual(t, i, 0, "%s missing or out of order", want)
+		at += i
+	}
+	require.Regexp(t, `<details>\s*<summary>`, html, "Developers starts collapsed")
+}
+
+func TestLayout_SwitcherRailAndPhoneSheet(t *testing.T) {
+	d := projectShell()
+	d.OtherProjects = []web.ActiveProject{{Slug: "beta", Name: "Beta"}}
+	d.OtherOrgs = []web.ActiveOrg{{Slug: "sys", Name: "System", System: true}}
+	html := renderShell(t, d)
+	require.Contains(t, html, `data-org-switcher="rail"`)
+	require.Contains(t, html, `<details class="dropdown w-full">`)
+	require.Contains(t, html, `data-dialog-open="switcher"`)
+	require.Regexp(t, `<div id="dialog-host" hx-morph-skip hx-nonce="n0nce">\s*<dialog id="switcher" class="modal modal-bottom sm:modal-middle"`, html)
+	require.Contains(t, html, `href="/orgs/acme/projects/beta/overview"`)
+	require.Contains(t, html, `href="/orgs/sys/switch"`)
+	require.Contains(t, html, "common.system")
+}
+
+func TestLayout_DialogsRenderInTheHostOutsideMain(t *testing.T) {
+	d := web.WithDialogs(projectShell(), templ.Raw(`<dialog id="x-dlg"></dialog>`))
+	html := renderShell(t, d)
+	host := strings.Index(html, `id="dialog-host"`)
+	main := strings.Index(html, `</main>`)
+	require.Greater(t, host, main)
+	require.Greater(t, strings.Index(html, `id="x-dlg"`), host)
+}
+
+func TestLayout_NoLinkToTheRetiredProjectsPage(t *testing.T) {
+	d := projectShell()
+	d.ActiveNav = web.ActiveNav{Scope: web.NavScopeOrg}
+	d.ActiveProject = nil
+	d.ActiveOrg.CanManage = true
+	d.OtherOrgs = []web.ActiveOrg{{Slug: "beta", Name: "Beta"}}
+	for name, html := range map[string]string{
+		"shell":       renderShell(t, d),
+		"orgs":        render(t, OrgsPage(d, OrgsView{Orgs: []OrgSummary{{Slug: "acme", Name: "Acme"}}})),
+		"project_new": render(t, ProjectNewPage(d, ProjectNewView{OrgSlug: "acme"})),
+	} {
+		require.NotRegexp(t, `href="/orgs/[a-z]+/projects"`, html, name)
+	}
 }
 
 func TestLayout_OrgScopeShowsAPIKeysLink(t *testing.T) {
@@ -101,17 +167,25 @@ func TestLayout_OrgScopeShowsAPIKeysLink(t *testing.T) {
 	require.Contains(t, renderShell(t, d), `href="/orgs/acme/apikeys"`)
 }
 
-func TestLayout_SettingsScopeShowsPersonalTokensInSecondarySidebar(t *testing.T) {
+func TestLayout_SettingsScopeShowsPersonalTokens(t *testing.T) {
 	d := projectShell()
 	d.ActiveProject = nil
 	d.ActiveNav = web.ActiveNav{Scope: web.NavScopeSettings, SettingsKey: "tokens"}
 	html := renderShell(t, d)
-	require.Contains(t, html, `aria-label="nav.settings"`)
+	require.Contains(t, html, "nav.personal_tokens")
 	require.Contains(t, html, `href="/settings/tokens"`)
 }
 
 func TestLayout_UserMenuLinksToSettings(t *testing.T) {
 	require.Contains(t, renderShell(t, projectShell()), `href="/settings/tokens"`)
+}
+
+func TestLayout_SignedOutShowsThemePickerAndNoDrawer(t *testing.T) {
+	d := web.LayoutData{Nonce: "n0nce", BrandName: "OpenWA", Theme: web.ParseThemePref("", "")}
+	html := renderShell(t, d)
+	require.NotContains(t, html, "drawer")
+	require.Contains(t, html, `action="/theme"`)
+	require.Contains(t, html, `name="mode" value="system" class="radio radio-sm radio-primary" checked`)
 }
 
 var (
@@ -161,18 +235,14 @@ func TestA11y_EveryHTMXElementCarriesHxNonce(t *testing.T) {
 
 func TestA11y_LandmarksSkipLinkAndDrawer(t *testing.T) {
 	html := richShell(t)
-	require.Regexp(t, `<body[^>]*>\s*<a href="#main" class="sr-only focus:not-sr-only`, html)
+	require.Regexp(t, `<body[^>]*>\s*<a href="#main" class="btn btn-sm sr-only focus:not-sr-only`, html)
 	require.Contains(t, html, `<main id="main" tabindex="-1"`)
 	require.Contains(t, html, "<header")
 	require.Regexp(t, `<nav aria-label="[^"]+"`, html)
-	require.Regexp(t, `<aside aria-label="[^"]+"`, html)
-	require.Contains(t, html, `id="drawer-toggle" aria-controls="drawer" aria-expanded="false"`)
-	require.Contains(t, html, "e.key === 'Escape' && isOpen()")
+	require.Contains(t, html, `aria-label="nav.open_menu"`)
 	require.Contains(t, html, `id="hx-error" class="mb-4 empty:hidden empty:mb-0" aria-live="polite"`)
 	require.Contains(t, html, `id="hx-notice" aria-live="polite"`)
-	require.Regexp(t, `<dialog id="[^"]+" aria-labelledby="[^"]+-title"`, html)
-	require.NotContains(t, html, "'slate'")
-	require.Contains(t, html, `data-default-theme="tide"`)
+	require.Regexp(t, `<dialog id="[^"]+" class="modal[^"]*" aria-labelledby="[^"]+-title"`, html)
 }
 
 func TestA11y_IconOnlyButtonsAreLabelled(t *testing.T) {
@@ -188,4 +258,16 @@ func TestA11y_IconOnlyButtonsAreLabelled(t *testing.T) {
 
 func stripTags(s string) string {
 	return strings.TrimSpace(regexp.MustCompile(`<[^>]*>`).ReplaceAllString(s, ""))
+}
+
+func TestSwitcherTrigger_OrgPageNamesTheOrgOnceAndPromptsForAProject(t *testing.T) {
+	d := web.LayoutData{ActiveOrg: &web.ActiveOrg{Slug: "toko", Name: "Toko Sari"}}
+	for name, c := range map[string]templ.Component{"rail": switcherRailTrigger(d), "phone": switcherPhoneTrigger(d)} {
+		var buf bytes.Buffer
+		require.NoError(t, c.Render(context.Background(), &buf))
+		text := stripTags(buf.String())
+		require.Equal(t, 1, strings.Count(text, "Toko Sari"), "%s trigger: org name once: %q", name, text)
+		require.Contains(t, buf.String(), `text-base-content/70">`+d.Tr("common.select_project")+`</span>`, "%s trigger: muted prompt", name)
+	}
+	require.Equal(t, d.Tr("switcher.label", "Org", "Toko Sari", "Project", d.Tr("common.select_project")), switcherLabel(d))
 }

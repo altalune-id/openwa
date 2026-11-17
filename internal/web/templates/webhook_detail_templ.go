@@ -386,7 +386,7 @@ func WebhookDeliveryItem(d web.LayoutData, v WebhookDeliveriesView, row WebhookD
 			return templ_7745c5c3_Err
 		}
 		if row.LastError != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<p class=\"mt-1 break-all border-l-2 border-destructive/30 pl-2 font-mono text-xs text-foreground\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<p class=\"mt-1 break-all border-s-2 border-destructive/30 ps-2 font-mono text-xs text-foreground\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1004,7 +1004,7 @@ func webhookHeaderTable(d web.LayoutData, headers []WebhookHeaderRow) templ.Comp
 			templ_7745c5c3_Var48 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "<div class=\"mt-1 overflow-x-auto\"><table class=\"w-full text-left text-xs\"><thead><tr class=\"text-muted-foreground\"><th scope=\"col\" class=\"py-0.5 pr-3 font-medium\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "<div class=\"mt-1 overflow-x-auto\"><table class=\"w-full text-start text-xs\"><thead><tr class=\"text-muted-foreground\"><th scope=\"col\" class=\"py-0.5 pe-3 font-medium\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1035,7 +1035,7 @@ func webhookHeaderTable(d web.LayoutData, headers []WebhookHeaderRow) templ.Comp
 			return templ_7745c5c3_Err
 		}
 		for _, h := range headers {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "<tr><td class=\"py-0.5 pr-3 align-top font-mono text-foreground\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "<tr><td class=\"py-0.5 pe-3 align-top font-mono text-foreground\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1491,7 +1491,7 @@ func WebhookDeliveryDetail(d web.LayoutData, payload WebhookPayloadView, items [
 				return templ_7745c5c3_Err
 			}
 			if a.Error != "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 114, "<p class=\"mt-0.5 break-all border-l-2 border-destructive/30 pl-2 font-mono text-foreground\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 114, "<p class=\"mt-0.5 break-all border-s-2 border-destructive/30 ps-2 font-mono text-foreground\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1553,7 +1553,7 @@ func webhookDetailActions(d web.LayoutData, v WebhookDetailView) templ.Component
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonGhost, Label: d.Tr("webhooks.back"), Href: d.ProjectPath(v.ProjectSlug, "/webhooks")}).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("webhooks.back"), Href: d.ProjectPath(v.ProjectSlug, "/webhooks")}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1679,7 +1679,7 @@ func WebhookDetailPage(d web.LayoutData, v WebhookDetailView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = ConfirmDialog(d, ConfirmProps{
+				templ_7745c5c3_Err = ConfirmModal(d, ConfirmProps{
 					ID:           "retire-" + v.Endpoint.ID,
 					Title:        d.Tr("webhooks.retire_confirm_title"),
 					Body:         d.Tr("webhooks.retire_confirm_body"),
@@ -1796,7 +1796,7 @@ func WebhookDetailPage(d web.LayoutData, v WebhookDetailView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = Button(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("webhooks.rotate_confirm")}).Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = AppButton(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("webhooks.rotate_confirm")}).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -1899,7 +1899,7 @@ func WebhookDetailPage(d web.LayoutData, v WebhookDetailView) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = ConfirmDialog(d, ConfirmProps{
+				templ_7745c5c3_Err = ConfirmModal(d, ConfirmProps{
 					ID:           "delete-" + v.Endpoint.ID,
 					Title:        d.Tr("webhooks.delete_confirm_title"),
 					Body:         d.Tr("webhooks.delete_confirm_body"),

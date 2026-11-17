@@ -17,16 +17,16 @@ templ OrgNewPage(d web.LayoutData, v OrgNewView) {
 		}
 		{{ nameField := FieldProps{ID: "org-name", Label: d.Tr("common.name"), Required: true} }}
 		{{ slugField := FieldProps{ID: "org-slug", Label: d.Tr("common.slug"), Help: d.Tr("common.slug_hint")} }}
-		<form method="post" action={ templ.SafeURL(d.Href("/orgs")) } class="mt-6 space-y-5" novalidate>
-			@Field(d, nameField) {
+		<form method="post" action={ templ.SafeURL(d.Href("/orgs")) } class="mt-6 flex flex-col gap-3" novalidate>
+			@FormField(d, nameField) {
 				<input name="name" type="text" autofocus value={ v.Name } placeholder={ d.Tr("org_new.name_placeholder") } class={ InputClass() } { InputAttrs(nameField)... }/>
 			}
-			@Field(d, slugField) {
-				<input name="slug" type="text" value={ v.Slug } placeholder={ d.Tr("org_new.slug_placeholder") } pattern="[a-z0-9-]+" class={ InputClass() } { InputAttrs(slugField)... }/>
+			@FormField(d, slugField) {
+				<input name="slug" type="text" value={ v.Slug } placeholder={ d.Tr("org_new.slug_placeholder") } pattern="[a-z0-9\-]+" dir="ltr" class={ InputClass() } { InputAttrs(slugField)... }/>
 			}
 			<div class="flex items-center gap-3 pt-2">
-				@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("nav.create_organization")})
-				@Button(ButtonProps{Kind: ButtonGhost, Label: d.Tr("common.cancel"), Href: d.Href("/")})
+				@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("nav.create_organization")})
+				@AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("common.cancel"), Href: d.Href("/")})
 			</div>
 		</form>
 	</section>

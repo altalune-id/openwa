@@ -49,10 +49,10 @@ templ webhookForm(d web.LayoutData, f WebhookFormView) {
 			class="space-y-4"
 		>
 			@webhookErrorBanner(d, f.Error)
-			@Field(d, urlField) {
+			@FormField(d, urlField) {
 				<input name="url" type="url" maxlength={ strconv.Itoa(f.MaxURLLen) } value={ f.URL } placeholder="https://example.com/hooks/openwa" class={ InputClass(), "font-mono" } { InputAttrs(urlField)... }/>
 			}
-			@Field(d, descField) {
+			@FormField(d, descField) {
 				<input name="description" type="text" maxlength={ strconv.Itoa(f.MaxDescription) } value={ f.Description } class={ InputClass() } { InputAttrs(descField)... }/>
 			}
 			<fieldset>
@@ -71,9 +71,9 @@ templ webhookForm(d web.LayoutData, f WebhookFormView) {
 			}
 			<div>
 				if f.ID == "" {
-					@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Icon: "plus", Label: d.Tr("webhooks.create")})
+					@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Icon: "plus", Label: d.Tr("webhooks.create")})
 				} else {
-					@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("webhooks.save")})
+					@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("webhooks.save")})
 				}
 			</div>
 		</form>
@@ -86,7 +86,7 @@ templ WebhookNewPage(d web.LayoutData, f WebhookFormView) {
 			Eyebrow:  d.Tr("nav.webhooks"),
 			Title:    d.Tr("webhooks.new_title"),
 			Subtitle: d.Tr("webhooks.new_subtitle"),
-			Actions:  Button(ButtonProps{Kind: ButtonGhost, Label: d.Tr("webhooks.back"), Href: d.ProjectPath(f.ProjectSlug, "/webhooks")}),
+			Actions:  AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("webhooks.back"), Href: d.ProjectPath(f.ProjectSlug, "/webhooks")}),
 		})
 		@webhookForm(d, f)
 	</section>

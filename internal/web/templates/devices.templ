@@ -68,7 +68,7 @@ templ DevicesPage(d web.LayoutData, v DevicesView) {
 
 templ devicesActions(d web.LayoutData, v DevicesView) {
 	if v.CanManage {
-		@Button(ButtonProps{Kind: ButtonPrimary, Label: d.Tr("devices.new"), Icon: "plus", Href: d.ProjectPath(v.ProjectSlug, "/devices/new")})
+		@AppButton(ButtonProps{Kind: ButtonPrimary, Label: d.Tr("devices.new"), Icon: "plus", Href: d.ProjectPath(v.ProjectSlug, "/devices/new")})
 	} else {
 		<span class="text-xs text-muted-foreground">{ d.Tr("common.managers_only") }</span>
 	}
@@ -129,10 +129,10 @@ templ DeviceNewPage(d web.LayoutData, v DeviceFormView) {
 		@PageHeader(d, PageHeaderProps{Title: d.Tr("devices.new_title"), Subtitle: d.Tr("devices.new_subtitle")})
 		@Card(CardProps{}) {
 			<form method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/devices")) } class="space-y-4">
-				@Field(d, FieldProps{ID: "name", Label: d.Tr("devices.name"), Help: d.Tr("devices.name_help"), Error: v.Error, Required: true}) {
+				@FormField(d, FieldProps{ID: "name", Label: d.Tr("devices.name"), Help: d.Tr("devices.name_help"), Error: v.Error, Required: true}) {
 					<input type="text" name="name" value={ v.Name } maxlength="64" required class={ InputClass() } { InputAttrs(FieldProps{ID: "name", Help: d.Tr("devices.name_help"), Error: v.Error})... }/>
 				}
-				@Button(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.create")})
+				@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.create")})
 			</form>
 		}
 		@Card(CardProps{Title: d.Tr("devices.pairing_explainer_title")}) {
