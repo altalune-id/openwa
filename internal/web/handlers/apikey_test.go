@@ -271,6 +271,16 @@ func TestAPIKeys_ExpiryIsRequiredAndCapped(t *testing.T) {
 	assert.WithinDuration(t, time.Now().AddDate(0, 0, 365), *keys[0].ExpiresAt, time.Minute)
 }
 
+func TestAPIKeys_MemberIsRefusedBeforeExpiryIsChecked(t *testing.T) {
+	x := newAPIKeyWebFixture(t)
+	for _, target := range []string{"/orgs/acme/apikeys", "/orgs/acme/projects/alpha/apikeys"} {
+		rec := x.as(t, x.member, http.MethodPost, target, url.Values{"name": {"ci"}, "grant": {"all"}, "expires_in": {"never"}})
+		assert.Contains(t, rec.Body.String(), "apikey.error_not_manager", target)
+		assert.NotContains(t, rec.Body.String(), "apikey.error_invalid_expiry", target)
+	}
+	assert.Empty(t, x.Store.All())
+}
+
 func (x *apikeyWebFixture) personalKeys(t *testing.T, userID uuid.UUID) []*apikey.APIKey {
 	t.Helper()
 	keys, err := x.Keys.ListPersonal(setTenant(context.Background(), x.org, userID))

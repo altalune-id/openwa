@@ -173,6 +173,7 @@ func TestEmptyStateAndPageHeader(t *testing.T) {
 	assert.Contains(t, header, `>Devices</h1>`)
 	assert.Contains(t, header, "text-xl font-semibold")
 	assert.Contains(t, header, ">Messaging<")
+	assert.Regexp(t, `<h1 class="[^"]*\bwrap-anywhere\b`, header, "a long unbroken title such as a URL wraps instead of widening the page")
 }
 
 func TestChipCardStatAvatarSpinnerDisclosure(t *testing.T) {

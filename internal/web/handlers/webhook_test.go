@@ -422,6 +422,23 @@ func TestWebhookHandler_HTMXCreatePushesTheDetailURL(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), templates.WebhookSecretMask)
 }
 
+// TestWebhookHandler_HTMXCreateCarriesTheDetailTitle sends the detail page's title in a head block, which htmx copies to the tab.
+func TestWebhookHandler_HTMXCreateCarriesTheDetailTitle(t *testing.T) {
+	t.Parallel()
+	x := newWebhookFixture(t)
+
+	rec := x.doHX(t, http.MethodPost, webhookBase, endpointForm("https://example.com/hook", string(events.PostPublished)))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	items, err := x.Hooks.List(x.ctx())
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+
+	page := x.do(t, http.MethodGet, webhookBase+"/"+items[0].ID.String(), nil)
+	title := regexp.MustCompile(`<title>([^<]*)</title>`).FindStringSubmatch(page.Body.String())
+	require.Len(t, title, 2)
+	assert.Contains(t, rec.Body.String(), "<head><title>"+title[1]+"</title></head>")
+}
+
 // TestWebhookHandler_HTMXCreateErrorRendersTheNewPageFragment keeps the URL and shows the code.
 func TestWebhookHandler_HTMXCreateErrorRendersTheNewPageFragment(t *testing.T) {
 	t.Parallel()

@@ -37,9 +37,9 @@ templ DashboardPage(d web.LayoutData, v DashboardView) {
 			<ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 				for _, p := range v.Projects {
 					<li>
-						<a href={ templ.SafeURL(d.ProjectPath(p.Slug, "/overview")) } class="rounded-box border border-base-300 bg-base-100 block p-4 transition hover:shadow-md">
-							<div class="flex items-baseline justify-between gap-2">
-								<p class="truncate text-sm font-medium text-foreground">{ p.Name }</p>
+						<a href={ templ.SafeURL(d.ProjectPath(p.Slug, "/overview")) } class="rounded-box border border-base-300 bg-base-100 block h-full p-4 transition hover:shadow-md">
+							<div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+								<p class="min-w-[12ch] flex-1 truncate text-sm font-medium text-foreground">{ p.Name }</p>
 								<div class="flex shrink-0 items-center gap-1.5">
 									if p.ID == v.ActiveProjID {
 										@Badge(ToneNeutral, d.Tr("common.current"))
@@ -67,4 +67,8 @@ func dashboardTitle(d web.LayoutData, v DashboardView) string {
 
 templ DashboardLayout(d web.LayoutData, v DashboardView) {
 	@Layout(web.WithContent(d, DashboardPage(d, v)))
+}
+
+templ createProjectManagersOnly(d web.LayoutData) {
+	<span class="flex min-h-11 items-center text-xs text-base-content/70 lg:min-h-8">{ d.Tr("projects.create_managers_only") }</span>
 }

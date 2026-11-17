@@ -10,7 +10,7 @@ func canCreateProject(d web.LayoutData) bool { return d.ActiveOrg != nil && d.Ac
 
 func newProjectAction(d web.LayoutData, label string) templ.Component {
 	if !canCreateProject(d) {
-		return nil
+		return createProjectManagersOnly(d)
 	}
 	return AppButton(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: label, Href: d.OrgPath("/projects/new")})
 }

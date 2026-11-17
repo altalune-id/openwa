@@ -59,7 +59,11 @@ func (h *APIKeyHandler) PostKeyCreate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	h.mintInto(w, sc.req, h.projectWriter(w, sc), func(in mintInput) (*apikey.APIKey, string, error) {
+	write := h.projectWriter(w, sc)
+	if !h.mayMint(sc.req, write, sc.org.ID, sc.principal.UserID) {
+		return
+	}
+	h.mintInto(w, sc.req, write, func(in mintInput) (*apikey.APIKey, string, error) {
 		resourceIDs, err := h.Keys.ResourceIDs(sc.req.Context(), in.scopes, in.resources)
 		if err != nil {
 			return nil, "", err
@@ -111,7 +115,11 @@ func (h *APIKeyHandler) PostOrgKeyCreate(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	h.mintInto(w, sc.req, h.orgWriter(w, sc), func(in mintInput) (*apikey.APIKey, string, error) {
+	write := h.orgWriter(w, sc)
+	if !h.mayMint(sc.req, write, sc.org.ID, sc.principal.UserID) {
+		return
+	}
+	h.mintInto(w, sc.req, write, func(in mintInput) (*apikey.APIKey, string, error) {
 		return h.Keys.MintOrg(sc.req.Context(), in.name, in.scopes, in.grant, in.expiresAt)
 	})
 }
@@ -191,6 +199,19 @@ func (h *APIKeyHandler) mintInto(w http.ResponseWriter, r *http.Request, write l
 	write(&templates.APIKeyMinted{Name: k.Name, Plaintext: plaintext}, false, "", "")
 }
 
+func (h *APIKeyHandler) mayMint(r *http.Request, write listWriter, orgID, userID uuid.UUID) bool {
+	ok, err := h.canManage(r, orgID, userID)
+	if err != nil {
+		write(nil, false, apiKeyErrorKind(err), ErrorRef(err))
+		return false
+	}
+	if !ok {
+		notManager := &org.NotManagerError{OrgID: orgID.String(), UserID: userID.String()}
+		write(nil, false, apiKeyErrorKind(notManager), ErrorRef(notManager))
+	}
+	return ok
+}
+
 func (h *APIKeyHandler) changeInto(w http.ResponseWriter, r *http.Request, write listWriter, change keyChange, revoked bool) {
 	if err := r.ParseForm(); err != nil {
 		h.ErrorPage(w, r, http.StatusBadRequest, pageTitle(r, "error_title.bad_request"), "Could not parse form body.")
@@ -209,12 +230,12 @@ func (h *APIKeyHandler) changeInto(w http.ResponseWriter, r *http.Request, write
 	write(nil, revoked, "", "")
 }
 
-func (h *APIKeyHandler) canManage(r *http.Request, orgID, userID uuid.UUID) bool {
+func (h *APIKeyHandler) canManage(r *http.Request, orgID, userID uuid.UUID) (bool, error) {
 	ok, err := h.Orgs.IsManager(r.Context(), orgID, userID)
 	if err != nil {
 		h.LogErr("web apikey: role", err)
 	}
-	return ok
+	return ok, err
 }
 
 func baseView(base string, minted *templates.APIKeyMinted, revoked bool, errKind, code string) templates.APIKeysView {
@@ -236,7 +257,7 @@ func (h *APIKeyHandler) projectView(sc ProjectScope, minted *templates.APIKeyMin
 	}
 	v := baseView(h.ProjectURL(sc, "/apikeys"), minted, revoked, errKind, code)
 	v.Scopes = projectScopes(v.Scopes)
-	v.CanManage = h.canManage(sc.req, sc.org.ID, sc.principal.UserID)
+	v.CanManage, _ = h.canManage(sc.req, sc.org.ID, sc.principal.UserID)
 	if v.CanManage {
 		if v.Devices, err = h.deviceOptions(sc); err != nil {
 			return templates.APIKeysView{}, err
@@ -259,7 +280,7 @@ func (h *APIKeyHandler) orgView(sc OrgScope, minted *templates.APIKeyMinted, rev
 	}
 	v := baseView(web.Path(h.Cfg.HTTP.BasePath, "/orgs/"+sc.org.Slug+"/apikeys"), minted, revoked, errKind, code)
 	v.OrgLevel, v.HasGrant, v.Projects = true, true, options
-	v.CanManage = h.canManage(sc.req, sc.org.ID, sc.principal.UserID)
+	v.CanManage, _ = h.canManage(sc.req, sc.org.ID, sc.principal.UserID)
 	for _, k := range items {
 		v.Items = append(v.Items, apiKeyRow(k, v.Base, options))
 	}

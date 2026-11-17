@@ -12,7 +12,7 @@ templ PageHeader(d web.LayoutData, p PageHeaderProps) {
 			if p.Eyebrow != "" {
 				<p class="text-xs font-medium text-base-content/70">{ p.Eyebrow }</p>
 			}
-			<h1 class="flex min-h-11 items-center text-xl font-semibold text-balance break-words lg:min-h-8">{ p.Title }</h1>
+			<h1 class="flex min-h-11 items-center text-xl font-semibold text-balance wrap-anywhere lg:min-h-8">{ p.Title }</h1>
 			if p.Subtitle != "" {
 				<p class="mt-1 text-sm text-pretty text-base-content/70">{ p.Subtitle }</p>
 			}
