@@ -68,6 +68,9 @@ func probeRoutes() []probeRoute {
 		{http.MethodGet, pbase + "/devices/new", nil},
 		{http.MethodGet, pbase + "/devices/" + devID, nil},
 		{http.MethodGet, pbase + "/devices/" + devID + "/links/current", nil},
+		{http.MethodGet, pbase + "/devices/" + devID + "/rules", nil},
+		{http.MethodGet, pbase + "/devices/" + devID + "/rules/probe-rule", nil},
+		{http.MethodGet, pbase + "/devices/" + devID + "/rules/probe-rule/pick", nil},
 		{http.MethodGet, pbase + "/inbox", nil},
 		{http.MethodGet, pbase + "/inbox/chats", nil},
 		{http.MethodGet, pbase + "/inbox/chats/" + probeChatID, nil},
@@ -112,6 +115,12 @@ func probeRoutes() []probeRoute {
 		{http.MethodPost, pbase + "/devices/" + devID + "/unlink", url.Values{}},
 		{http.MethodPost, pbase + "/devices/" + devID + "/rules", url.Values{"version": {"1"}, "group_mode": {"mention"}}},
 		{http.MethodPost, pbase + "/devices/" + devID + "/rename", url.Values{"version": {"1"}, "name": {"Renamed"}}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/rules/probe-rule", url.Values{"version": {"1"}, "groups": {"all"}, "who": {"everyone"}}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/rules/probe-rule/preview", url.Values{"groups": {"all"}}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/rules/probe-rule/test", url.Values{"groups": {"all"}}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/rules/probe-rule/toggle", url.Values{"version": {"1"}}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/rules/probe-rule/move", url.Values{"version": {"1"}, "to": {"up"}}},
+		{http.MethodPost, pbase + "/devices/" + devID + "/rules/probe-rule/delete", url.Values{"version": {"1"}}},
 		{http.MethodPost, pbase + "/devices/" + devID + "/delete", url.Values{}},
 		{http.MethodPost, pbase + "/inbox/chats/" + probeChatID + "/messages", url.Values{"text": {"probe"}}},
 		{http.MethodPost, pbase + "/inbox/chats/" + probeChatID + "/read", url.Values{}},
@@ -298,6 +307,7 @@ func templatize(path string) string {
 	path = strings.Replace(path, "/deliveries/{id}", "/deliveries/{did}", 1)
 	path = strings.Replace(path, "/tips/"+web.Tips()[0].ID+"/", "/tips/{id}/", 1)
 	path = strings.Replace(path, "/devices/dev_ProbeDevice00001", "/devices/{device}", 1)
+	path = strings.Replace(path, "/rules/probe-rule", "/rules/{rule}", 1)
 	path = strings.Replace(path, "/inbox/chats/cht_ProbeChat0000001", "/inbox/chats/{chat}", 1)
 	path = strings.Replace(path, "/inbox/messages/msg_ProbeMessage0001", "/inbox/messages/{message}", 1)
 	if path == "/" {

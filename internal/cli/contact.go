@@ -50,6 +50,6 @@ func newContactListCmd(bootClient ClientBootFn) *cobra.Command {
 		},
 	}
 	addPageFlags(cmd, &p)
-	cmd.Flags().StringVar(&q, "q", "", "prefix on the address-book name")
+	cmd.Flags().StringVar(&q, "q", "", "prefix on the name, push name or phone")
 	return cmd
 }

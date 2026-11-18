@@ -5,7 +5,7 @@
     "openWorldHint": false,
     "readOnlyHint": true
   },
-  "description": "List the contacts the project's devices know, most recently updated first. q is a prefix on the address-book name.",
+  "description": "List the contacts the project's devices know, most recently updated first. q is a case-insensitive prefix on the name, the push name or the phone number (+, spaces and dashes ignored).",
   "inputSchema": {
     "additionalProperties": false,
     "properties": {

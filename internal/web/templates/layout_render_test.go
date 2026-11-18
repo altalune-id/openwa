@@ -67,7 +67,7 @@ func TestLayout_RendersToastHostWithFlash(t *testing.T) {
 
 func TestLayout_LoadsOwnScriptsOnce(t *testing.T) {
 	html := renderShell(t, projectShell())
-	for _, js := range []string{"dialog.js", "dropdown.js", "tips.js", "copy.js", "localtime.js"} {
+	for _, js := range []string{"dialog.js", "dropdown.js", "tips.js", "copy.js", "localtime.js", "pairing.js"} {
 		require.Equal(t, 1, strings.Count(html, `src="/static/`+js), js)
 	}
 	require.NotContains(t, html, "basecoat")

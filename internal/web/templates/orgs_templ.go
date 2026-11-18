@@ -113,7 +113,7 @@ func OrgsPage(d web.LayoutData, v OrgsView) templ.Component {
 							}()
 						}
 						ctx = templ.InitializeContext(ctx)
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"min-w-0 flex-1\"><p class=\"flex items-center gap-2 truncate text-sm font-medium text-base-content\"><span class=\"truncate\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"list-col-grow min-w-0\"><p class=\"flex items-center gap-2 truncate text-sm font-medium text-base-content\"><span class=\"truncate\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}

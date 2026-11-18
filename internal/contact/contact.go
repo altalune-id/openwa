@@ -29,7 +29,7 @@ type Contact struct {
 	UpdatedAt    time.Time
 }
 
-// ListOpts filters and pages Store.List; Search is a case-insensitive prefix on the address-book name.
+// ListOpts filters and pages Store.List; Search is a case-insensitive prefix on the name, push name or phone.
 type ListOpts struct {
 	DeviceID  *uuid.UUID
 	DeviceIDs []uuid.UUID
@@ -46,6 +46,11 @@ func (o ListOpts) WithDefaults() ListOpts {
 	o.Limit = min(o.Limit, MaxListLimit)
 	o.Search = strings.TrimSpace(o.Search)
 	return o
+}
+
+// PhoneSearch returns search without the +, spaces and dashes people type in a phone number.
+func PhoneSearch(search string) string {
+	return strings.NewReplacer("+", "", " ", "", "-", "").Replace(search)
 }
 
 // New builds a contact for jid on a device.

@@ -44,7 +44,7 @@ func newDeviceFixture(t *testing.T) *deviceFixture {
 	require.NoError(t, err)
 
 	mux := http.NewServeMux()
-	handlers.NewDeviceHandler(f.Deps, f.Projects, devices).Register(mux)
+	handlers.NewDeviceHandler(f.Deps, f.Projects, devices, nil).Register(mux)
 	return &deviceFixture{handlerFixture: f, Mux: mux, Devices: devices, Store: store, Sessions: sessions, uid: uid, org: o.ID, project: proj.ID}
 }
 
@@ -84,7 +84,12 @@ func TestDevices_ListShowsTheEmptyStateThenCards(t *testing.T) {
 	require.Contains(t, body, "+628111")
 	require.Equal(t, "2", statValue(t, body, "devices.stat_total"))
 	require.Equal(t, "1", statValue(t, body, "devices.stat_connected"))
-	require.Equal(t, "1", statValue(t, body, "devices.stat_attention"), "the disconnected device needs attention")
+	require.Equal(t, "0", statValue(t, body, "devices.stat_attention"), "a reconnecting number shows no Fix it, so it is not counted")
+
+	out := x.seed(t, "Signed out")
+	x.Sessions.Statuses[out.ID] = device.SessionStatus{State: device.SessionLoggedOut}
+	body = x.do(t, http.MethodGet, devicesBase, "", false).Body.String()
+	require.Equal(t, "1", statValue(t, body, "devices.stat_attention"), "only a signed-out number, the one with Fix it, needs attention")
 }
 
 func statValue(t *testing.T, body, label string) string {
@@ -130,7 +135,7 @@ func TestDevices_DetailPollsOnlyWhileAnAttemptIsPending(t *testing.T) {
 	x.Sessions.Statuses[d.ID] = device.SessionStatus{State: device.SessionConnected, Phone: "628111"}
 	body = x.do(t, http.MethodGet, devicesBase+"/"+d.PublicID, "", false).Body.String()
 	require.NotContains(t, body, `hx-trigger="every 5s"`)
-	require.Contains(t, body, "data-paired")
+	require.Contains(t, body, "devices.status.connected_none")
 }
 
 func TestDevices_PostLinkReturnsTheQRFragment(t *testing.T) {
@@ -168,20 +173,24 @@ func TestDevices_PhoneLinkShowsTheCodeOrTheFieldError(t *testing.T) {
 	x.Sessions.LinkErr = &whatsapp.InvalidPhoneError{Reason: "national number"}
 	rec = x.do(t, http.MethodPost, devicesBase+"/"+d.PublicID+"/phone-links", "phone=0812", true)
 	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
-	require.Contains(t, rec.Body.String(), `id="phone-error"`)
+	require.Contains(t, rec.Body.String(), `id="pair-phone-error"`)
 }
 
 func TestDevices_DetailConfirmsLogoutAndDelete(t *testing.T) {
 	x := newDeviceFixture(t)
 	d := x.seed(t, "Sales")
 	x.Sessions.State = device.LinkState{Outcome: device.LinkNone}
-	body := x.do(t, http.MethodGet, devicesBase+"/"+d.PublicID, "", false).Body.String()
+	status := x.do(t, http.MethodGet, devicesBase+"/"+d.PublicID, "", false).Body.String()
+	require.Equal(t, 2, strings.Count(status, `hx-indicator="#device-pair-busy"`), "both pair forms show the spinner during the up-to-15s POST")
+	require.Contains(t, status, `id="device-pair-busy"`)
+
+	body := x.do(t, http.MethodGet, devicesBase+"/"+d.PublicID+"?tab=settings", "", false).Body.String()
 	require.Equal(t, 2, strings.Count(body, "data-dialog-close-on-done"), "two confirm dialogs besides the shell switcher sheet")
 	require.Equal(t, 2, strings.Count(body, `data-dialog-open="`)-strings.Count(body, `data-dialog-open="switcher"`), "each dialog has a labelled trigger button")
 	require.Contains(t, body, `action="`+devicesBase+"/"+d.PublicID+`/unlink"`)
 	require.Contains(t, body, `action="`+devicesBase+"/"+d.PublicID+`/delete"`)
-	require.Equal(t, 2, strings.Count(body, `hx-indicator="#device-pair-busy"`), "both pair forms show the spinner during the up-to-15s POST")
-	require.Contains(t, body, `id="device-pair-busy"`)
+	require.Contains(t, body, "devices.unlink_row")
+	require.Contains(t, body, "devices.delete_row", "Unlink and Delete each say what is kept and what is lost")
 }
 
 func TestDevices_UnlinkAndDelete(t *testing.T) {
@@ -206,17 +215,21 @@ func TestDevices_RulesAndRename(t *testing.T) {
 
 	rec := x.do(t, http.MethodPost, path+"/rules", "version=1&group_mode=open&allowed_senders=%2B62+812-3456-789%0A628111111111&trigger_prefix=%21bot&ignore_from_me=1", false)
 	require.Equal(t, http.StatusSeeOther, rec.Code, rec.Body.String())
+	require.Equal(t, path+"/rules", rec.Header().Get("Location"), "a stale tab's legacy form still saves, then lands on the rules list")
 	got, err := x.Devices.Get(setTenantProject(context.Background(), x.org, x.project, x.uid), d.ID)
 	require.NoError(t, err)
 	require.Equal(t, []string{"628123456789", "628111111111"}, legacyRules(t, got.Device.Rules).AllowedSenders)
 	require.True(t, got.Device.Rules.IgnoreFromMe)
 
-	rec = x.do(t, http.MethodPost, path+"/rules", "version=2&group_mode=open&allowed_groups=nope", false)
-	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
-	require.Contains(t, rec.Body.String(), `id="allowed_groups-error"`)
-
-	rec = x.do(t, http.MethodPost, path+"/rules", "version=1&group_mode=open", false)
-	require.Equal(t, http.StatusConflict, rec.Code, "a stale version is refused")
+	for _, form := range []string{"version=2&group_mode=open&allowed_groups=nope", "version=1&group_mode=open"} {
+		rec = x.do(t, http.MethodPost, path+"/rules", form, false)
+		require.Equal(t, http.StatusSeeOther, rec.Code, form)
+		require.Equal(t, path+"/rules", rec.Header().Get("Location"), form)
+		require.NotEmpty(t, rec.Result().Cookies(), "%s: the refusal is told in a flash", form)
+	}
+	got, err = x.Devices.Get(setTenantProject(context.Background(), x.org, x.project, x.uid), d.ID)
+	require.NoError(t, err)
+	require.Equal(t, 2, got.Device.Version, "an invalid or stale legacy post writes nothing")
 
 	rec = x.do(t, http.MethodPost, path+"/rename", "version=2&name=Support", false)
 	require.Equal(t, http.StatusSeeOther, rec.Code)
@@ -237,13 +250,9 @@ func TestDevices_RulesFormRefusesToOverwriteCustomRules(t *testing.T) {
 	require.NoError(t, err)
 	path := devicesBase + "/" + d.PublicID
 
-	rec := x.do(t, http.MethodGet, path, "", false)
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Contains(t, rec.Body.String(), "devices.error.rules_shape_conflict")
-
-	rec = x.do(t, http.MethodPost, path+"/rules", "version=2&group_mode=open", false)
-	require.Equal(t, http.StatusConflict, rec.Code)
-	require.Contains(t, rec.Body.String(), "devices.error.rules_shape_conflict")
+	rec := x.do(t, http.MethodPost, path+"/rules", "version=2&group_mode=open", false)
+	require.Equal(t, http.StatusSeeOther, rec.Code)
+	require.Equal(t, path+"/rules", rec.Header().Get("Location"), "the flash points to the rule editor")
 	got, err := x.Devices.Get(ctx, d.ID)
 	require.NoError(t, err)
 	require.Equal(t, "orders", got.Device.Rules.Items[0].ID, "the custom rules are untouched")
@@ -280,7 +289,7 @@ func TestDevices_AMissingOrGarbledVersionIsRefusedNotWrittenUnconditionally(t *t
 		rec := x.do(t, http.MethodPost, path+"/rename", "name=Changed"+v, false)
 		require.Equal(t, http.StatusConflict, rec.Code, "rename with version %q", v)
 		rec = x.do(t, http.MethodPost, path+"/rules", "group_mode=open&trigger_prefix=%21x"+v, false)
-		require.Equal(t, http.StatusConflict, rec.Code, "rules with version %q", v)
+		require.Equal(t, http.StatusSeeOther, rec.Code, "rules with version %q", v)
 	}
 	got, err := x.Devices.Get(setTenantProject(context.Background(), x.org, x.project, x.uid), d.ID)
 	require.NoError(t, err)

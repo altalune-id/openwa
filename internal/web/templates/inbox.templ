@@ -86,7 +86,9 @@ templ InboxPage(d web.LayoutData, v InboxView) {
 			Subtitle: d.Tr("inbox.subtitle"),
 			Actions:  inboxActions(d, v),
 		})
-		@SplitPane(SplitPaneProps{ID: "inbox", List: ChatListSidebar(d, v.Devices, v.List), Detail: InboxDetail(d, v)})
+		<div class="group/inbox">
+			@SplitPane(SplitPaneProps{ID: "inbox", List: inboxListPane(d, v), Detail: InboxDetail(d, v)})
+		</div>
 	</section>
 }
 
@@ -103,11 +105,19 @@ templ inboxActions(d web.LayoutData, v InboxView) {
 	</div>
 }
 
+templ inboxListPane(d web.LayoutData, v InboxView) {
+	<div class="max-lg:group-has-[[data-thread]]/inbox:hidden">
+		@ChatListSidebar(d, v.Devices, v.List)
+	</div>
+}
+
 templ InboxDetail(d web.LayoutData, v InboxView) {
 	if v.Thread != nil {
 		@ThreadPane(d, *v.Thread)
 	} else {
-		@EmptyState(d, EmptyStateProps{Icon: "mail", Title: d.Tr("inbox.pick_title"), Body: d.Tr("inbox.pick_body")})
+		<div class="max-lg:hidden">
+			@EmptyState(d, EmptyStateProps{Icon: "mail", Title: d.Tr("inbox.pick_title"), Body: d.Tr("inbox.pick_body")})
+		</div>
 	}
 }
 
@@ -157,7 +167,10 @@ templ ChatListControls(d web.LayoutData, devices []InboxDevice, v ChatListView) 
 }
 
 templ ChatListPanel(d web.LayoutData, v ChatListView) {
-	<div id="chat-list-panel" class="space-y-3">
+	<div id="chat-list-panel" class="group/chats space-y-3">
+		<div id="chat-empty" class="group-has-[[data-chat-row]]/chats:hidden">
+			@EmptyState(d, EmptyStateProps{Icon: "inbox", Title: d.Tr("inbox.empty_title"), Body: d.Tr("inbox.empty_body")})
+		</div>
 		@ListShell(d, "chat-list", templ.Attributes{
 			"hx-get":        d.ProjectPath(v.ProjectSlug, "/inbox/chats"+chatListQuery(v, url.Values{"rows": {"1"}})),
 			"hx-trigger":    "every 5s",
@@ -169,7 +182,7 @@ templ ChatListPanel(d web.LayoutData, v ChatListView) {
 			@ChatListRows(d, v)
 		}
 		if v.Capped {
-			<p class="px-4 text-xs text-muted-foreground">{ d.Tr("inbox.list_capped", "Max", v.Limit) }</p>
+			<p class="px-4 text-xs text-base-content/70">{ d.Tr("inbox.list_capped", "Max", v.Limit) }</p>
 		}
 		if v.HasMore {
 			@AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("inbox.load_more"), Attrs: templ.Attributes{
@@ -191,11 +204,8 @@ templ ThreadOpened(d web.LayoutData, tv ThreadView, list ChatListView) {
 }
 
 templ ChatListRows(d web.LayoutData, v ChatListView) {
-	if len(v.Rows) == 0 {
-		<li id="chat-empty" class="px-4 py-6 text-center text-sm text-muted-foreground">{ d.Tr("inbox.empty_list") }</li>
-	}
 	for _, c := range v.Rows {
-		@ListRow(d, templ.Attributes{"id": "chat-" + c.ID, "data-active": strconv.FormatBool(c.Active)}) {
+		@ListRow(d, templ.Attributes{"id": "chat-" + c.ID, "data-active": strconv.FormatBool(c.Active), "data-chat-row": ""}) {
 			<a
 				href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/inbox/chats/"+c.ID)) }
 				hx-get={ d.ProjectPath(v.ProjectSlug, "/inbox/chats/"+c.ID) }
@@ -204,20 +214,20 @@ templ ChatListRows(d web.LayoutData, v ChatListView) {
 				hx-push-url="true"
 				hx-include="#inbox-device, #inbox-search"
 				hx-nonce={ d.Nonce }
-				class="flex min-w-0 flex-1 items-center gap-3"
+				class="list-col-grow flex min-w-0 items-center gap-3"
 			>
 				@Avatar(c.Name, "h-9 w-9 text-sm")
 				<span class="min-w-0 flex-1">
 					<span class="flex items-center justify-between gap-2">
-						<span class="truncate text-sm font-medium text-foreground">{ c.Name }</span>
+						<span class="truncate text-sm font-medium text-base-content">{ c.Name }</span>
 						if c.At != nil {
-							<span class="shrink-0 text-xs text-muted-foreground">
+							<span class="shrink-0 text-xs text-base-content/70">
 								@Time(d, *c.At)
 							</span>
 						}
 					</span>
 					<span class="flex items-center justify-between gap-2">
-						<span class="truncate text-xs text-muted-foreground">{ c.Preview }</span>
+						<span class="truncate text-xs text-base-content/70">{ c.Preview }</span>
 						if c.Unread > 0 {
 							@Badge(TonePrimary, strconv.Itoa(c.Unread))
 						}
@@ -240,7 +250,7 @@ templ NewChatPage(d web.LayoutData, v NewChatView) {
 		} else {
 			<form method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/inbox/new")) } class="rounded-box border border-base-300 bg-base-100 space-y-4 p-5">
 				if v.Error != "" {
-					<p role="alert" class="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{ d.Tr(v.Error) }</p>
+					<p role="alert" class="rounded-field border border-error/30 bg-error/10 p-3 text-sm text-error">{ d.Tr(v.Error) }</p>
 				}
 				{{ deviceField := FieldProps{ID: "new-device", Label: d.Tr("inbox.device_label"), Required: true} }}
 				{{ phoneField := FieldProps{ID: "new-phone", Label: d.Tr("inbox.phone_label"), Help: d.Tr("inbox.phone_help"), Required: true} }}

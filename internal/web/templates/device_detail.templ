@@ -5,272 +5,251 @@ import (
 	"time"
 
 	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
 )
 
-// DevicePairingView is the pairing panel; the handler returns it alone as the htmx fragment.
-type DevicePairingView struct {
-	ProjectSlug string
-	DeviceID    string
-	Outcome     string
-	PNGBase64   string
-	PairingCode string
-	ExpiresAt   time.Time
-	Linked      bool
-	Phone       string
-	ErrorKey    string
-	PhoneValue  string
-	PhoneError  string
-	CanManage   bool
+// TimelineEntry is one line of a number's recent changes.
+type TimelineEntry struct {
+	At    time.Time
+	Key   string
+	Phone string
 }
 
-func (v DevicePairingView) pending() bool { return v.Outcome == "pending" }
-
-func (v DevicePairingView) path(d web.LayoutData, suffix string) string {
-	return d.ProjectPath(v.ProjectSlug, "/devices/"+v.DeviceID+suffix)
-}
-
-// DeviceRulesView is the inbound-rules form.
-type DeviceRulesView struct {
-	GroupMode      string
-	AllowedSenders string
-	AllowedGroups  string
-	TriggerPrefix  string
-	IgnoreFromMe   bool
-	Errors         map[string]string
-	FormError      string
-}
-
-// DeviceDetailView is the device detail page.
+// DeviceDetailView is the number page.
 // NOTE: ID is the device's public id (dev_…); the internal UUID never reaches a template.
 type DeviceDetailView struct {
 	ProjectSlug string
 	ID          string
 	Name        string
 	Version     int
-	StateKey    string
-	Tone        Tone
-	Phone       string
+	State        string
+	Status       SessionStatus
+	Connected    bool
+	Reconnecting bool
+	SignedOut    bool
+	Phone        string
 	PushName    string
 	Reason      string
-	LastSeen    *time.Time
+	ChangedAt   time.Time
+	LastMessage *time.Time
+	Timeline    []TimelineEntry
+	Settings    bool
 	RenameValue string
 	RenameError string
 	Pairing     DevicePairingView
-	Rules       DeviceRulesView
 	CanManage   bool
 }
 
+func (v DeviceDetailView) path(d web.LayoutData, suffix string) string {
+	return d.ProjectPath(v.ProjectSlug, "/devices/"+v.ID+suffix)
+}
+
 templ DeviceDetailPage(d web.LayoutData, v DeviceDetailView) {
-	<section class="space-y-6">
-		@PageHeader(d, PageHeaderProps{Eyebrow: d.Tr("nav.devices"), Title: v.Name, Actions: Badge(v.Tone, d.Tr(v.StateKey))})
-		<div class="grid gap-6 lg:grid-cols-2">
-			<div class="space-y-6">
-				@Card(CardProps{Title: d.Tr("devices.pairing_title")}) {
-					@DevicePairing(d, v.Pairing)
-				}
-				@Card(CardProps{Title: d.Tr("devices.status_title")}) {
-					<dl class="grid grid-cols-2 gap-3 text-sm">
-						<div class="col-span-2">
-							<dt class="text-xs text-muted-foreground">{ d.Tr("devices.device_id") }</dt>
-							<dd class="font-mono text-xs">
-								@CopyValue(d, v.ID)
-							</dd>
-						</div>
-						<div>
-							<dt class="text-xs text-muted-foreground">{ d.Tr("devices.phone") }</dt>
-							<dd>
-								if v.Phone != "" {
-									@CopyValue(d, "+"+v.Phone)
-								} else {
-									<span class="text-muted-foreground">—</span>
-								}
-							</dd>
-						</div>
-						<div>
-							<dt class="text-xs text-muted-foreground">{ d.Tr("devices.push_name") }</dt>
-							<dd>{ dash(v.PushName) }</dd>
-						</div>
-						<div>
-							<dt class="text-xs text-muted-foreground">{ d.Tr("devices.reason") }</dt>
-							<dd class="font-mono text-xs">{ dash(v.Reason) }</dd>
-						</div>
-						<div>
-							<dt class="text-xs text-muted-foreground">{ d.Tr("devices.last_seen") }</dt>
-							<dd>
-								if v.LastSeen != nil {
-									@Time(d, *v.LastSeen)
-								} else {
-									<span class="text-muted-foreground">—</span>
-								}
-							</dd>
-						</div>
+	@PageHeader(d, PageHeaderProps{Title: v.Name, Subtitle: plusPhone(v.Phone), Actions: NumberStatus(d, v.Status)})
+	<nav class="tabs tabs-border mb-5" aria-label={ d.Tr("devices.tabs") }>
+		@numberTab(v.path(d, ""), d.Tr("devices.tab_status"), !v.Settings)
+		@numberTab(v.path(d, "/rules"), d.Tr("devices.tab_rules"), false)
+		@numberTab(v.path(d, "?tab=settings"), d.Tr("devices.tab_settings"), v.Settings)
+	</nav>
+	if v.Settings {
+		@numberSettings(d, v)
+	} else {
+		<div class="grid gap-6 lg:grid-cols-12">
+			<div class="flex min-w-0 flex-col gap-4 lg:col-span-7">
+				@numberState(d, v)
+				@Disclosure(d.Tr("devices.technical")) {
+					<dl class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-1 text-sm">
+						<dt class="text-base-content/70">{ d.Tr("devices.device_id") }</dt>
+						<dd class="min-w-0">
+							@CopyValue(d, v.ID)
+						</dd>
+						<dt class="text-base-content/70">{ d.Tr("devices.push_name") }</dt>
+						<dd class="break-words">{ dash(v.PushName) }</dd>
+						<dt class="text-base-content/70">{ d.Tr("devices.reason") }</dt>
+						<dd class="font-mono break-all">{ dash(v.Reason) }</dd>
+						<dt class="text-base-content/70">{ d.Tr("devices.engine_state") }</dt>
+						<dd class="font-mono break-all">{ dash(v.State) }</dd>
 					</dl>
 				}
 			</div>
-			<div class="space-y-6">
-				@deviceRulesCard(d, v)
-				@deviceRenameCard(d, v)
-				@deviceDangerZone(d, v)
-			</div>
+			<section class="min-w-0 lg:col-span-5" aria-labelledby="number-changes">
+				<h2 id="number-changes" class="mb-2 font-semibold">{ d.Tr("devices.timeline_title") }</h2>
+				<ul class="timeline timeline-vertical timeline-compact">
+					for i, e := range v.Timeline {
+						<li>
+							if i > 0 {
+								<hr/>
+							}
+							<div class="timeline-middle">
+								@icons.Icon("clock", "size-4 text-base-content/70")
+							</div>
+							<div class="timeline-end timeline-box text-sm">
+								<p class="font-mono text-xs text-base-content/70">
+									@Time(d, e.At)
+								</p>
+								<p>{ d.Tr(e.Key, "Phone", plusPhone(e.Phone)) }</p>
+							</div>
+							if i < len(v.Timeline)-1 {
+								<hr/>
+							}
+						</li>
+					}
+				</ul>
+			</section>
 		</div>
-	</section>
+	}
 }
 
 templ DeviceDetailLayout(d web.LayoutData, v DeviceDetailView) {
 	@Layout(web.WithContent(d, DeviceDetailPage(d, v)))
 }
 
-templ DevicePairing(d web.LayoutData, v DevicePairingView) {
-	@Poll(d, PollProps{ID: "device-pairing", URL: v.path(d, "/links/current"), Every: "5s", Done: !v.pending()}) {
-		if v.pending() && v.PairingCode != "" {
-			<div class="space-y-3 text-center">
-				<p class="text-sm text-muted-foreground">{ d.Tr("devices.code_instructions") }</p>
-				<p data-pairing-code class="font-mono text-3xl font-semibold tracking-widest text-foreground">{ v.PairingCode }</p>
-				@CopyValue(d, v.PairingCode)
-			</div>
-		} else if v.pending() && v.PNGBase64 != "" {
-			<div class="space-y-3 text-center">
-				<img data-qr src={ "data:image/png;base64," + v.PNGBase64 } alt={ d.Tr("devices.qr_alt") } width="256" height="256" class="mx-auto rounded-md border border-border bg-white p-2"/>
-				<p class="text-sm text-muted-foreground">{ d.Tr("devices.qr_instructions") }</p>
-				if !v.ExpiresAt.IsZero() {
-					<p class="text-xs text-muted-foreground">
-						{ d.Tr("devices.qr_refreshes") }
-						@Time(d, v.ExpiresAt)
-					</p>
-				}
-			</div>
-		} else if v.pending() {
-			<p data-pairing-wait role="status" class="text-sm text-muted-foreground">{ d.Tr("devices.qr_generating") }</p>
-		} else if v.Outcome == "connected" || v.Linked {
-			<div data-paired class="space-y-1">
-				<p class="text-sm font-medium text-foreground">{ d.Tr("devices.paired") }</p>
-				if v.Phone != "" {
-					<p class="font-mono text-sm text-foreground">{ "+" + v.Phone }</p>
-				}
-			</div>
-		} else if !v.CanManage {
-			<p class="text-sm text-muted-foreground">{ d.Tr("common.managers_only") }</p>
-		} else {
-			if v.ErrorKey != "" {
-				<p role="status" class="mb-3 text-sm text-muted-foreground">{ d.Tr(v.ErrorKey) }</p>
-			}
-			<div class="flex flex-col gap-4">
-				<form method="post" action={ templ.SafeURL(v.path(d, "/links")) } hx-post={ v.path(d, "/links") } hx-target="#device-pairing" hx-swap="outerHTML" hx-indicator="#device-pair-busy" hx-nonce={ d.Nonce }>
-					@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.pair_qr"), Icon: "qr-code"})
-				</form>
-				<form method="post" action={ templ.SafeURL(v.path(d, "/phone-links")) } hx-post={ v.path(d, "/phone-links") } hx-target="#device-pairing" hx-swap="outerHTML" hx-indicator="#device-pair-busy" hx-nonce={ d.Nonce } class="space-y-2">
-					@FormField(d, FieldProps{ID: "phone", Label: d.Tr("devices.phone_label"), Help: d.Tr("devices.phone_help"), Error: v.PhoneError}) {
-						<input type="tel" name="phone" value={ v.PhoneValue } inputmode="tel" autocomplete="tel" class={ InputClass() } { InputAttrs(FieldProps{ID: "phone", Help: d.Tr("devices.phone_help"), Error: v.PhoneError})... }/>
+templ numberTab(href, label string, active bool) {
+	<a
+		href={ templ.SafeURL(href) }
+		class={ "tab text-base-content/80", templ.KV("tab-active", active) }
+		if active {
+			aria-current="page"
+		}
+	>{ label }</a>
+}
+
+templ numberState(d web.LayoutData, v DeviceDetailView) {
+	switch {
+		case v.Connected:
+			<p role="status" class="alert alert-success alert-soft">
+				@icons.Icon("circle-check", "size-5")
+				<span>
+					if v.LastMessage != nil {
+						{ d.Tr("devices.status.connected_last") }
+						{ " " }
+						@Time(d, *v.LastMessage)
+					} else {
+						{ d.Tr("devices.status.connected_none") }
 					}
-					@AppButton(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("devices.pair_phone")})
-				</form>
-				<div id="device-pair-busy">
-					@Spinner(d.Tr("devices.qr_generating"))
+				</span>
+			</p>
+		case v.Reconnecting:
+			<div role="status" class="alert alert-warning alert-soft">
+				@icons.Icon("refresh-cw", "size-5")
+				<div>
+					<p class="font-semibold">
+						{ d.Tr("devices.status.reconnecting") }
+						<span class="loading loading-dots loading-xs align-middle" aria-hidden="true"></span>
+					</p>
+					<p class="text-sm">{ d.Tr("devices.status.reconnecting_body") }</p>
 				</div>
 			</div>
-		}
+		case v.SignedOut && !v.Pairing.pending():
+			if v.CanManage {
+				@Tip(d, "fix-it")
+			}
+			<div id="device-fix" role="alert" class="alert alert-error alert-soft alert-vertical sm:alert-horizontal">
+				@icons.Icon("triangle-exclamation-point", "size-5")
+				<div>
+					<p class="font-semibold">{ d.Tr("devices.status.signed_out") }</p>
+					<p class="text-sm">
+						if !v.ChangedAt.IsZero() {
+							@Time(d, v.ChangedAt)
+							{ " · " }
+						}
+						{ d.Tr("devices.status.signed_out_body") }
+					</p>
+				</div>
+				if v.CanManage {
+					<form method="post" action={ templ.SafeURL(v.path(d, "/links")) } hx-post={ v.path(d, "/links") } hx-target="#device-fix" hx-swap="outerHTML" hx-disable="find button" hx-nonce={ d.Nonce } class="group w-full sm:w-auto">
+						<button type="submit" data-tour="fix" class="btn btn-error btn-block sm:w-auto lg:btn-sm">
+							<span class="inline-flex items-center gap-2 group-[.htmx-request]:hidden">
+								@icons.Icon("refresh-cw", "size-4")
+								{ d.Tr("devices.fix") }
+							</span>
+							<span class="hidden items-center gap-2 group-[.htmx-request]:inline-flex">
+								<span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+								{ d.Tr("devices.fix_trying") }
+							</span>
+						</button>
+					</form>
+				} else {
+					<p class="text-sm">{ d.Tr("common.managers_only") }</p>
+				}
+			</div>
+		case v.Pairing.pending() && !v.SignedOut:
+			<p role="status" class="alert alert-info alert-soft">
+				@icons.Icon("qr-code", "size-5")
+				<span>{ d.Tr("devices.status.waiting") }</span>
+			</p>
+			@DevicePairing(d, v.Pairing)
+		case v.Pairing.pending():
+			@DevicePairing(d, v.Pairing)
+		default:
+			<p role="status" class="alert alert-soft">
+				@icons.Icon("unlink", "size-5")
+				<span>{ d.Tr("devices.status.unlinked") }</span>
+			</p>
+			@DevicePairing(d, v.Pairing)
 	}
 }
 
-templ deviceRulesCard(d web.LayoutData, v DeviceDetailView) {
-	@Card(CardProps{Title: d.Tr("devices.rules_title"), Description: d.Tr("devices.rules_subtitle")}) {
-		if v.CanManage {
-			<form method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/devices/"+v.ID+"/rules")) } class="space-y-4">
-				if v.Rules.FormError != "" {
-					<p role="alert" class="text-sm text-destructive">{ v.Rules.FormError }</p>
-				}
+templ numberSettings(d web.LayoutData, v DeviceDetailView) {
+	<div class="flex max-w-2xl flex-col gap-5">
+		<form method="post" action={ templ.SafeURL(v.path(d, "/rename")) }>
+			<fieldset class="fieldset min-w-0 rounded-box border border-base-300 bg-base-100 p-4">
+				<legend class="fieldset-legend">{ d.Tr("devices.name") }</legend>
 				<input type="hidden" name="version" value={ strconv.Itoa(v.Version) }/>
-				@deviceRulesFields(d, v)
-				@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("devices.save_rules")})
-			</form>
-		} else {
-			<fieldset disabled class="space-y-4">
-				@deviceRulesFields(d, v)
+				<label class="label text-base-content/80" for="rename-name">{ d.Tr("devices.name_step.label") }</label>
+				<div class="join w-full">
+					<input
+						id="rename-name"
+						type="text"
+						name="name"
+						value={ v.RenameValue }
+						maxlength="64"
+						required
+						class="input join-item w-full lg:input-sm"
+						if v.RenameError != "" {
+							aria-invalid="true"
+							aria-describedby="rename-name-error"
+						}
+					/>
+					<button type="submit" class="btn join-item lg:btn-sm">{ d.Tr("devices.save_name") }</button>
+				</div>
+				if v.RenameError != "" {
+					<p role="alert" id="rename-name-error" class="label text-xs whitespace-normal text-error">{ v.RenameError }</p>
+				}
 			</fieldset>
-			<p class="mt-4 text-sm text-muted-foreground">{ d.Tr("common.managers_only") }</p>
-		}
-	}
-}
-
-templ deviceRulesFields(d web.LayoutData, v DeviceDetailView) {
-	<fieldset aria-describedby="group_mode-error">
-		<legend class="text-sm font-medium text-foreground">{ d.Tr("devices.group_mode") }</legend>
-		<p class="mt-1 text-sm text-muted-foreground">{ d.Tr("devices.group_mode_help") }</p>
-		<div class="mt-2 flex flex-wrap gap-2">
-			@groupModeOption(v.Rules.GroupMode, "ignore", d.Tr("devices.group_mode_ignore"))
-			@groupModeOption(v.Rules.GroupMode, "mention", d.Tr("devices.group_mode_mention"))
-			@groupModeOption(v.Rules.GroupMode, "open", d.Tr("devices.group_mode_open"))
-		</div>
-		if e := v.Rules.Errors["group_mode"]; e != "" {
-			<p role="alert" id="group_mode-error" class="mt-1 text-sm text-destructive">{ e }</p>
-		}
-	</fieldset>
-	@FormField(d, FieldProps{ID: "allowed_senders", Label: d.Tr("devices.allowed_senders"), Help: d.Tr("devices.allowed_senders_help"), Error: v.Rules.Errors["allowed_senders"]}) {
-		<textarea name="allowed_senders" rows="3" placeholder={ d.Tr("devices.allowed_senders_ph") } class={ InputClass() } { InputAttrs(FieldProps{ID: "allowed_senders", Help: d.Tr("devices.allowed_senders_help"), Error: v.Rules.Errors["allowed_senders"]})... }>{ v.Rules.AllowedSenders }</textarea>
-	}
-	@FormField(d, FieldProps{ID: "allowed_groups", Label: d.Tr("devices.allowed_groups"), Help: d.Tr("devices.allowed_groups_help"), Error: v.Rules.Errors["allowed_groups"]}) {
-		<textarea name="allowed_groups" rows="3" placeholder={ d.Tr("devices.allowed_groups_ph") } class={ InputClass() } { InputAttrs(FieldProps{ID: "allowed_groups", Help: d.Tr("devices.allowed_groups_help"), Error: v.Rules.Errors["allowed_groups"]})... }>{ v.Rules.AllowedGroups }</textarea>
-	}
-	@FormField(d, FieldProps{ID: "trigger_prefix", Label: d.Tr("devices.trigger_prefix"), Help: d.Tr("devices.trigger_prefix_help"), Error: v.Rules.Errors["trigger_prefix"]}) {
-		<input type="text" name="trigger_prefix" value={ v.Rules.TriggerPrefix } maxlength="16" class={ InputClass() } { InputAttrs(FieldProps{ID: "trigger_prefix", Help: d.Tr("devices.trigger_prefix_help"), Error: v.Rules.Errors["trigger_prefix"]})... }/>
-	}
-	<div>
-		<label class="flex items-center gap-2 text-sm text-foreground">
-			<input type="checkbox" name="ignore_from_me" value="1" checked?={ v.Rules.IgnoreFromMe }/>
-			<span>{ d.Tr("devices.ignore_from_me") }</span>
-		</label>
-		<p class="mt-1 text-sm text-muted-foreground">{ d.Tr("devices.ignore_from_me_help") }</p>
-	</div>
-}
-
-templ groupModeOption(current, value, label string) {
-	<label class="inline-flex cursor-pointer has-[:disabled]:cursor-not-allowed items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm has-checked:border-primary has-checked:bg-primary/10">
-		<input type="radio" name="group_mode" value={ value } checked?={ current == value } class="sr-only"/>
-		<span>{ label }</span>
-	</label>
-}
-
-templ deviceRenameCard(d web.LayoutData, v DeviceDetailView) {
-	@Card(CardProps{Title: d.Tr("devices.rename")}) {
-		<form method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/devices/"+v.ID+"/rename")) } class="flex flex-wrap items-end gap-3">
-			<input type="hidden" name="version" value={ strconv.Itoa(v.Version) }/>
-			<div class="min-w-0 flex-1">
-				@FormField(d, FieldProps{ID: "rename-name", Label: d.Tr("devices.name"), Error: v.RenameError, Required: true}) {
-					<input type="text" name="name" value={ v.RenameValue } maxlength="64" required class={ InputClass() } { InputAttrs(FieldProps{ID: "rename-name", Error: v.RenameError})... }/>
+		</form>
+		<section class="card border border-error/40 bg-base-100" aria-labelledby="number-danger">
+			<div class="card-body gap-4">
+				<h2 id="number-danger" class="card-title text-base">{ d.Tr("devices.danger_title") }</h2>
+				if !v.CanManage {
+					<p class="text-sm text-base-content/70">{ d.Tr("common.managers_only") }</p>
+				} else {
+				<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+					<div>
+						<p class="font-medium">{ d.Tr("devices.unlink") }</p>
+						<p class="text-sm text-base-content/70">{ d.Tr("devices.unlink_row") }</p>
+					</div>
+						@ConfirmModal(d, ConfirmProps{
+							ID:           "device-unlink",
+							Title:        d.Tr("devices.unlink_title", "Name", v.Name),
+							Body:         d.Tr("devices.unlink_body"),
+							ConfirmLabel: d.Tr("devices.unlink"),
+							Kind:         ButtonSecondary,
+							Action:       v.path(d, "/unlink"),
+							Trigger:      ButtonProps{Kind: ButtonSecondary, Label: d.Tr("devices.unlink"), Icon: "unlink"},
+						})
+				</div>
+				<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+					<div>
+						<p class="font-medium">{ d.Tr("devices.delete") }</p>
+						<p class="text-sm text-base-content/70">{ d.Tr("devices.delete_row") }</p>
+					</div>
+						@deviceDeleteConfirm(d, v.ProjectSlug, v.ID, v.Name, ButtonProps{Kind: ButtonDanger, Label: d.Tr("devices.delete"), Icon: "trash-2"})
+				</div>
 				}
 			</div>
-			@AppButton(ButtonProps{Kind: ButtonSecondary, Type: "submit", Label: d.Tr("devices.rename")})
-		</form>
-	}
-}
-
-templ deviceDangerZone(d web.LayoutData, v DeviceDetailView) {
-	@Card(CardProps{Title: d.Tr("devices.danger_title")}) {
-		if !v.CanManage {
-			<p class="text-sm text-muted-foreground">{ d.Tr("common.managers_only") }</p>
-		} else {
-			<div class="flex flex-wrap gap-3">
-				@ConfirmModal(d, ConfirmProps{
-					ID:           "device-logout",
-					Title:        d.Tr("devices.logout_title"),
-					Body:         d.Tr("devices.logout_body"),
-					ConfirmLabel: d.Tr("devices.logout"),
-					Kind:         ButtonSecondary,
-					Action:       d.ProjectPath(v.ProjectSlug, "/devices/"+v.ID+"/unlink"),
-					Trigger:      ButtonProps{Kind: ButtonSecondary, Type: "button", Label: d.Tr("devices.logout"), Icon: "log-out"},
-				})
-				@ConfirmModal(d, ConfirmProps{
-					ID:           "device-delete",
-					Title:        d.Tr("devices.delete_title"),
-					Body:         d.Tr("devices.delete_body"),
-					ConfirmLabel: d.Tr("devices.delete"),
-					Kind:         ButtonDanger,
-					Action:       d.ProjectPath(v.ProjectSlug, "/devices/"+v.ID+"/delete"),
-					Trigger:      ButtonProps{Kind: ButtonDanger, Type: "button", Label: d.Tr("devices.delete"), Icon: "trash-2"},
-				})
-			</div>
-		}
-	}
+		</section>
+	</div>
 }
 
 func dash(s string) string {

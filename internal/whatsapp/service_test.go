@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -80,6 +81,11 @@ func TestService_LinkWithPhoneReachesTheRuntime(t *testing.T) {
 func TestService_StatusByDevicesFillsUnlinkedAndLive(t *testing.T) {
 	f := newSinkFixture(t)
 	f.seed(whatsapp.StateConnected, f.ref.JID)
+	row, ok := f.store.Row(f.ref.DeviceID)
+	require.True(t, ok)
+	connected := time.Date(2026, 11, 18, 9, 12, 0, 0, time.UTC)
+	row.LastConnectedAt, row.UpdatedAt = &connected, connected.Add(time.Hour)
+	f.store.Seed(&row)
 	f.rt.LiveSet[f.ref.DeviceID] = true
 	missing := uuid.New()
 	got, err := f.svc.StatusByDevices(f.ctx(t), []uuid.UUID{f.ref.DeviceID, missing})
@@ -87,6 +93,8 @@ func TestService_StatusByDevicesFillsUnlinkedAndLive(t *testing.T) {
 	require.Equal(t, whatsapp.StateConnected, got[f.ref.DeviceID].State)
 	require.True(t, got[f.ref.DeviceID].Live)
 	require.Equal(t, "628111", got[f.ref.DeviceID].Phone)
+	require.Equal(t, &connected, got[f.ref.DeviceID].LastConnectedAt)
+	require.Equal(t, connected.Add(time.Hour), got[f.ref.DeviceID].UpdatedAt)
 	require.Equal(t, whatsapp.StateUnlinked, got[missing].State)
 	require.False(t, got[missing].Live)
 }

@@ -38,6 +38,7 @@ templ Layout(d web.LayoutData) {
 			<script src={ d.Static("tips.js") } nonce={ d.Nonce } defer></script>
 			<script src={ d.Static("copy.js") } nonce={ d.Nonce } defer></script>
 			<script src={ d.Static("localtime.js") } nonce={ d.Nonce } defer></script>
+			<script src={ d.Static("pairing.js") } nonce={ d.Nonce } defer></script>
 		</head>
 		<body class="min-h-dvh bg-base-200 font-sans text-base-content antialiased">
 			<a href="#main" class="btn btn-sm sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-50">{ d.Tr("nav.skip_to_content") }</a>
@@ -46,7 +47,7 @@ templ Layout(d web.LayoutData) {
 					<input id="alt-drawer" type="checkbox" class="drawer-toggle" tabindex="-1" autocomplete="off" aria-label={ d.Tr("nav.open_menu") }/>
 					<div class="drawer-content flex min-h-dvh min-w-0 flex-col">
 						@shellNavbar(d)
-						<main id="main" tabindex="-1" class="w-full max-w-6xl flex-1 p-4 outline-none lg:px-8 lg:py-6">
+						<main id="main" tabindex="-1" class="w-full max-w-6xl flex-1 px-4 py-5 outline-none lg:px-8 lg:py-7">
 							@Breadcrumb(d)
 							@pageNotices(d)
 							@d.Content
@@ -254,7 +255,7 @@ templ orgLinks(d web.LayoutData, slug string) {
 	@menuLink(d.Href("/orgs/"+slug+"/apikeys"), "key", d.Tr("nav.apikeys"), d.ActiveNav.OrgKey == "apikeys")
 }
 
-const railRow = "btn-ghost h-11 min-h-11 w-full list-none justify-start gap-2 border-0 px-3 text-sm font-normal [&::-webkit-details-marker]:hidden"
+const railRow = "btn-ghost h-11 min-h-11 w-full justify-start gap-2 border-0 px-3 text-sm font-normal [&::-webkit-details-marker]:hidden"
 
 templ railChevron() {
 	@icons.Icon("chevron-down", "ms-auto size-4 shrink-0 transition-transform group-open:rotate-180")

@@ -13,6 +13,9 @@ import (
 // MaxNameRunes bounds a device name.
 const MaxNameRunes = 64
 
+// DefaultName names a device created without a name; it is a brand, never translated.
+const DefaultName = "WhatsApp"
+
 // PublicIDPrefix is the prefix of every device public id (dev_ + 16 nanoid characters).
 const PublicIDPrefix = "dev"
 
@@ -62,6 +65,9 @@ type ListOpts struct{}
 func DefaultRules() Rules {
 	return FromLegacy(Legacy{GroupMode: GroupMention, AllowedSenders: []string{}, AllowedGroups: []string{}, IgnoreFromMe: true})
 }
+
+// IsDefault reports whether r behaves exactly like DefaultRules; names do not count.
+func (r Rules) IsDefault() bool { return sameBehavior(r.Items, DefaultRules().Items) }
 
 // New enforces creation invariants and returns a device carrying DefaultRules; the caller mints publicID.
 func New(orgID, projectID uuid.UUID, publicID, name string) (*Device, error) {

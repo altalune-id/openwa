@@ -211,6 +211,8 @@ Lists answer `{"data": [...], "next_cursor": "..."}`. Pass `next_cursor` back as
 the next page; an empty `next_cursor` is the last page. `limit` is 1 to 200 (default 50).
 `since_id=<msg_…>` instead returns the messages newer than that one, oldest first, which
 is the easy way to poll a thread.
+On `/contacts`, `q` is a case-insensitive prefix on the name, the push name or the phone
+number; `+`, spaces and dashes in a phone are ignored.
 
 ## Webhooks
 

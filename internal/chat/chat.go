@@ -47,6 +47,15 @@ type Chat struct {
 	UpdatedAt          time.Time
 }
 
+// DisplayName returns the chat's name, or the user part of its JID when it has none.
+func (c *Chat) DisplayName() string {
+	if c.Name != "" {
+		return c.Name
+	}
+	user, _, _ := strings.Cut(c.JID, "@")
+	return user
+}
+
 // GroupInfo is what the engine reports about one group.
 type GroupInfo struct {
 	JID          string

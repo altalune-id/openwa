@@ -1,4 +1,4 @@
-# route<TAB>state<TAB>seed step. Widths: 390, 768, 1024, 1280. Modes: light, dark; plus ar-SA (POST /locale) at 390. Placeholders: {o} org slug, {p} project slug, {d} device id, {c} chat id, {w} webhook id, {dl} delivery id. Pass the drawer selector ".drawer-side" for every signed-in route.
+# route<TAB>state<TAB>seed step. Widths: 390, 768, 1024, 1280. Modes: light, dark; plus ar-SA (POST /locale) at 390. Placeholders: {o} org slug, {p} project slug, {d} device id, {r} rule id, {c} chat id, {w} webhook id, {dl} delivery id. Pass the drawer selector ".drawer-side" for every signed-in route.
 /login	default	none, signed out
 /login	error	submit a wrong credential
 /login	theme open	open the appearance dropdown in the top bar
@@ -29,8 +29,12 @@
 /orgs/{o}/apikeys	data	create 2 org API keys
 /settings/tokens	empty	sign in
 /settings/tokens	data	create a personal token
-/orgs/{o}/projects/{p}/overview	empty	create a project with no number
-/orgs/{o}/projects/{p}/overview	data	pair a number and receive messages
+/orgs/{o}/projects/{p}/overview	empty	create a project with no number (checklist 0 of 4, No numbers yet, Connect WhatsApp tip)
+/orgs/{o}/projects/{p}/overview	data	pair a number and receive messages (checklist beside the numbers list and table)
+/orgs/{o}/projects/{p}/overview	attention	pair a number, then sign it out from the phone (Needs attention chip, Fix it in the table)
+/orgs/{o}/projects/{p}/overview	done	pair, change a rule, add an enabled message.matched webhook, get a matched message (success banner, no checklist)
+/orgs/{o}/projects/{p}/overview?checklist=open	reopened	from the done state, click Reopen checklist
+/orgs/{o}/projects/{p}/overview	member	sign in as a plain member (no Connect buttons, managers-only line)
 /orgs/{o}/projects/{p}/overview	switcher open	click the rail switcher (desktop) or the navbar title (390); the panel must sit inside the rail (no ancestor-clip hit)
 /orgs/{o}/projects/{p}/overview	switcher one org	sign in as a user with one org and one project, open the switcher
 /orgs/{o}/projects/{p}/overview	switcher system org	sign in as admin@altalune.id with the system org, open the switcher
@@ -40,12 +44,52 @@
 /orgs/{o}/projects/{p}/overview	account open	open the account menu in the rail footer
 /orgs/{o}/projects/{p}/devices	empty	create a project
 /orgs/{o}/projects/{p}/devices	data	pair 2 numbers
-/orgs/{o}/projects/{p}/devices/new	default	none
-/orgs/{o}/projects/{p}/devices/{d}	default	pair a number
-/orgs/{o}/projects/{p}/devices/{d}	dialog open	click delete on the number
+/orgs/{o}/projects/{p}/devices/new	start	none (Get a code button)
+/orgs/{o}/projects/{p}/devices/new?device={d}	starting	click Connect WhatsApp on Home; catch the page before the first code (skeleton)
+/orgs/{o}/projects/{p}/devices/new?device={d}	waiting qr	click Connect WhatsApp on Home at 1024 or 1280 (QR tab, countdown ring, phone guide)
+/orgs/{o}/projects/{p}/devices/new?device={d}	waiting code	click Connect WhatsApp on Home at 390 or 768 (code tab picked on phones), then Get a code
+/orgs/{o}/projects/{p}/devices/new?device={d}	paused	let the QR attempt time out (Still there? Show a new code)
+/orgs/{o}/projects/{p}/devices/new?device={d}	error	stop the WhatsApp runtime, click Connect WhatsApp (Try again and Delete this number)
+/orgs/{o}/projects/{p}/devices/new?device={d}	error dialog open	from the error state, click Delete this number
+/orgs/{o}/projects/{p}/devices/new?device={d}	linked	scan the QR (Connected, Continue)
+/orgs/{o}/projects/{p}/devices/new?device={d}&step=name	name	click Continue after linking (prefilled from the WhatsApp profile)
+/orgs/{o}/projects/{p}/devices/new?device={d}&step=name	name error	clear the name, Save and continue
+/orgs/{o}/projects/{p}/devices/{d}	connected	pair a number
+/orgs/{o}/projects/{p}/devices/{d}	waiting	open a never-linked number, click Show a QR code
+/orgs/{o}/projects/{p}/devices/{d}	not linked	unlink a number
+/orgs/{o}/projects/{p}/devices/{d}	reconnecting	pair, then take the phone offline (disconnected)
+/orgs/{o}/projects/{p}/devices/{d}	needs attention	pair, then sign the number out from the phone (Fix it, tip)
+/orgs/{o}/projects/{p}/devices/{d}	fix running	from needs attention, click Fix it (button disabled, spinner)
+/orgs/{o}/projects/{p}/devices/{d}	relink	from needs attention, after Fix it (relink note, QR)
+/orgs/{o}/projects/{p}/devices/{d}	details open	open Technical details
+/orgs/{o}/projects/{p}/devices/{d}	member	sign in as a plain member on a signed-out number (no Fix it, managers-only line)
+/orgs/{o}/projects/{p}/devices/{d}?tab=settings	default	pair a number, open Settings
+/orgs/{o}/projects/{p}/devices/{d}?tab=settings	rename error	clear the name, Save
+/orgs/{o}/projects/{p}/devices/{d}?tab=settings	unlink dialog open	click Unlink
+/orgs/{o}/projects/{p}/devices/{d}?tab=settings	delete dialog open	click Delete
+/orgs/{o}/projects/{p}/devices/{d}?tab=settings	member	sign in as a plain member (rename kept, no Unlink or Delete)
+/orgs/{o}/projects/{p}/devices/{d}/rules	data	pair a number (the two default rules show)
+/orgs/{o}/projects/{p}/devices/{d}/rules	empty	delete every rule
+/orgs/{o}/projects/{p}/devices/{d}/rules	paused	toggle a rule off
+/orgs/{o}/projects/{p}/devices/{d}/rules	custom	write an API-only rule (chat_kind is_not group) through REST
+/orgs/{o}/projects/{p}/devices/{d}/rules	menu open	open a row's more-actions menu
+/orgs/{o}/projects/{p}/devices/{d}/rules	dialog open	click Delete in a row's menu
+/orgs/{o}/projects/{p}/devices/{d}/rules	conflict	toggle in two tabs; the second toggle shows the reload alert
+/orgs/{o}/projects/{p}/devices/{d}/rules	member	sign in as a plain member (no toggles, menus or Create)
+/orgs/{o}/projects/{p}/devices/{d}/rules/{r}	draft	click Create a rule
+/orgs/{o}/projects/{p}/devices/{d}/rules/{r}	invalid	pick These groups with no group, then Save rule
+/orgs/{o}/projects/{p}/devices/{d}/rules/{r}	saving	click Save rule (button disabled, spinner)
+/orgs/{o}/projects/{p}/devices/{d}/rules/{r}	conflict	save from a tab opened before another save
+/orgs/{o}/projects/{p}/devices/{d}/rules/{r}	picker open	pick These groups, click Add group
+/orgs/{o}/projects/{p}/devices/{d}/rules/{r}	undo toast	switch From to Only these people
+/orgs/{o}/projects/{p}/devices/{d}/rules/{r}	tested	pick a group and a sender in the test box, click Test (Didn't match badge on a block)
+/orgs/{o}/projects/{p}/devices/{d}/rules/{r}	pair	turn Direct messages on with These groups, save, reopen
+/orgs/{o}/projects/{p}/devices/{d}/rules/{r}	custom	open the API-only rule (read-only, test box works)
+/orgs/{o}/projects/{p}/devices/{d}/rules/{r}	member	sign in as a plain member (read-only, test box works)
 /orgs/{o}/projects/{p}/inbox	empty	pair a number with no messages
 /orgs/{o}/projects/{p}/inbox	data	receive messages from 3 contacts
 /orgs/{o}/projects/{p}/inbox/chats/{c}	default	open a chat with 20 messages
+/orgs/{o}/projects/{p}/inbox/chats/{c}	badges open	thread with sent, not sent and not evaluated messages; open each badge's reason
 /orgs/{o}/projects/{p}/inbox/new	default	pair a number
 /orgs/{o}/projects/{p}/contacts	empty	pair a number
 /orgs/{o}/projects/{p}/contacts	data	receive messages from 3 contacts

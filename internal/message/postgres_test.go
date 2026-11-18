@@ -285,7 +285,7 @@ func TestPostgres_Message_DeleteOlderThanBatchesAndReturnsChats(t *testing.T) {
 	require.NoError(t, err, "a message inside the window survives")
 }
 
-func TestPostgres_Message_RetentionAndCountToday(t *testing.T) {
+func TestPostgres_Message_Retention(t *testing.T) {
 	f := newPgFixture(t)
 	got, err := f.store.RetentionByProject(f.ctx(t), f.tc.ProjectID)
 	require.NoError(t, err)
@@ -298,12 +298,6 @@ func TestPostgres_Message_RetentionAndCountToday(t *testing.T) {
 	got, err = f.store.RetentionByProject(f.ctx(t), f.tc.ProjectID)
 	require.NoError(t, err)
 	require.Equal(t, 9, got.Days)
-
-	f.inbound(t, "today", time.Now())
-	f.inbound(t, "last week", time.Now().AddDate(0, 0, -7))
-	n, err := f.store.CountToday(f.ctx(t), time.Now().UTC().Truncate(24*time.Hour))
-	require.NoError(t, err)
-	require.Equal(t, int64(1), n)
 }
 
 func TestPostgres_Message_PublicIDLookupsAndCollision(t *testing.T) {
@@ -604,4 +598,44 @@ func TestPostgres_Message_RuleHitsAreDeviceAndProjectScoped(t *testing.T) {
 	cross, err := f.store.RuleHits(tenant.Into(t.Context(), sibling), f.device)
 	require.NoError(t, err)
 	require.Empty(t, cross, "a sibling project in the same org sees nothing of this device")
+}
+
+func TestPostgres_Message_DeviceActivityIsDeviceAndProjectScoped(t *testing.T) {
+	f := newPgFixture(t)
+	now := time.Now().UTC()
+	f.decided(t, f.tc, f.device, f.chat, "A1", message.MatchNone, "", now.Add(-time.Hour))
+	f.decided(t, f.tc, f.device, f.chat, "A2", message.MatchIgnored, "spam", now.Add(-2*time.Hour))
+	f.decided(t, f.tc, f.device, f.chat, "A3", message.MatchNone, "", now.Add(-25*time.Hour))
+
+	otherDevice := f.seed.Device(t, f.tc)
+	otherChat := f.seed.Chat(t, f.tc, otherDevice, "628333@s.whatsapp.net")
+	f.decided(t, f.tc, otherDevice, otherChat, "B1", message.MatchNone, "", now.Add(-30*time.Hour))
+	idle := f.seed.Device(t, f.tc)
+
+	sibling := f.seed.Project(t, f.tc)
+	sibDevice := f.seed.Device(t, sibling)
+	sibChat := f.seed.Chat(t, sibling, sibDevice, "628444@s.whatsapp.net")
+	f.decided(t, sibling, sibDevice, sibChat, "C1", message.MatchMatched, "legacy-dm", now.Add(-time.Hour))
+
+	counts, err := f.store.CountByDeviceSince(f.ctx(t), now.Add(-24*time.Hour))
+	require.NoError(t, err)
+	require.Equal(t, map[uuid.UUID]int64{f.device: 2}, counts)
+
+	last, err := f.store.LastAtByDevice(f.ctx(t), []uuid.UUID{f.device, otherDevice, idle, sibDevice})
+	require.NoError(t, err)
+	require.Len(t, last, 2, "an idle device and a sibling project's device are absent")
+	require.WithinDuration(t, now.Add(-time.Hour), last[f.device], time.Second)
+	require.WithinDuration(t, now.Add(-30*time.Hour), last[otherDevice], time.Second)
+
+	matched, err := f.store.HasMatched(f.ctx(t))
+	require.NoError(t, err)
+	require.False(t, matched, "an ignored message and a sibling project's match do not count")
+	f.decided(t, f.tc, otherDevice, otherChat, "B2", message.MatchMatched, "legacy-dm", now)
+	matched, err = f.store.HasMatched(f.ctx(t))
+	require.NoError(t, err)
+	require.True(t, matched)
+
+	sibCounts, err := f.store.CountByDeviceSince(tenant.Into(t.Context(), sibling), now.Add(-24*time.Hour))
+	require.NoError(t, err)
+	require.Equal(t, map[uuid.UUID]int64{sibDevice: 1}, sibCounts)
 }

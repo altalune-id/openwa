@@ -104,12 +104,14 @@ func (s *Service) StatusByDevices(ctx context.Context, ids []uuid.UUID) (map[uui
 	}
 	for _, row := range rows {
 		out[row.DeviceID] = Status{
-			State:    row.State,
-			Phone:    row.Phone,
-			PushName: row.PushName,
-			Reason:   row.Reason,
-			LastSeen: row.LastSeenAt,
-			Live:     s.runtime.Live(row.DeviceID),
+			State:           row.State,
+			Phone:           row.Phone,
+			PushName:        row.PushName,
+			Reason:          row.Reason,
+			LastSeen:        row.LastSeenAt,
+			LastConnectedAt: row.LastConnectedAt,
+			UpdatedAt:       row.UpdatedAt,
+			Live:            s.runtime.Live(row.DeviceID),
 		}
 	}
 	return out, nil

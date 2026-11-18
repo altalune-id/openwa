@@ -2,45 +2,263 @@ package templates
 
 import (
 	"strconv"
+	"time"
 
 	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
 )
 
+// HomeNumber is one number on Home with its activity.
+type HomeNumber struct {
+	ID      string
+	Name    string
+	Phone   string
+	Status   SessionStatus
+	NeedsFix bool
+	LastAt   *time.Time
+	Last24h int64
+}
+
+// HomeSteps says which setup checklist steps are done.
+type HomeSteps struct {
+	Linked bool
+	Rules  bool
+	Agent  bool
+	Tested bool
+}
+
+// OverviewView is the project Home page.
 type OverviewView struct {
-	OrgSlug          string
-	OrgID            string
-	ProjectID        string
-	ProjectSlug      string
-	ProjectName      string
-	Devices          int
-	DevicesConnected int
-	MessagesToday    int
+	ProjectSlug   string
+	CanManage     bool
+	Numbers       []HomeNumber
+	Steps         HomeSteps
+	RulesDevice   string
+	ChecklistOpen bool
+	LoadFailed    bool
+}
+
+func (s HomeSteps) done() int {
+	n := 0
+	for _, ok := range []bool{s.Linked, s.Rules, s.Agent, s.Tested} {
+		if ok {
+			n++
+		}
+	}
+	return n
+}
+
+func (s HomeSteps) all() bool { return s.done() == 4 }
+
+func (v OverviewView) rulesHref(d web.LayoutData) string {
+	if v.RulesDevice == "" {
+		return d.ProjectPath(v.ProjectSlug, "/devices/new")
+	}
+	return d.ProjectPath(v.ProjectSlug, "/devices/"+v.RulesDevice+"/rules")
+}
+
+func numberHref(d web.LayoutData, projectSlug string, n HomeNumber) string {
+	return d.ProjectPath(projectSlug, "/devices/"+n.ID)
 }
 
 templ OverviewPage(d web.LayoutData, v OverviewView) {
-	<section class="space-y-6">
-		@PageHeader(d, PageHeaderProps{Eyebrow: d.Tr("nav.overview"), Title: v.ProjectName})
-		<dl class="grid min-w-0 gap-3">
-			@KeyValue(d.Tr("overview.org_id")) {
-				@CopyValue(d, v.OrgSlug)
-			}
-			@KeyValue(d.Tr("settings.org_uuid")) {
-				@CopyValue(d, v.OrgID)
-			}
-			@KeyValue(d.Tr("settings.project_id")) {
-				@CopyValue(d, v.ProjectSlug)
-			}
-			@KeyValue(d.Tr("settings.project_uuid")) {
-				@CopyValue(d, v.ProjectID)
-			}
-		</dl>
-		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-			@StatCard(d.Tr("overview.devices"), d.Tr("overview.devices_value", "Total", v.Devices, "Connected", v.DevicesConnected))
-			@StatCard(d.Tr("overview.messages_today"), strconv.Itoa(v.MessagesToday))
+	@PageHeader(d, PageHeaderProps{Title: d.Tr("nav.home")})
+	if v.LoadFailed {
+		<div role="alert" class="alert alert-error alert-soft alert-vertical sm:alert-horizontal">
+			@icons.Icon("circle-exclamation-point", "size-5")
+			<div>
+				<p class="font-semibold">{ d.Tr("home.error_title") }</p>
+				<p class="text-sm">{ d.Tr("home.error_body") }</p>
+			</div>
+			<a href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/overview")) } class="btn lg:btn-sm">{ d.Tr("home.retry") }</a>
 		</div>
-	</section>
+	} else if len(v.Numbers) == 0 {
+		@Tip(d, "connect-number")
+		<div class="grid gap-6 lg:grid-cols-12">
+			<div class="min-w-0 lg:col-span-7">
+				@homeChecklist(d, v)
+			</div>
+			<div class="min-w-0 lg:col-span-5">
+				@EmptyState(d, EmptyStateProps{Icon: "smartphone", Title: d.Tr("home.no_numbers_title"), Body: d.Tr("home.no_numbers_body")})
+			</div>
+		</div>
+	} else if v.Steps.all() && !v.ChecklistOpen {
+		<div role="status" class="alert alert-success alert-soft mb-5 alert-vertical sm:alert-horizontal">
+			@icons.Icon("circle-check", "size-5")
+			<span>{ d.Tr("home.done") }</span>
+			<a href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/overview?checklist=open")) } class="btn btn-ghost btn-sm max-lg:btn-md">{ d.Tr("home.reopen") }</a>
+		</div>
+		@homeNumbers(d, v)
+	} else {
+		<div class="grid gap-6 lg:grid-cols-12">
+			<div class="flex min-w-0 flex-col gap-4 lg:col-span-8">
+				@homeNumbers(d, v)
+			</div>
+			<div class="min-w-0 lg:col-span-4">
+				@homeChecklist(d, v)
+			</div>
+		</div>
+	}
 }
 
 templ OverviewLayout(d web.LayoutData, v OverviewView) {
 	@Layout(web.WithContent(d, OverviewPage(d, v)))
+}
+
+templ homeNumbers(d web.LayoutData, v OverviewView) {
+	<section class="min-w-0" aria-labelledby="home-numbers">
+		<div class="mb-3 flex items-center justify-between gap-2">
+			<h2 id="home-numbers" class="font-semibold">{ d.Tr("home.numbers") }</h2>
+			if v.CanManage {
+				<form method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/devices")) }>
+					<button type="submit" class="btn lg:btn-sm">
+						@icons.Icon("plus", "size-4")
+						{ d.Tr("home.connect_another") }
+					</button>
+				</form>
+			}
+		</div>
+		<ul class="list rounded-box border border-base-300 bg-base-100 lg:hidden">
+			for _, n := range v.Numbers {
+				<li class="list-row items-center">
+					<span class="grid size-10 place-items-center rounded-field bg-base-200">
+						@icons.Icon("smartphone", "size-5")
+					</span>
+					<div class="list-col-grow min-w-0">
+						<a href={ templ.SafeURL(numberHref(d, v.ProjectSlug, n)) } class="link link-hover inline-flex min-h-11 items-center font-medium">{ n.Name }</a>
+						if n.Phone != "" {
+							<p class="font-mono text-xs text-base-content/70">{ "+" + n.Phone }</p>
+						}
+					</div>
+					<div class="list-col-wrap flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+						@NumberStatus(d, n.Status)
+						@homeLastMessage(d, n)
+						<span class="text-base-content/70 tabular-nums">{ d.Tr("home.last_24h_count", "Count", n.Last24h) }</span>
+					</div>
+					if n.NeedsFix && v.CanManage {
+						<a href={ templ.SafeURL(numberHref(d, v.ProjectSlug, n)) } class="btn btn-sm max-lg:btn-md">{ d.Tr("home.fix_it") }</a>
+					} else {
+						<a href={ templ.SafeURL(numberHref(d, v.ProjectSlug, n)) } class="btn btn-sm max-lg:btn-md">{ d.Tr("common.open") }</a>
+					}
+				</li>
+			}
+		</ul>
+		<div class="hidden max-w-full overflow-x-auto rounded-box border border-base-300 bg-base-100 lg:block">
+			<table class="w-full text-start text-sm">
+				<thead class="text-xs text-base-content/80">
+					<tr>
+						<th class="whitespace-nowrap px-4 py-2 text-start font-semibold">{ d.Tr("home.col_number") }</th>
+						<th class="whitespace-nowrap px-4 py-2 text-start font-semibold">{ d.Tr("home.col_state") }</th>
+						<th class="whitespace-nowrap px-4 py-2 text-start font-semibold">{ d.Tr("home.col_last") }</th>
+						<th class="whitespace-nowrap px-4 py-2 text-end font-semibold">{ d.Tr("home.col_24h") }</th>
+						<th class="px-4 py-2"><span class="sr-only">{ d.Tr("home.col_actions") }</span></th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, n := range v.Numbers {
+						<tr class="border-t border-base-300">
+							<td class="px-4 py-2">
+								<a href={ templ.SafeURL(numberHref(d, v.ProjectSlug, n)) } class="link link-hover font-medium">{ n.Name }</a>
+								if n.Phone != "" {
+									<div class="font-mono text-xs text-base-content/70">{ "+" + n.Phone }</div>
+								}
+							</td>
+							<td class="whitespace-nowrap px-4 py-2">
+								@NumberStatus(d, n.Status)
+							</td>
+							<td class="whitespace-nowrap px-4 py-2 text-base-content/70">
+								if n.LastAt != nil {
+									@Time(d, *n.LastAt)
+								} else {
+									{ d.Tr("home.no_messages") }
+								}
+							</td>
+							<td class="px-4 py-2 text-end tabular-nums">{ strconv.FormatInt(n.Last24h, 10) }</td>
+							<td class="px-4 py-2 text-end">
+								if n.NeedsFix && v.CanManage {
+									<a href={ templ.SafeURL(numberHref(d, v.ProjectSlug, n)) } class="btn btn-sm">{ d.Tr("home.fix_it") }</a>
+								} else {
+									<a href={ templ.SafeURL(numberHref(d, v.ProjectSlug, n)) } class="btn btn-sm">{ d.Tr("common.open") }</a>
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</section>
+}
+
+templ homeLastMessage(d web.LayoutData, n HomeNumber) {
+	<span class="text-base-content/70">
+		if n.LastAt != nil {
+			{ d.Tr("home.last_message") }
+			{ " " }
+			@Time(d, *n.LastAt)
+		} else {
+			{ d.Tr("home.no_messages") }
+		}
+	</span>
+}
+
+templ homeChecklist(d web.LayoutData, v OverviewView) {
+	{{ s := v.Steps }}
+	<section class="card border border-base-300 bg-base-100" aria-labelledby="home-setup">
+		<div class="card-body gap-3">
+			<div class="flex items-center justify-between gap-2">
+				<h2 id="home-setup" class="card-title text-base">{ d.Tr("home.setup_title") }</h2>
+				<span class="text-sm text-base-content/70 tabular-nums">{ d.Tr("home.setup_count", "Done", s.done()) }</span>
+			</div>
+			<progress class="progress" value={ strconv.Itoa(s.done()) } max="4" aria-label={ d.Tr("home.setup_progress") }></progress>
+			<ul class="steps steps-vertical">
+				@homeStep(d, 1, s.Linked, d.Tr("home.step_link"), d.Tr("home.step_link_hint")) {
+					if v.CanManage {
+						<form method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/devices")) }>
+							<button type="submit" data-tour="connect" class="btn btn-primary mt-1 lg:btn-sm">{ d.Tr("home.step_link_cta") }</button>
+						</form>
+					}
+				}
+				@homeStep(d, 2, s.Rules, d.Tr("home.step_rules"), d.Tr("home.step_rules_hint")) {
+					if v.CanManage {
+						<a href={ templ.SafeURL(v.rulesHref(d)) } class={ "btn mt-1 lg:btn-sm", templ.KV("btn-primary", s.Linked) }>{ d.Tr("home.step_rules_cta") }</a>
+					}
+				}
+				@homeStep(d, 3, s.Agent, d.Tr("home.step_agent"), d.Tr("home.step_agent_hint")) {
+					if v.CanManage {
+						<a href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/webhooks/new")) } class={ "btn mt-1 lg:btn-sm", templ.KV("btn-primary", s.Linked && s.Rules) }>{ d.Tr("home.step_agent_cta") }</a>
+					}
+				}
+				@homeStep(d, 4, s.Tested, d.Tr("home.step_test"), d.Tr("home.step_test_hint")) {
+					<a href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/inbox")) } class={ "btn mt-1 lg:btn-sm", templ.KV("btn-primary", s.Linked && s.Rules && s.Agent) }>{ d.Tr("home.step_test_cta") }</a>
+				}
+			</ul>
+			if !v.CanManage && s.done() < 3 {
+				<p class="text-sm text-base-content/70">{ d.Tr("common.managers_only") }</p>
+			}
+		</div>
+	</section>
+}
+
+func stepContent(i int, done bool) string {
+	if done {
+		return "✓"
+	}
+	return strconv.Itoa(i)
+}
+
+templ homeStep(d web.LayoutData, i int, done bool, label, hint string) {
+	<li class={ "step", templ.KV("step-primary", done) } data-content={ stepContent(i, done) } data-step-done?={ done }>
+		<div class="flex w-full flex-col items-start gap-1 py-1 text-start">
+			<span class="font-medium">
+				{ label }
+				if done {
+					<span class="sr-only">{ d.Tr("home.step_done_sr") }</span>
+				}
+			</span>
+			<span class="text-sm text-base-content/70">{ hint }</span>
+			if !done {
+				{ children... }
+			}
+		</div>
+	</li>
 }

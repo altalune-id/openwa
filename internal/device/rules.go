@@ -138,6 +138,34 @@ func (r Rules) Match(in MatchInput) MatchResult {
 	return MatchResult{Outcome: OutcomeNone}
 }
 
+// RuleCheck is how one rule fared against a message; Failed is the first failing condition's index, or -1.
+type RuleCheck struct {
+	RuleID        string
+	Enabled       bool
+	Held          bool
+	Failed        int
+	DMNotAdmitted bool
+}
+
+// Explanation is Match's result plus a check of every rule, the ones after the deciding rule included.
+type Explanation struct {
+	Result MatchResult
+	Checks []RuleCheck
+}
+
+// Explain evaluates every rule on its own and returns Match's result beside each rule's check.
+func (r Rules) Explain(in MatchInput) Explanation {
+	out := Explanation{Result: r.Match(in), Checks: make([]RuleCheck, 0, len(r.Items))}
+	for _, rule := range r.Items {
+		c := RuleCheck{RuleID: rule.ID, Enabled: rule.Enabled, Failed: slices.IndexFunc(rule.Conditions, func(c Condition) bool { return !c.holds(in) })}
+		_, ok := rule.holds(in)
+		c.Held = rule.Enabled && ok
+		c.DMNotAdmitted = c.Failed < 0 && !ok
+		out.Checks = append(out.Checks, c)
+	}
+	return out
+}
+
 type reasonSet struct {
 	senderAllowed, senderExcluded, chat, mention, text, prefix bool
 }
@@ -359,7 +387,7 @@ func normalizeRule(r Rule, at string) (Rule, error) {
 	if r.ID == "" {
 		r.ID = uuid.NewString()
 	}
-	if !validRuleID(r.ID) {
+	if !ValidRuleID(r.ID) {
 		return Rule{}, &InvalidRulesError{Field: at + ".id", Reason: "must be 1 to 64 letters, digits, - or _, and not start with legacy- unless it is legacy-dm or legacy-group"}
 	}
 	r.Name = strings.TrimSpace(r.Name)
@@ -387,7 +415,8 @@ func normalizeRule(r Rule, at string) (Rule, error) {
 	return r, nil
 }
 
-func validRuleID(id string) bool {
+// ValidRuleID reports whether id is 1 to 64 letters, digits, - or _, and is not a reserved legacy- id.
+func ValidRuleID(id string) bool {
 	if id == "" || len(id) > MaxRuleIDLength {
 		return false
 	}

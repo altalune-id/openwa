@@ -155,6 +155,12 @@ type Message struct {
 // MatchOutcome is what the device's rules decided for a live inbound message; empty means not evaluated.
 type MatchOutcome string
 
+// DeviceActivity is a device's message count over the last 24 hours and its newest message time.
+type DeviceActivity struct {
+	Last24h int64
+	LastAt  *time.Time
+}
+
 // RuleHit is how many stored messages a rule decided and when it last did.
 type RuleHit struct {
 	Count  int64

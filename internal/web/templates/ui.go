@@ -194,10 +194,19 @@ type EmptyStateProps struct {
 
 // PollProps configures Poll; Done omits the trigger so polling stops.
 type PollProps struct {
-	ID    string
-	URL   string
-	Every string
-	Done  bool
+	ID      string
+	URL     string
+	Every   string
+	Done    bool
+	Swap    string
+	Include string
+}
+
+func (p PollProps) swap() string {
+	if p.Swap == "" {
+		return "outerHTML"
+	}
+	return p.Swap
 }
 
 // Tab is one tab in Tabs; Attrs land on the tabpanel element.
@@ -272,15 +281,17 @@ type ConfirmProps struct {
 	Trigger      ButtonProps
 }
 
+// ConfirmOpener returns the attributes that make an element open the ConfirmDialog with id.
+func ConfirmOpener(id string) templ.Attributes {
+	return templ.Attributes{"data-dialog-open": id, "aria-haspopup": "dialog", "aria-controls": id}
+}
+
 func confirmTrigger(p ConfirmProps) ButtonProps {
 	trig := p.Trigger
-	attrs := make(templ.Attributes, len(trig.Attrs)+3)
+	attrs := ConfirmOpener(p.ID)
 	for k, v := range trig.Attrs {
 		attrs[k] = v
 	}
-	attrs["data-dialog-open"] = p.ID
-	attrs["aria-haspopup"] = "dialog"
-	attrs["aria-controls"] = p.ID
 	trig.Attrs = attrs
 	return trig
 }

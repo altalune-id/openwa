@@ -207,11 +207,78 @@ func (s *postgresStore) RuleHits(ctx context.Context, deviceID uuid.UUID) (map[s
 	return out, nil
 }
 
-func (s *postgresStore) CountToday(ctx context.Context, since time.Time) (int64, error) {
-	return s.count(ctx, "CountToday", func(tc tenant.Context) postgres.BoolExpression {
-		return s.t.OrgID.EQ(postgres.UUID(tc.OrgID)).AND(s.t.ProjectID.EQ(postgres.UUID(tc.ProjectID))).
-			AND(s.t.WATimestamp.GT_EQ(postgres.TimestampzT(since.UTC())))
-	})
+type pgDeviceCountRow struct {
+	DeviceID uuid.UUID `alias:"activity.device_id"`
+	Count    int64     `alias:"activity.count"`
+}
+
+func (s *postgresStore) CountByDeviceSince(ctx context.Context, since time.Time) (map[uuid.UUID]int64, error) {
+	tx, tc, done, err := s.readTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer done()
+	var rows []pgDeviceCountRow
+	stmt := postgres.SELECT(s.t.DeviceID.AS("activity.device_id"), postgres.COUNT(postgres.STAR).AS("activity.count")).
+		FROM(s.t).
+		WHERE(s.t.OrgID.EQ(postgres.UUID(tc.OrgID)).AND(s.t.ProjectID.EQ(postgres.UUID(tc.ProjectID))).
+			AND(s.t.WATimestamp.GT_EQ(postgres.TimestampzT(since.UTC())))).
+		GROUP_BY(s.t.DeviceID)
+	if qErr := stmt.QueryContext(ctx, tx, &rows); qErr != nil && !errors.Is(qErr, qrm.ErrNoRows) {
+		return nil, fmt.Errorf("message.postgres.CountByDeviceSince: %w", qErr)
+	}
+	out := make(map[uuid.UUID]int64, len(rows))
+	for _, r := range rows {
+		out[r.DeviceID] = r.Count
+	}
+	return out, nil
+}
+
+type pgLastAtRow struct {
+	LastAt time.Time `alias:"activity.last_at"`
+}
+
+func (s *postgresStore) LastAtByDevice(ctx context.Context, deviceIDs []uuid.UUID) (map[uuid.UUID]time.Time, error) {
+	tx, tc, done, err := s.readTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer done()
+	out := make(map[uuid.UUID]time.Time, len(deviceIDs))
+	for _, id := range deviceIDs {
+		var row pgLastAtRow
+		stmt := postgres.SELECT(s.t.WATimestamp.AS("activity.last_at")).FROM(s.t).
+			WHERE(s.t.OrgID.EQ(postgres.UUID(tc.OrgID)).AND(s.t.ProjectID.EQ(postgres.UUID(tc.ProjectID))).
+				AND(s.t.DeviceID.EQ(postgres.UUID(id)))).
+			ORDER_BY(s.t.WATimestamp.DESC(), s.t.ID.DESC()).LIMIT(1)
+		qErr := stmt.QueryContext(ctx, tx, &row)
+		if errors.Is(qErr, qrm.ErrNoRows) {
+			continue
+		}
+		if qErr != nil {
+			return nil, fmt.Errorf("message.postgres.LastAtByDevice: %w", qErr)
+		}
+		out[id] = row.LastAt.UTC()
+	}
+	return out, nil
+}
+
+func (s *postgresStore) HasMatched(ctx context.Context) (bool, error) {
+	tx, tc, done, err := s.readTx(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer done()
+	var row pgCountRow
+	stmt := postgres.SELECT(postgres.COUNT(postgres.STAR).AS("counts.total")).FROM(
+		postgres.SELECT(s.t.ID).FROM(s.t).
+			WHERE(s.t.OrgID.EQ(postgres.UUID(tc.OrgID)).AND(s.t.ProjectID.EQ(postgres.UUID(tc.ProjectID))).
+				AND(s.t.MatchedRuleID.IS_NOT_NULL()).AND(s.t.MatchOutcome.EQ(postgres.String(string(MatchMatched))))).
+			LIMIT(1).AsTable("first_match"))
+	if qErr := stmt.QueryContext(ctx, tx, &row); qErr != nil {
+		return false, fmt.Errorf("message.postgres.HasMatched: %w", qErr)
+	}
+	return row.Total > 0, nil
 }
 
 func (s *postgresStore) CountUnreadInbound(ctx context.Context, chatID uuid.UUID) (int, error) {

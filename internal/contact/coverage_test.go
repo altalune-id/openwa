@@ -83,6 +83,18 @@ func TestServiceList_PagesFiltersAndIsolates(t *testing.T) {
 	page, _, err = svc.List(ctx, contact.ListOpts{DeviceID: &devA, Search: " bu "})
 	require.NoError(t, err)
 	require.Equal(t, []string{"1@s.whatsapp.net", "2@s.whatsapp.net"}, jids(page))
+	pushed := contact.New(tc.OrgID, tc.ProjectID, devB, "6@s.whatsapp.net")
+	pushed.PushName, pushed.Phone, pushed.UpdatedAt = "Sari", "628555", base.Add(-3*time.Minute)
+	store.Seed(pushed)
+	page, _, err = svc.List(ctx, contact.ListOpts{Search: "sar"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"6@s.whatsapp.net"}, jids(page), "the fake matches a push name like the store")
+	page, _, err = svc.List(ctx, contact.ListOpts{Search: "6285"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"6@s.whatsapp.net"}, jids(page), "the fake matches a phone prefix like the store")
+	page, _, err = svc.List(ctx, contact.ListOpts{Search: "+62 85"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"6@s.whatsapp.net"}, jids(page), "the fake strips +, spaces and dashes from a phone search like the store")
 }
 
 func TestServiceList_Errors(t *testing.T) {

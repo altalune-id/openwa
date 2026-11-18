@@ -57,10 +57,12 @@ func NewSession(deviceID, orgID, projectID uuid.UUID, engine string) *Session {
 
 // Status is the read model a device shows: the persisted state plus whether this process holds the engine session.
 type Status struct {
-	State    State
-	Phone    string
-	PushName string
-	Reason   string
-	LastSeen *time.Time
-	Live     bool
+	State           State
+	Phone           string
+	PushName        string
+	Reason          string
+	LastSeen        *time.Time
+	LastConnectedAt *time.Time
+	UpdatedAt       time.Time
+	Live            bool
 }

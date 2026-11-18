@@ -139,3 +139,15 @@ func TestContacts_LoadMoreEscapesTheCursor(t *testing.T) {
 	body := c.get(t, "/orgs/acme/projects/alpha/contacts?q=Nina").Body.String()
 	require.Contains(t, body, "cursor=")
 }
+
+func TestContacts_UseInARuleOpensABlankRuleWithThePerson(t *testing.T) {
+	c := newContactsFixture(t)
+	require.NoError(t, c.contacts.UpsertFromEngine(c.ctx, contact.ContactInput{DeviceID: c.device.ID, JID: "628111222333@s.whatsapp.net", Phone: "628111222333", Name: "Budi"}))
+	require.NoError(t, c.contacts.UpsertFromEngine(c.ctx, contact.ContactInput{DeviceID: c.device.ID, JID: "777@lid", LID: "777@lid", Name: "Hidden"}))
+
+	body := c.get(t, "/orgs/acme/projects/alpha/contacts").Body.String()
+	prefix := `href="/orgs/acme/projects/alpha/devices/` + c.device.PublicID + `/rules/`
+	require.Contains(t, body, prefix)
+	require.Contains(t, body, "?sender=phone%3A628111222333", "a contact with a phone is picked by phone")
+	require.Contains(t, body, "?sender=777%40lid", "a hidden-number contact is picked by its LID")
+}
