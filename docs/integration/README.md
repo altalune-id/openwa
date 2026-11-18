@@ -60,18 +60,19 @@ which a bound key cannot reach, so they refuse it with `permission denied`.
 
 Errors are JSON `{"code": "...", "message": "..."}` with these codes:
 
-| Status | `code`                  | Meaning                                                                      |
-| ------ | ----------------------- | ---------------------------------------------------------------------------- |
-| 400    | `bad_request`           | the body or a parameter is malformed or invalid                              |
-| 401    | `unauthorized`          | no key, or the key is unknown or revoked                                     |
-| 404    | `not_found`             | no such resource, or the key may not see it (also a missing scope)           |
-| 409    | `conflict`              | the state forbids it: device not linked, edit window closed, not a group     |
-| 409    | `in_progress`           | the same `Idempotency-Key` is still being processed                          |
-| 410    | `gone`                  | the media is no longer available on WhatsApp                                 |
-| 412    | `precondition_failed`   | `If-Match` names an older version than the one stored                        |
-| 413    | `payload_too_large`     | the body or the file is over the limit (`whatsapp.mediaMaxBytes`, 32 MiB)    |
-| 428    | `precondition_required` | a `PATCH` came without `If-Match`                                            |
-| 503    | `unavailable`           | the device's WhatsApp session is not running on this server right now; retry |
+| Status | `code`                  | Meaning                                                                                 |
+| ------ | ----------------------- | --------------------------------------------------------------------------------------- |
+| 400    | `bad_request`           | the body or a parameter is malformed or invalid; for `rules`, `message` names the field |
+| 401    | `unauthorized`          | no key, or the key is unknown or revoked                                                |
+| 404    | `not_found`             | no such resource, or the key may not see it (also a missing scope)                      |
+| 409    | `conflict`              | the state forbids it: device not linked, edit window closed, not a group                |
+| 409    | `in_progress`           | the same `Idempotency-Key` is still being processed                                     |
+| 409    | `DEV006`                | a legacy-only rules write to a device whose rules only `items` can express              |
+| 410    | `gone`                  | the media is no longer available on WhatsApp                                            |
+| 412    | `precondition_failed`   | `If-Match` names an older version than the one stored                                   |
+| 413    | `payload_too_large`     | the body or the file is over the limit (`whatsapp.mediaMaxBytes`, 32 MiB)               |
+| 428    | `precondition_required` | a `PATCH` came without `If-Match`                                                       |
+| 503    | `unavailable`           | the device's WhatsApp session is not running on this server right now; retry            |
 
 ## Devices and pairing
 
@@ -471,7 +472,7 @@ curl -sS -X PATCH "$BASE/devices/$DEVICE" -H "Authorization: Bearer $KEY" -H "If
 
 Conditions are AND, values are OR. Limits: 50 rules, 20 conditions per rule, 100 values per
 condition, 64 KiB in all. A rule `id` is up to 64 letters, digits, `-` or `_`; omit it to have
-one minted.
+one minted. An unknown key in `rules`, a rule or a condition is refused with `400` `bad_request`.
 
 The legacy fields still work. A write that carries `items` ignores them. A write of only legacy
 fields converts to the rules `legacy-dm` and `legacy-group`:
@@ -485,8 +486,8 @@ fields converts to the rules `legacy-dm` and `legacy-group`:
 | `ignore_from_me`  | messages from the account itself never match                                                                                  |
 
 When `items` say something the legacy fields cannot, reads return `group_mode: "custom"` without
-`allowed_senders` and `allowed_groups`, and a write of only legacy fields answers `409 conflict`
-(RPC `FailedPrecondition`, code `DEV006`) and changes nothing.
+`allowed_senders` and `allowed_groups`, and a write of only legacy fields answers `409` with code
+`DEV006` (RPC `FailedPrecondition`, code `DEV006`) and changes nothing.
 
 `matched.reasons` names what passed: `dm`, `sender_allowed`, `sender_excluded`, `chat`, `prefix`,
 `text`, `group_mention`, `group_reply`, `group_open`, and in a direct message `mention` or

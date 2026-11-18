@@ -26,20 +26,24 @@ type dataplaneOpts struct {
 }
 
 type dataplaneFixture struct {
-	srv      *boot.Server
-	postsURL string
-	postURL  string
-	readKey  string
-	noneKey  string
-	orgCtx   context.Context
-	orgID    uuid.UUID
-	project  uuid.UUID
+	srv        *boot.Server
+	devicesURL string
+	postsURL   string
+	postURL    string
+	readKey    string
+	noneKey    string
+	orgCtx     context.Context
+	orgID      uuid.UUID
+	project    uuid.UUID
 }
 
 func newDataplaneFixture(t *testing.T, opts dataplaneOpts) *dataplaneFixture {
 	t.Helper()
+	return newDataplaneFixtureFor(t, newSmokeCfg(t), opts)
+}
 
-	cfg := newSmokeCfg(t)
+func newDataplaneFixtureFor(t *testing.T, cfg *config.Config, opts dataplaneOpts) *dataplaneFixture {
+	t.Helper()
 	cfg.Mode = config.ModeCloud
 	cfg.OIDC = config.OIDCConfig{
 		Issuer:       stubIssuer(t),
@@ -87,16 +91,18 @@ func newDataplaneFixture(t *testing.T, opts dataplaneOpts) *dataplaneFixture {
 	_, noneKey, err := srv.APIKeys.Mint(projCtx, "keys-only", []string{authn.ScopeAPIKeysRead}, nil, soon())
 	require.NoError(t, err)
 
-	base := "/api/v1/orgs/" + o.Slug + "/projects/" + p.Slug + "/posts"
+	project := "/api/v1/orgs/" + o.Slug + "/projects/" + p.Slug
+	base := project + "/posts"
 	return &dataplaneFixture{
-		srv:      srv,
-		postsURL: base,
-		postURL:  base + "/hello",
-		readKey:  readKey,
-		noneKey:  noneKey,
-		orgCtx:   orgCtx,
-		orgID:    o.ID,
-		project:  p.ID,
+		srv:        srv,
+		devicesURL: project + "/devices",
+		postsURL:   base,
+		postURL:    base + "/hello",
+		readKey:    readKey,
+		noneKey:    noneKey,
+		orgCtx:     orgCtx,
+		orgID:      o.ID,
+		project:    p.ID,
 	}
 }
 

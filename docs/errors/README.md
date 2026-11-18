@@ -18,6 +18,7 @@ code: [`howto/error-code.md`](../howto/error-code.md); raising one: [`howto/erro
   word (`not_found`, `unauthorized`, `bad_request`, `conflict`, `in_progress`,
   `precondition_failed`, `precondition_required`, `method_not_allowed`, `payload_too_large`, `gone`,
   `internal`), so a denied scope and a missing row look the same. See [`surfaces`](../surfaces/README.md) R6.
+  The exception is `DEV006`, which the data plane returns as its `code` with its message.
 
 In the Status column, `—` means registered but not yet constructed.
 
@@ -218,7 +219,7 @@ unmapped `GEN900` incident.
 
 `DEV005` is the optimistic-concurrency outcome of `device.StaleVersionError`. On the data plane it answers `412 Precondition Failed`.
 
-`DEV006` is `device.RulesShapeConflictError`: a write of the legacy rules fields to a device whose rules only `items` can express. On the data plane it answers `409 Conflict`.
+`DEV006` is `device.RulesShapeConflictError`: a write of the legacy rules fields to a device whose rules only `items` can express. On the data plane it answers `409 Conflict` with `code` `DEV006` and the same message as RPC.
 
 ## WAS — WhatsApp sessions
 

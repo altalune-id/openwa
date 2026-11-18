@@ -98,16 +98,24 @@ func (s *Service) CreateDefault(ctx context.Context) (*Device, bool, error) {
 }
 
 func oldestNeverPairedDefault(views []DeviceView) *Device {
-	for _, v := range slices.Backward(views) {
+	var oldest *Device
+	for _, v := range views {
 		st := v.Status
 		if defaultNameIndex(v.Device.Name) == 0 || st.Phone != "" || st.LastSeen != nil {
 			continue
 		}
-		if st.State == "" || st.State == SessionUnlinked || st.State == SessionLinking {
-			return v.Device
+		if st.State != "" && st.State != SessionUnlinked {
+			continue
+		}
+		if oldest == nil || olderDevice(v.Device, oldest) {
+			oldest = v.Device
 		}
 	}
-	return nil
+	return oldest
+}
+
+func olderDevice(a, b *Device) bool {
+	return cmp.Or(a.CreatedAt.Compare(b.CreatedAt), strings.Compare(a.ID.String(), b.ID.String())) < 0
 }
 
 func freeDefaultName(views []DeviceView) string {

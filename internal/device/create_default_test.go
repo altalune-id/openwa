@@ -42,8 +42,8 @@ func TestService_CreateDefaultNamesTheFirstFreeDefault(t *testing.T) {
 }
 
 func TestService_CreateDefaultReusesTheOldestNeverPairedDefault(t *testing.T) {
-	for _, state := range []device.SessionState{device.SessionUnlinked, device.SessionLinking} {
-		t.Run(string(state), func(t *testing.T) {
+	for _, state := range []device.SessionState{"", device.SessionUnlinked} {
+		t.Run("state "+string(state), func(t *testing.T) {
 			f := newSvcFixture(t)
 			now := time.Now()
 			old := f.seedNamed(t, "WhatsApp 2", now.Add(-time.Hour), device.SessionStatus{State: state})
@@ -56,6 +56,38 @@ func TestService_CreateDefaultReusesTheOldestNeverPairedDefault(t *testing.T) {
 			require.Equal(t, 2, f.store.Len(), "a reuse creates nothing")
 		})
 	}
+}
+
+func TestService_CreateDefaultPicksTheOldestWhateverTheListOrder(t *testing.T) {
+	f := newSvcFixture(t)
+	now := time.Now()
+	same := now.Add(-2 * time.Hour)
+	first := f.seedNamed(t, "WhatsApp 3", same, device.SessionStatus{State: device.SessionUnlinked})
+	second := f.seedNamed(t, "WhatsApp 2", same, device.SessionStatus{State: device.SessionUnlinked})
+	if second.ID.String() < first.ID.String() {
+		first, second = second, first
+	}
+	newest := f.seedNamed(t, "WhatsApp", now, device.SessionStatus{State: device.SessionUnlinked})
+	f.store.ListFn = func(context.Context, device.ListOpts) ([]*device.Device, error) {
+		return []*device.Device{second, first, newest}, nil
+	}
+
+	d, reused, err := f.svc.CreateDefault(f.ctx(t))
+	require.NoError(t, err)
+	require.True(t, reused)
+	require.Equal(t, first.ID, d.ID, "oldest by created time, then by id")
+}
+
+// SECURITY: a number mid-link holds a live QR; a second Link a number must never get the same code.
+func TestService_CreateDefaultNeverReusesANumberMidLink(t *testing.T) {
+	f := newSvcFixture(t)
+	linking := f.seedNamed(t, "WhatsApp", time.Now().Add(-time.Hour), device.SessionStatus{State: device.SessionLinking})
+
+	d, reused, err := f.svc.CreateDefault(f.ctx(t))
+	require.NoError(t, err)
+	require.False(t, reused)
+	require.NotEqual(t, linking.ID, d.ID)
+	require.Equal(t, "WhatsApp 2", d.Name)
 }
 
 // SECURITY: a number that was ever paired keeps its history and must never be handed to a new pairing.

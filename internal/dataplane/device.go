@@ -1,10 +1,13 @@
 package dataplane
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -63,12 +66,50 @@ type linkView struct {
 }
 
 type rulesPatch struct {
-	GroupMode      *string     `json:"group_mode"`
-	AllowedSenders *[]string   `json:"allowed_senders"`
-	AllowedGroups  *[]string   `json:"allowed_groups"`
-	TriggerPrefix  *string     `json:"trigger_prefix"`
-	IgnoreFromMe   *bool       `json:"ignore_from_me"`
-	Items          *[]ruleView `json:"items"`
+	GroupMode      *string    `json:"group_mode"`
+	AllowedSenders *[]string  `json:"allowed_senders"`
+	AllowedGroups  *[]string  `json:"allowed_groups"`
+	TriggerPrefix  *string    `json:"trigger_prefix"`
+	IgnoreFromMe   *bool      `json:"ignore_from_me"`
+	Items          *ruleItems `json:"items"`
+}
+
+// SECURITY: an unknown rules key is refused, so a misspelled field never applies as an empty write.
+func (p *rulesPatch) UnmarshalJSON(b []byte) error {
+	type plain rulesPatch
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	var out plain
+	if err := dec.Decode(&out); err != nil {
+		if ir, ok := errors.AsType[*device.InvalidRulesError](err); ok {
+			return ir
+		}
+		return &device.InvalidRulesError{Field: "rules", Reason: strings.TrimPrefix(err.Error(), "json: ")}
+	}
+	*p = rulesPatch(out)
+	return nil
+}
+
+type ruleItems []ruleView
+
+// SECURITY: an unknown key inside an item is refused, so a typo can never decode to an empty rule that replaces every rule.
+func (items *ruleItems) UnmarshalJSON(b []byte) error {
+	var raws []json.RawMessage
+	if err := json.Unmarshal(b, &raws); err != nil {
+		return &device.InvalidRulesError{Field: "items", Reason: "must be a list of rules"}
+	}
+	out := make(ruleItems, 0, len(raws))
+	for i, raw := range raws {
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		dec.DisallowUnknownFields()
+		var rv ruleView
+		if err := dec.Decode(&rv); err != nil {
+			return &device.InvalidRulesError{Field: "items[" + strconv.Itoa(i) + "]", Reason: strings.TrimPrefix(err.Error(), "json: ")}
+		}
+		out = append(out, rv)
+	}
+	*items = out
+	return nil
 }
 
 type deviceInput struct {

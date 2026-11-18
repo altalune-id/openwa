@@ -174,10 +174,17 @@ func (h *DeviceHandler) createAndPair(w http.ResponseWriter, sc ProjectScope) {
 		h.writeConnect(w, sc, status, templates.DeviceConnectView{ProjectSlug: sc.project.Slug, Error: l.Tr(key)})
 		return
 	}
-	if _, err := h.Devices.StartLink(sc.req.Context(), d.ID); err != nil {
-		h.logUnless(err, "web device: create and pair")
+	_, err = h.Devices.StartLink(sc.req.Context(), d.ID)
+	if err == nil {
+		h.redirect(w, sc, "/devices/new?device="+d.PublicID)
+		return
 	}
-	h.redirect(w, sc, "/devices/new?device="+d.PublicID)
+	h.logUnless(err, "web device: create and pair")
+	dv := device.DeviceView{Device: d, Status: device.SessionStatus{State: device.SessionUnlinked}}
+	p := h.pairingView(sc, dv, device.LinkState{Outcome: device.LinkFailed}, pairingInput{flow: true}, true)
+	p.ErrorKey = deviceErrorKey(err)
+	p.FirstPaint = true
+	h.writeConnect(w, sc, deviceWriteStatus(err), templates.DeviceConnectView{ProjectSlug: sc.project.Slug, Pairing: &p})
 }
 
 // GetDevice renders the detail page.

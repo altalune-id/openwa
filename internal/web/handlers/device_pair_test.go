@@ -36,19 +36,19 @@ func TestDevices_CreateWithoutANameCreatesTheDefaultAndStartsLinking(t *testing.
 func TestDevices_ALinkFailureKeepsTheNumberAndOffersRetryAndDelete(t *testing.T) {
 	x := newDeviceFixture(t)
 	x.Sessions.LinkErr = errors.New("whatsapp did not answer")
+	x.Sessions.State = device.LinkState{Outcome: device.LinkNone}
 	rec := x.do(t, http.MethodPost, devicesBase, "", false)
-	require.Equal(t, http.StatusSeeOther, rec.Code, rec.Body.String())
+	require.Empty(t, rec.Header().Get("Location"), "the failure lands at once, not on the idle Show a QR code state")
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
 	dv := x.only(t)
 
-	x.Sessions.State = device.LinkState{Outcome: device.LinkFailed}
-	page := x.do(t, http.MethodGet, rec.Header().Get("Location"), "", false)
-	require.Equal(t, http.StatusOK, page.Code)
-	body := mainOf(t, page.Body.String())
+	body := mainOf(t, rec.Body.String())
 	require.Contains(t, body, "devices.connect.failed_title")
 	require.Contains(t, body, `hx-post="`+devicesBase+"/"+dv.Device.PublicID+`/links"`, "Try again starts a new attempt for the same number")
 	require.Contains(t, body, `action="`+devicesBase+"/"+dv.Device.PublicID+`/delete"`, "the number can be deleted from the error")
 
 	x.Sessions.LinkErr = nil
+	x.Sessions.State = device.LinkState{Outcome: device.LinkPending}
 	rec = x.do(t, http.MethodPost, devicesBase, "", false)
 	require.Equal(t, http.StatusSeeOther, rec.Code)
 	again := x.only(t)
