@@ -38,7 +38,7 @@ templ MembersPage(d web.LayoutData, v MembersView) {
 			@ListShell(d, "member-list", nil) {
 				for _, m := range v.Members {
 					@ListRow(d, nil) {
-						<div class="min-w-0 flex-1">
+						<div class="list-col-grow min-w-0">
 							<p class="flex items-center gap-2 truncate text-sm font-medium text-base-content">
 								<span class="truncate">{ memberDisplayName(m) }</span>
 								if m.IsSelf {

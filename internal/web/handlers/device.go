@@ -1,13 +1,18 @@
 package handlers
 
 import (
+	"cmp"
 	"encoding/base64"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"altalune.id/openwa/internal/device"
+	"altalune.id/openwa/internal/message"
 	"altalune.id/openwa/internal/project"
 	"altalune.id/openwa/internal/web"
 	"altalune.id/openwa/internal/web/templates"
@@ -17,13 +22,14 @@ import (
 // DeviceHandler owns the project-scoped device console pages.
 type DeviceHandler struct {
 	Deps
-	Devices *device.Service
+	Devices  *device.Service
+	Messages *message.Service
 }
 
-// NewDeviceHandler wires the handler.
-func NewDeviceHandler(d Deps, projects *project.Service, devices *device.Service) *DeviceHandler {
+// NewDeviceHandler wires the handler; messages may be nil.
+func NewDeviceHandler(d Deps, projects *project.Service, devices *device.Service, messages *message.Service) *DeviceHandler {
 	d.Projects = projects
-	return &DeviceHandler{Deps: d, Devices: devices}
+	return &DeviceHandler{Deps: d, Devices: devices, Messages: messages}
 }
 
 // Register wires the device routes onto mux.
@@ -60,7 +66,7 @@ func (h *DeviceHandler) GetDevices(w http.ResponseWriter, r *http.Request) {
 		switch dv.Status.State {
 		case device.SessionConnected:
 			v.Connected++
-		case device.SessionDisconnected, device.SessionLoggedOut:
+		case device.SessionLoggedOut:
 			v.Attention++
 		}
 		v.Cards = append(v.Cards, templates.DeviceCard{
@@ -68,8 +74,8 @@ func (h *DeviceHandler) GetDevices(w http.ResponseWriter, r *http.Request) {
 			Name:     dv.Device.Name,
 			Phone:    dv.Status.Phone,
 			PushName: dv.Status.PushName,
-			StateKey: deviceStateKey(dv.Status.State),
-			Tone:     deviceTone(dv.Status.State),
+			StateKey: sessionStatus(dv.Status.State).Key,
+			Tone:     sessionStatus(dv.Status.State).Tone,
 			LastSeen: dv.Status.LastSeen,
 		})
 	}
@@ -77,7 +83,7 @@ func (h *DeviceHandler) GetDevices(w http.ResponseWriter, r *http.Request) {
 	Render(w, sc.req, templates.DevicesLayout(l, v))
 }
 
-// GetDeviceNew renders the empty form.
+// GetDeviceNew renders the first-run page: the start button, the pairing of ?device, or its name step.
 func (h *DeviceHandler) GetDeviceNew(w http.ResponseWriter, r *http.Request) {
 	sc, ok := h.RequireProject(w, r)
 	if !ok {
@@ -86,8 +92,43 @@ func (h *DeviceHandler) GetDeviceNew(w http.ResponseWriter, r *http.Request) {
 	if !h.requireManager(w, sc) {
 		return
 	}
-	l := h.layout(sc, "devices.new")
-	Render(w, sc.req, templates.DeviceNewLayout(l, templates.DeviceFormView{ProjectSlug: sc.project.Slug}))
+	v := templates.DeviceConnectView{ProjectSlug: sc.project.Slug}
+	if r.URL.Query().Get("device") == "" {
+		h.writeConnect(w, sc, http.StatusOK, v)
+		return
+	}
+	dv, ok := h.loadDevice(w, sc, r.URL.Query().Get("device"))
+	if !ok {
+		return
+	}
+	if r.URL.Query().Get("step") == "name" {
+		v.Naming = nameStepView(dv, "")
+		h.writeConnect(w, sc, http.StatusOK, v)
+		return
+	}
+	st, err := h.Devices.LinkState(sc.req.Context(), dv.Device.ID)
+	if err != nil {
+		h.LogErr("web device: link state", err)
+		st = device.LinkState{Outcome: device.LinkNone}
+	}
+	p := h.pairingView(sc, dv, st, pairingInput{flow: true}, true)
+	p.FirstPaint = true
+	v.Pairing = &p
+	h.writeConnect(w, sc, http.StatusOK, v)
+}
+
+func (h *DeviceHandler) writeConnect(w http.ResponseWriter, sc ProjectScope, status int, v templates.DeviceConnectView) {
+	l := h.layout(sc, "devices.connect.title")
+	l.ActiveNav.Scope = web.NavScopeNone
+	RenderStatus(w, sc.req, status, templates.DeviceConnectLayout(l, v))
+}
+
+func nameStepView(dv device.DeviceView, errText string) *templates.DeviceNameView {
+	n := &templates.DeviceNameView{DeviceID: dv.Device.PublicID, Version: dv.Device.Version, Value: dv.Device.Name, Phone: dv.Status.Phone, Error: errText}
+	if dv.Status.PushName != "" && device.DefaultName == dv.Device.Name {
+		n.Value, n.FromProfile = dv.Status.PushName, true
+	}
+	return n
 }
 
 // PostDeviceCreate creates a device and redirects to its detail page.
@@ -101,6 +142,10 @@ func (h *DeviceHandler) PostDeviceCreate(w http.ResponseWriter, r *http.Request)
 	}
 	if err := r.ParseForm(); err != nil {
 		h.ErrorPageKey(w, sc.req, http.StatusBadRequest, "error.bad_request", err)
+		return
+	}
+	if !r.PostForm.Has("name") {
+		h.createAndPair(w, sc)
 		return
 	}
 	name := r.PostForm.Get("name")
@@ -118,13 +163,37 @@ func (h *DeviceHandler) PostDeviceCreate(w http.ResponseWriter, r *http.Request)
 	h.redirect(w, sc, "/devices/"+d.PublicID)
 }
 
+func (h *DeviceHandler) createAndPair(w http.ResponseWriter, sc ProjectScope) {
+	d, _, err := h.Devices.CreateDefault(sc.req.Context())
+	if err != nil {
+		key, status := deviceFormError(err)
+		if status >= http.StatusInternalServerError {
+			h.LogErr("web device: create default", err)
+		}
+		l := h.layout(sc, "devices.connect.title")
+		h.writeConnect(w, sc, status, templates.DeviceConnectView{ProjectSlug: sc.project.Slug, Error: l.Tr(key)})
+		return
+	}
+	_, err = h.Devices.StartLink(sc.req.Context(), d.ID)
+	if err == nil {
+		h.redirect(w, sc, "/devices/new?device="+d.PublicID)
+		return
+	}
+	h.logUnless(err, "web device: create and pair")
+	dv := device.DeviceView{Device: d, Status: device.SessionStatus{State: device.SessionUnlinked}}
+	p := h.pairingView(sc, dv, device.LinkState{Outcome: device.LinkFailed}, pairingInput{flow: true}, true)
+	p.ErrorKey = deviceErrorKey(err)
+	p.FirstPaint = true
+	h.writeConnect(w, sc, deviceWriteStatus(err), templates.DeviceConnectView{ProjectSlug: sc.project.Slug, Pairing: &p})
+}
+
 // GetDevice renders the detail page.
 func (h *DeviceHandler) GetDevice(w http.ResponseWriter, r *http.Request) {
 	sc, dv, ok := h.requireDevice(w, r)
 	if !ok {
 		return
 	}
-	h.writeDetail(w, sc, dv, http.StatusOK, detailInput{})
+	h.writeDetail(w, sc, dv, http.StatusOK, detailInput{settings: r.URL.Query().Get("tab") == "settings"})
 }
 
 // PostDeviceLink starts a QR attempt and returns the pairing fragment.
@@ -136,15 +205,20 @@ func (h *DeviceHandler) PostDeviceLink(w http.ResponseWriter, r *http.Request) {
 	if !h.requireManager(w, sc) {
 		return
 	}
+	if err := r.ParseForm(); err != nil {
+		h.ErrorPageKey(w, sc.req, http.StatusBadRequest, "error.bad_request", err)
+		return
+	}
+	in := readPairingInput(r)
 	st, err := h.Devices.StartLink(sc.req.Context(), dv.Device.ID)
 	if !web.IsHTMXRequest(r) {
 		if err != nil {
 			h.SetFlash(w, sc.req, web.FlashErr, "flash.device_action_failed")
 		}
-		h.redirect(w, sc, "/devices/"+dv.Device.PublicID)
+		h.redirect(w, sc, in.returnPath(dv.Device.PublicID))
 		return
 	}
-	h.writePairing(w, sc, dv, st, err, "")
+	h.writePairing(w, sc, dv, st, err, in)
 }
 
 // GetDeviceLinkCurrent returns the pairing fragment for the current attempt.
@@ -154,7 +228,7 @@ func (h *DeviceHandler) GetDeviceLinkCurrent(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	st, err := h.Devices.LinkState(sc.req.Context(), dv.Device.ID)
-	h.writePairing(w, sc, dv, st, err, "")
+	h.writePairing(w, sc, dv, st, err, readPairingInput(r))
 }
 
 // PostDevicePhoneLink asks for a pairing code and returns the pairing fragment.
@@ -170,9 +244,14 @@ func (h *DeviceHandler) PostDevicePhoneLink(w http.ResponseWriter, r *http.Reque
 		h.ErrorPageKey(w, sc.req, http.StatusBadRequest, "error.bad_request", err)
 		return
 	}
-	phone := strings.TrimSpace(r.PostForm.Get("phone"))
-	st, err := h.Devices.LinkWithPhone(sc.req.Context(), dv.Device.ID, phone)
-	h.writePairing(w, sc, dv, st, err, phone)
+	in := readPairingInput(r)
+	in.tab = "code"
+	st, err := h.Devices.LinkWithPhone(sc.req.Context(), dv.Device.ID, in.phone)
+	if !web.IsHTMXRequest(r) && err == nil {
+		h.redirect(w, sc, in.returnPath(dv.Device.PublicID))
+		return
+	}
+	h.writePairing(w, sc, dv, st, err, in)
 }
 
 // PostDeviceUnlink logs the device's account out.
@@ -190,7 +269,7 @@ func (h *DeviceHandler) PostDeviceUnlink(w http.ResponseWriter, r *http.Request)
 		h.redirect(w, sc, "/devices/"+dv.Device.PublicID)
 		return
 	}
-	h.SetFlash(w, sc.req, web.FlashOK, "flash.device_logged_out")
+	h.SetFlash(w, sc.req, web.FlashOK, "flash.device_logged_out", "Name", dv.Device.Name)
 	h.redirect(w, sc, "/devices/"+dv.Device.PublicID)
 }
 
@@ -209,17 +288,19 @@ func (h *DeviceHandler) PostDeviceRules(w http.ResponseWriter, r *http.Request) 
 	}
 	rules := rulesFromForm(r)
 	version, err := formVersion(r, dv.Device.Version)
-	if err != nil {
-		h.writeDetail(w, sc, dv, deviceWriteStatus(err), detailInput{rules: &rules, rulesErr: err})
-		return
+	if err == nil {
+		_, err = h.Devices.UpdateLegacyRules(sc.req.Context(), dv.Device.ID, rules, version)
 	}
-	if _, err := h.Devices.UpdateLegacyRules(sc.req.Context(), dv.Device.ID, rules, version); err != nil {
+	switch {
+	case err == nil:
+		h.SetFlash(w, sc.req, web.FlashOK, "flash.device_rules_saved")
+	case device.IsRulesShapeConflictError(err):
+		h.SetFlash(w, sc.req, web.FlashErr, "flash.rules_use_editor")
+	default:
 		h.logUnless(err, "web device: rules")
-		h.writeDetail(w, sc, dv, deviceWriteStatus(err), detailInput{rules: &rules, rulesErr: err})
-		return
+		h.SetFlash(w, sc.req, web.FlashErr, deviceErrorKey(err))
 	}
-	h.SetFlash(w, sc.req, web.FlashOK, "flash.device_rules_saved")
-	h.redirect(w, sc, "/devices/"+dv.Device.PublicID)
+	h.redirect(w, sc, "/devices/"+dv.Device.PublicID+"/rules")
 }
 
 // PostDeviceRename changes the device name.
@@ -240,11 +321,18 @@ func (h *DeviceHandler) PostDeviceRename(w http.ResponseWriter, r *http.Request)
 	}
 	if _, err := h.Devices.Rename(sc.req.Context(), dv.Device.ID, name, version); err != nil {
 		h.logUnless(err, "web device: rename")
+		if renameNext(r) != "" {
+			l := h.layout(sc, "")
+			v := templates.DeviceConnectView{ProjectSlug: sc.project.Slug, Naming: nameStepView(dv, l.Tr(deviceErrorKey(err)))}
+			v.Naming.Value, v.Naming.FromProfile = name, false
+			h.writeConnect(w, sc, deviceWriteStatus(err), v)
+			return
+		}
 		h.writeDetail(w, sc, dv, deviceWriteStatus(err), detailInput{name: &name, renameErr: err})
 		return
 	}
 	h.SetFlash(w, sc.req, web.FlashOK, "flash.device_renamed")
-	h.redirect(w, sc, "/devices/"+dv.Device.PublicID)
+	h.redirect(w, sc, "/devices/"+dv.Device.PublicID+renameNext(r))
 }
 
 // PostDeviceDelete logs out and deletes the device.
@@ -262,15 +350,39 @@ func (h *DeviceHandler) PostDeviceDelete(w http.ResponseWriter, r *http.Request)
 		h.redirect(w, sc, "/devices/"+dv.Device.PublicID)
 		return
 	}
-	h.SetFlash(w, sc.req, web.FlashOK, "flash.device_deleted")
+	h.SetFlash(w, sc.req, web.FlashOK, "flash.device_deleted", "Name", dv.Device.Name)
 	h.redirect(w, sc, "/devices")
 }
 
 type detailInput struct {
-	rules     *device.Legacy
-	rulesErr  error
 	name      *string
 	renameErr error
+	settings  bool
+}
+
+// SECURITY: next is a fixed step name mapped to a path suffix, never a URL, so rename cannot redirect off the device.
+func renameNext(r *http.Request) string {
+	if r.PostForm.Get("next") == "rules" {
+		return "/rules"
+	}
+	return ""
+}
+
+type pairingInput struct {
+	flow  bool
+	tab   string
+	phone string
+}
+
+func readPairingInput(r *http.Request) pairingInput {
+	return pairingInput{flow: r.FormValue("flow") == "new", tab: r.FormValue("pair_tab"), phone: strings.TrimSpace(r.FormValue("phone"))}
+}
+
+func (in pairingInput) returnPath(publicID string) string {
+	if in.flow {
+		return "/devices/new?device=" + publicID
+	}
+	return "/devices/" + publicID
 }
 
 func (h *DeviceHandler) requireDevice(w http.ResponseWriter, r *http.Request) (ProjectScope, device.DeviceView, bool) {
@@ -278,31 +390,37 @@ func (h *DeviceHandler) requireDevice(w http.ResponseWriter, r *http.Request) (P
 	if !ok {
 		return ProjectScope{}, device.DeviceView{}, false
 	}
-	d, err := h.Devices.Resolve(sc.req.Context(), r.PathValue("device"))
+	dv, ok := h.loadDevice(w, sc, r.PathValue("device"))
+	return sc, dv, ok
+}
+
+func (h *DeviceHandler) loadDevice(w http.ResponseWriter, sc ProjectScope, publicID string) (device.DeviceView, bool) {
+	d, err := h.Devices.Resolve(sc.req.Context(), publicID)
 	if err != nil {
 		if device.IsNotFoundError(err) {
 			h.ErrorPageKey(w, sc.req, http.StatusNotFound, "error.not_found", err)
-			return ProjectScope{}, device.DeviceView{}, false
+			return device.DeviceView{}, false
 		}
 		h.LogErr("web device: resolve", err)
 		h.ErrorPageKey(w, sc.req, http.StatusInternalServerError, "error.load_failed", err)
-		return ProjectScope{}, device.DeviceView{}, false
+		return device.DeviceView{}, false
 	}
 	dv, err := h.Devices.Get(sc.req.Context(), d.ID)
 	if err != nil {
 		if device.IsNotFoundError(err) {
 			h.ErrorPageKey(w, sc.req, http.StatusNotFound, "error.not_found", err)
-			return ProjectScope{}, device.DeviceView{}, false
+			return device.DeviceView{}, false
 		}
 		h.LogErr("web device: get", err)
 		h.ErrorPageKey(w, sc.req, http.StatusInternalServerError, "error.load_failed", err)
-		return ProjectScope{}, device.DeviceView{}, false
+		return device.DeviceView{}, false
 	}
-	return sc, dv, true
+	return dv, true
 }
 
 func (h *DeviceHandler) writeDetail(w http.ResponseWriter, sc ProjectScope, dv device.DeviceView, status int, in detailInput) {
-	st, err := h.Devices.LinkState(sc.req.Context(), dv.Device.ID)
+	ctx := sc.req.Context()
+	st, err := h.Devices.LinkState(ctx, dv.Device.ID)
 	if err != nil {
 		h.LogErr("web device: link state", err)
 		st = device.LinkState{Outcome: device.LinkNone}
@@ -314,32 +432,32 @@ func (h *DeviceHandler) writeDetail(w http.ResponseWriter, sc ProjectScope, dv d
 	l.ActiveNav.Parent = "devices"
 
 	d := dv.Device
-	rules, expressible := d.Rules.Legacy()
-	if in.rules != nil {
-		rules = *in.rules
-	}
 	v := templates.DeviceDetailView{
-		ProjectSlug: sc.project.Slug,
-		ID:          d.PublicID,
-		Name:        d.Name,
-		Version:     d.Version,
-		StateKey:    deviceStateKey(dv.Status.State),
-		Tone:        deviceTone(dv.Status.State),
-		Phone:       dv.Status.Phone,
-		PushName:    dv.Status.PushName,
-		Reason:      dv.Status.Reason,
-		LastSeen:    dv.Status.LastSeen,
-		RenameValue: d.Name,
-		Pairing:     pairingView(sc, dv, st, "", canManage),
-		CanManage:   canManage,
-		Rules: templates.DeviceRulesView{
-			GroupMode:      string(rules.GroupMode),
-			AllowedSenders: strings.Join(rules.AllowedSenders, "\n"),
-			AllowedGroups:  strings.Join(rules.AllowedGroups, "\n"),
-			TriggerPrefix:  rules.TriggerPrefix,
-			IgnoreFromMe:   rules.IgnoreFromMe,
-			Errors:         map[string]string{},
-		},
+		ProjectSlug:  sc.project.Slug,
+		ID:           d.PublicID,
+		Name:         d.Name,
+		Version:      d.Version,
+		State:        string(cmp.Or(dv.Status.State, device.SessionUnlinked)),
+		Status:       sessionStatus(dv.Status.State),
+		Connected:    dv.Status.State == device.SessionConnected,
+		Reconnecting: dv.Status.State == device.SessionDisconnected,
+		SignedOut:    dv.Status.State == device.SessionLoggedOut,
+		Phone:        dv.Status.Phone,
+		PushName:     dv.Status.PushName,
+		Reason:       dv.Status.Reason,
+		ChangedAt:    dv.Status.UpdatedAt,
+		Timeline:     numberTimeline(dv),
+		Settings:     in.settings || in.renameErr != nil,
+		RenameValue:  d.Name,
+		Pairing:      h.pairingView(sc, dv, st, pairingInput{}, canManage),
+		CanManage:    canManage,
+	}
+	if h.Messages != nil {
+		act, err := h.Messages.Activity(ctx, []uuid.UUID{d.ID})
+		if err != nil {
+			h.LogErr("web device: activity", err)
+		}
+		v.LastMessage = act[d.ID].LastAt
 	}
 	if in.name != nil {
 		v.RenameValue = *in.name
@@ -347,29 +465,48 @@ func (h *DeviceHandler) writeDetail(w http.ResponseWriter, sc ProjectScope, dv d
 	if in.renameErr != nil {
 		v.RenameError = l.Tr(deviceErrorKey(in.renameErr))
 	}
-	if !expressible && in.rulesErr == nil {
-		v.Rules.FormError = l.Tr(deviceErrorKey(&device.RulesShapeConflictError{}))
-	}
-	if in.rulesErr != nil {
-		if ir, ok := errorsAsInvalidRules(in.rulesErr); ok {
-			v.Rules.Errors[ir.Field] = l.Tr(deviceErrorKey(in.rulesErr))
-		} else {
-			v.Rules.FormError = l.Tr(deviceErrorKey(in.rulesErr))
-		}
-	}
 	RenderStatus(w, sc.req, status, templates.DeviceDetailLayout(l, v))
 }
 
-func (h *DeviceHandler) writePairing(w http.ResponseWriter, sc ProjectScope, dv device.DeviceView, st device.LinkState, err error, phone string) {
+//i18n:use devices.timeline.*
+func numberTimeline(dv device.DeviceView) []templates.TimelineEntry {
+	st := dv.Status
+	out := []templates.TimelineEntry{{At: dv.Device.CreatedAt, Key: "devices.timeline.added"}}
+	if st.LastConnectedAt != nil {
+		e := templates.TimelineEntry{At: *st.LastConnectedAt, Key: "devices.timeline.connected"}
+		if st.Phone != "" && st.State != device.SessionLoggedOut {
+			e.Key, e.Phone = "devices.timeline.connected_as", st.Phone
+		}
+		out = append(out, e)
+	}
+	key := ""
+	switch st.State {
+	case device.SessionLoggedOut:
+		key = "devices.timeline.signed_out"
+	case device.SessionDisconnected:
+		key = "devices.timeline.reconnecting"
+	case device.SessionUnlinked:
+		if st.LastConnectedAt != nil {
+			key = "devices.timeline.unlinked"
+		}
+	}
+	if key != "" && !st.UpdatedAt.IsZero() {
+		out = append(out, templates.TimelineEntry{At: st.UpdatedAt, Key: key})
+	}
+	slices.SortStableFunc(out, func(a, b templates.TimelineEntry) int { return a.At.Compare(b.At) })
+	return out
+}
+
+func (h *DeviceHandler) writePairing(w http.ResponseWriter, sc ProjectScope, dv device.DeviceView, st device.LinkState, err error, in pairingInput) {
 	base := h.ProjectFragmentBase(sc)
 	canManage := h.canManageProject(sc)
 	if err == nil {
-		Render(w, sc.req, templates.DevicePairing(base, pairingView(sc, dv, st, phone, canManage)))
+		Render(w, sc.req, templates.DevicePairing(base, h.pairingView(sc, dv, st, in, canManage)))
 		return
 	}
 	h.logUnless(err, "web device: link")
 	status := deviceWriteStatus(err)
-	v := pairingView(sc, dv, device.LinkState{Outcome: device.LinkFailed}, phone, canManage)
+	v := h.pairingView(sc, dv, device.LinkState{Outcome: device.LinkFailed}, in, canManage)
 	v.ErrorKey = deviceErrorKey(err)
 	if whatsapp.IsInvalidPhoneError(err) {
 		v.ErrorKey = ""
@@ -378,17 +515,26 @@ func (h *DeviceHandler) writePairing(w http.ResponseWriter, sc ProjectScope, dv 
 	RenderStatus(w, sc.req, status, templates.DevicePairing(base, v))
 }
 
-func pairingView(sc ProjectScope, dv device.DeviceView, st device.LinkState, phone string, canManage bool) templates.DevicePairingView {
+func (h *DeviceHandler) pairingView(sc ProjectScope, dv device.DeviceView, st device.LinkState, in pairingInput, canManage bool) templates.DevicePairingView {
 	v := templates.DevicePairingView{
 		ProjectSlug: sc.project.Slug,
 		DeviceID:    dv.Device.PublicID,
+		Name:        dv.Device.Name,
 		Outcome:     string(st.Outcome),
 		PairingCode: st.PairingCode,
 		ExpiresAt:   st.ExpiresAt,
 		Linked:      dv.Status.State == device.SessionConnected || dv.Status.State == device.SessionDisconnected,
 		Phone:       dv.Status.Phone,
-		PhoneValue:  phone,
+		PushName:    dv.Status.PushName,
+		PhoneValue:  in.phone,
 		CanManage:   canManage,
+		Flow:        in.flow,
+		Relink:      dv.Status.State == device.SessionLoggedOut,
+		LocalPhones: h.Cfg != nil && h.Cfg.WhatsApp.DefaultCountryCode != "",
+		Tab:         in.tab,
+	}
+	if st.Method == device.LinkPhone && in.tab == "" {
+		v.Tab = "code"
 	}
 	if len(st.PNG) > 0 {
 		v.PNGBase64 = base64.StdEncoding.EncodeToString(st.PNG)
@@ -462,25 +608,18 @@ func splitList(raw string) []string {
 }
 
 //i18n:use devices.state.*
-func deviceStateKey(s device.SessionState) string {
-	if s == "" {
-		s = device.SessionUnlinked
-	}
-	return "devices.state." + string(s)
-}
-
-func deviceTone(s device.SessionState) templates.Tone {
+func sessionStatus(s device.SessionState) templates.SessionStatus {
 	switch s {
 	case device.SessionConnected:
-		return templates.ToneSuccess
+		return templates.SessionStatus{Key: "devices.state.connected", Tone: templates.ToneSuccess, Icon: "circle-check"}
 	case device.SessionLinking:
-		return templates.ToneInfo
+		return templates.SessionStatus{Key: "devices.state.linking", Tone: templates.ToneInfo, Icon: "qr-code"}
 	case device.SessionDisconnected:
-		return templates.ToneWarning
+		return templates.SessionStatus{Key: "devices.state.disconnected", Tone: templates.ToneWarning, Icon: "refresh-cw"}
 	case device.SessionLoggedOut:
-		return templates.ToneDanger
+		return templates.SessionStatus{Key: "devices.state.logged_out", Tone: templates.ToneDanger, Icon: "triangle-exclamation-point"}
 	}
-	return templates.ToneNeutral
+	return templates.SessionStatus{Key: "devices.state.unlinked", Tone: templates.ToneNeutral, Icon: "unlink"}
 }
 
 func errorsAsInvalidRules(err error) (*device.InvalidRulesError, bool) {

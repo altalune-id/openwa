@@ -1,0 +1,15 @@
+package templates
+
+import (
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
+)
+
+// NumberStatus renders a number's session state as a status dot, an icon and a label.
+templ NumberStatus(d web.LayoutData, s SessionStatus) {
+	<span class="inline-flex items-center gap-1.5 text-sm font-medium">
+		<span class={ dotClass(s.Tone) } aria-hidden="true"></span>
+		@icons.Icon(s.Icon, "size-4")
+		{ d.Tr(s.Key) }
+	</span>
+}

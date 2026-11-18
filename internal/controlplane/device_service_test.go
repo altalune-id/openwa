@@ -12,6 +12,7 @@ import (
 
 	devicev1 "altalune.id/openwa/gen/go/device/v1"
 	devicev1connect "altalune.id/openwa/gen/go/device/v1/devicev1connect"
+	"altalune.id/openwa/internal/apperror"
 	"altalune.id/openwa/internal/device"
 	"altalune.id/openwa/internal/platform/authn"
 	"altalune.id/openwa/internal/platform/session"
@@ -122,6 +123,29 @@ func TestDevice_UpdateIsConditional(t *testing.T) {
 	require.Equal(t, connect.CodeInvalidArgument, connectCode(err))
 }
 
+func TestDevice_InvalidRuleItemsLeaveTheRulesUnchanged(t *testing.T) {
+	f := newDeviceCP(t)
+	d := f.seed(t, "Sales")
+	c := f.h.deviceClient()
+	before, err := c.GetDevice(context.Background(), devReq(&devicev1.GetDeviceRequest{DeviceId: d.PublicID}))
+	require.NoError(t, err)
+
+	_, err = c.UpdateDevice(context.Background(), devReq(&devicev1.UpdateDeviceRequest{
+		DeviceId: d.PublicID,
+		Rules:    &devicev1.Rules{Items: &devicev1.RuleList{Rules: []*devicev1.Rule{{Id: "../x", Enabled: true, Action: "match"}}}},
+		Version:  before.Msg.GetDevice().GetVersion(),
+	}))
+	require.Equal(t, connect.CodeInvalidArgument, connectCode(err))
+	detail := appErrorDetail(t, err)
+	require.Equal(t, apperror.CodeDeviceInvalidRules, detail.GetCode())
+	require.Equal(t, "items[0].id", detail.GetMeta()["field"])
+
+	after, err := c.GetDevice(context.Background(), devReq(&devicev1.GetDeviceRequest{DeviceId: d.PublicID}))
+	require.NoError(t, err)
+	require.Equal(t, before.Msg.GetDevice().GetVersion(), after.Msg.GetDevice().GetVersion())
+	require.True(t, proto.Equal(before.Msg.GetDevice().GetRules(), after.Msg.GetDevice().GetRules()), "rules unchanged")
+}
+
 func TestDevice_RulesCompatibility(t *testing.T) {
 	f := newDeviceCP(t)
 	d := f.seed(t, "Sales")
@@ -155,6 +179,10 @@ func TestDevice_RulesCompatibility(t *testing.T) {
 	readBack.Items = nil
 	_, err = update(readBack)
 	require.Equal(t, connect.CodeFailedPrecondition, connectCode(err), "an old client writing back a custom read is refused, not a wipe")
+	require.Equal(t, apperror.CodeDeviceRulesShapeConflict, appErrorDetail(t, err).GetCode())
+	var ce *connect.Error
+	require.ErrorAs(t, err, &ce)
+	require.Equal(t, "The device rules use items the legacy fields cannot express; send items instead", ce.Message())
 	_, err = update(&devicev1.Rules{GroupMode: "open", AllowedSenders: []string{"628111222333"}})
 	require.Equal(t, connect.CodeFailedPrecondition, connectCode(err))
 

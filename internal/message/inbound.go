@@ -118,7 +118,7 @@ func (r *Recorder) store1(ctx context.Context, ref Ref, in InboundInput, emit bo
 }
 
 func (r *Recorder) match(ctx context.Context, ref Ref, chat ChatRef, m *Message, in InboundInput) (*DeviceRef, MatchResult) {
-	senderJID, senderLID := splitIdentity(withoutDevice(in.SenderJID), withoutDevice(in.SenderAlt))
+	senderJID, senderLID := SplitSender(in.SenderJID, in.SenderAlt)
 	dev, res, err := r.devices.Match(ctx, ref.DeviceID, MatchInput{
 		IsGroup: in.IsGroup, ChatJID: chat.JID, SenderPhone: in.SenderPhone, SenderJID: senderJID, SenderLID: senderLID, FromMe: in.FromMe,
 		Body: m.Body, Mentions: in.Mentions, QuotedSender: in.QuotedSender,
@@ -175,6 +175,11 @@ func chatIdentity(in InboundInput) (jid, lid, kind string) {
 		return pn, lid, "dm"
 	}
 	return lid, lid, "dm"
+}
+
+// SplitSender returns the phone-number JID and the LID among a sender JID and its alternate, device suffixes dropped.
+func SplitSender(jid, alt string) (pn, lid string) {
+	return splitIdentity(withoutDevice(jid), withoutDevice(alt))
 }
 
 func withoutDevice(jid string) string {

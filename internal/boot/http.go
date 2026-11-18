@@ -128,8 +128,9 @@ func buildWebHandler(
 	homeHandler := webhandlers.NewHomeHandler(deps, orgs, projects)
 	orgHandler := webhandlers.NewOrgHandler(deps, orgs)
 	projectHandler := webhandlers.NewProjectHandler(deps, projects)
-	overviewHandler := webhandlers.NewProjectOverviewHandler(deps, projects, devices, messages)
-	deviceHandler := webhandlers.NewDeviceHandler(deps, projects, devices)
+	overviewHandler := webhandlers.NewProjectOverviewHandler(deps, projects, devices, messages, webhooks)
+	deviceHandler := webhandlers.NewDeviceHandler(deps, projects, devices, messages)
+	rulesHandler := webhandlers.NewRulesHandler(deviceHandler, messages, chats, contacts)
 	inboxHandler := webhandlers.NewInboxHandler(deps, projects, chats, messages, devices, cfg.WhatsApp.MediaMaxBytes)
 	contactsHandler := webhandlers.NewContactsHandler(deps, projects, contacts, devices)
 	settingsHandler := webhandlers.NewSettingsHandler(deps, projects, messages)
@@ -149,7 +150,7 @@ func buildWebHandler(
 		BasePath: cfg.HTTP.BasePath,
 		HealthOK: healthOK,
 		AppHandlers: []web.Register{
-			authHandler, onboardingHandler, onboardHandler, homeHandler, orgHandler, projectHandler, overviewHandler, deviceHandler, inboxHandler, contactsHandler, settingsHandler, apiKeyHandler, webhookHandler, inviteHandler, localeHandler, themeHandler, tipsHandler, welcomeHandler, signupHandler, legalHandler,
+			authHandler, onboardingHandler, onboardHandler, homeHandler, orgHandler, projectHandler, overviewHandler, deviceHandler, rulesHandler, inboxHandler, contactsHandler, settingsHandler, apiKeyHandler, webhookHandler, inviteHandler, localeHandler, themeHandler, tipsHandler, welcomeHandler, signupHandler, legalHandler,
 		},
 		APIHandler:       apiHandler,
 		DataHandler:      dataHandler,

@@ -77,7 +77,19 @@ func TestPostgres_Contact_ListPagesAndSearches(t *testing.T) {
 	require.Len(t, page, 2)
 	page, _, err = f.store.List(f.ctx(t), contact.ListOpts{Search: "628112"})
 	require.NoError(t, err)
-	require.Empty(t, page, "the search is on the name only, the column the index covers")
+	require.Len(t, page, 1, "the search matches a phone prefix")
+	require.Equal(t, "Citra", page[0].Name)
+	page, _, err = f.store.List(f.ctx(t), contact.ListOpts{Search: "+62 811-2"})
+	require.NoError(t, err)
+	require.Len(t, page, 1, "a typed phone with +, spaces and dashes still matches the digits")
+	page, _, err = f.store.List(f.ctx(t), contact.ListOpts{Search: "+"})
+	require.NoError(t, err)
+	require.Empty(t, page, "a search with no digits never matches every phone")
+
+	f.upsert(t, "628119@s.whatsapp.net", func(c *contact.Contact) { c.PushName = "Sari Wulandari" })
+	page, _, err = f.store.List(f.ctx(t), contact.ListOpts{Search: "SARI"})
+	require.NoError(t, err)
+	require.Len(t, page, 1, "the search matches the push name a group member sets, case-insensitive")
 }
 
 func TestPostgres_Contact_ListFiltersByDevice(t *testing.T) {
@@ -102,16 +114,25 @@ func TestPostgres_Contact_ListFiltersByDevice(t *testing.T) {
 
 func TestPostgres_Contact_ListIsolatesProjectAndOrg(t *testing.T) {
 	f := newPgFixture(t)
-	f.upsert(t, "628111@s.whatsapp.net", func(c *contact.Contact) { c.Name = "Mine" })
+	f.upsert(t, "628111@s.whatsapp.net", func(c *contact.Contact) { c.Name, c.Phone = "Mine", "628111" })
 
 	sibling := f.siblingProject(t)
 	siblingDevice := f.seed.Device(t, sibling)
-	require.NoError(t, f.store.Upsert(tenant.Into(t.Context(), sibling), contact.New(sibling.OrgID, sibling.ProjectID, siblingDevice, "628222@s.whatsapp.net")))
+	theirs := contact.New(sibling.OrgID, sibling.ProjectID, siblingDevice, "628222@s.whatsapp.net")
+	theirs.Name, theirs.PushName, theirs.Phone = "Mine too", "Mine", "628222"
+	require.NoError(t, f.store.Upsert(tenant.Into(t.Context(), sibling), theirs))
 
 	page, _, err := f.store.List(f.ctx(t), contact.ListOpts{})
 	require.NoError(t, err)
 	require.Len(t, page, 1, "a sibling project's contacts stay out")
 	require.Equal(t, "628111@s.whatsapp.net", page[0].JID)
+
+	page, _, err = f.store.List(f.ctx(t), contact.ListOpts{Search: "mine"})
+	require.NoError(t, err)
+	require.Len(t, page, 1, "a name or push name search never reaches a sibling project's contacts")
+	page, _, err = f.store.List(f.ctx(t), contact.ListOpts{Search: "628"})
+	require.NoError(t, err)
+	require.Len(t, page, 1, "a phone search never reaches a sibling project's contacts")
 
 	otherTC := f.seed.Tenant(t)
 	otherDevice := f.seed.Device(t, otherTC)

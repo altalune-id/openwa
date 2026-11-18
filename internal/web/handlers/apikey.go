@@ -426,8 +426,8 @@ func (h *APIKeyHandler) deviceOptions(sc ProjectScope) ([]templates.APIKeyDevice
 			PublicID: dv.Device.PublicID,
 			Name:     dv.Device.Name,
 			Phone:    dv.Status.Phone,
-			StateKey: deviceStateKey(dv.Status.State),
-			Tone:     deviceTone(dv.Status.State),
+			StateKey: sessionStatus(dv.Status.State).Key,
+			Tone:     sessionStatus(dv.Status.State).Tone,
 		})
 	}
 	return out, nil

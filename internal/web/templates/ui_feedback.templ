@@ -40,7 +40,7 @@ templ Toast(d web.LayoutData, kind web.FlashKind, message string) {
 
 // ToastHost renders the live region toasts land in, with the current flash.
 templ ToastHost(d web.LayoutData) {
-	<div id="hx-notice" aria-live="polite" class="toast toast-end toast-bottom z-50 w-80 max-w-[calc(100vw-2rem)] whitespace-normal">
+	<div id="hx-notice" aria-live="polite" class="toast toast-bottom toast-center z-50 w-80 max-w-[calc(100vw-2rem)] whitespace-normal lg:toast-end">
 		if d.Flash != nil {
 			@Toast(d, d.Flash.Kind, d.Flash.Message)
 		}
@@ -81,6 +81,11 @@ templ toastScript(nonce string) {
 // ConfirmModal renders a trigger button and a modal dialog holding the real POST form; dialog.js opens and closes it.
 templ ConfirmModal(d web.LayoutData, p ConfirmProps) {
 	@AppButton(confirmTrigger(p))
+	@ConfirmDialog(d, p)
+}
+
+// ConfirmDialog renders the confirm dialog alone; any element with ConfirmOpener(p.ID) attributes opens it.
+templ ConfirmDialog(d web.LayoutData, p ConfirmProps) {
 	<dialog id={ p.ID } class="modal modal-bottom sm:modal-middle" aria-labelledby={ p.ID + "-title" } data-dialog-close-on-done>
 		<form
 			method="post"

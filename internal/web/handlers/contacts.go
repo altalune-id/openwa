@@ -70,7 +70,7 @@ func (h *ContactsHandler) GetContacts(w http.ResponseWriter, r *http.Request) {
 	}
 	rows := make([]templates.ContactRowView, 0, len(items))
 	for i, c := range items {
-		rows = append(rows, templates.ContactRowView{ID: strconv.Itoa(i), Name: c.DisplayName(), Phone: c.Phone, JID: c.JID, DeviceID: pubs[c.DeviceID]})
+		rows = append(rows, templates.ContactRowView{ID: strconv.Itoa(i), Name: c.DisplayName(), Phone: c.Phone, JID: c.JID, DeviceID: pubs[c.DeviceID], RuleID: newRuleID(), Sender: senderValue(c)})
 	}
 	Render(w, sc.req, templates.ContactsLayout(h.LayoutForProject(sc.req, pageTitle(sc.req, "contacts.title"), sc.org.Slug, sc.project, "contacts"), templates.ContactsView{
 		ProjectSlug: sc.project.Slug, Devices: devices, DeviceID: q.Get("device"), Query: q.Get("q"), Rows: rows, NextCursor: next,

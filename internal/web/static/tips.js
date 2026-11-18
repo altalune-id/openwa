@@ -21,13 +21,14 @@
 		if (!target) return false;
 		var r = target.getBoundingClientRect();
 		var vw = document.documentElement.clientWidth;
+		var o = tip.offsetParent ? tip.offsetParent.getBoundingClientRect() : { top: -window.scrollY, left: -window.scrollX };
 		var below = r.bottom + GAP + tip.offsetHeight <= window.innerHeight;
-		tip.style.top = Math.max(GAP, below ? r.bottom + GAP : r.top - GAP - tip.offsetHeight) + 'px';
+		tip.style.top = Math.max(GAP, below ? r.bottom + GAP : r.top - GAP - tip.offsetHeight) - o.top + 'px';
 		var w = tip.offsetWidth;
 		var left = r.left + r.width / 2 - w / 2;
 		if (left + w > vw - GAP) left = r.right - w;
 		if (left < GAP) left = r.left;
-		tip.style.left = Math.min(Math.max(GAP, left), vw - w - GAP) + 'px';
+		tip.style.left = Math.min(Math.max(GAP, left), vw - w - GAP) - o.left + 'px';
 		return true;
 	}
 

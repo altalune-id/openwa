@@ -1,10 +1,12 @@
 package dataplane
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"net/http"
 
+	"altalune.id/openwa/internal/apperror"
 	"altalune.id/openwa/internal/blog"
 	"altalune.id/openwa/internal/chat"
 	"altalune.id/openwa/internal/contact"
@@ -135,12 +137,13 @@ func writeError(w http.ResponseWriter, err error) {
 	w.Header().Del("ETag")
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(f.status)
-	_ = json.NewEncoder(w).Encode(errorBody{Code: f.code, Message: f.code})
+	_ = json.NewEncoder(w).Encode(errorBody{Code: f.code, Message: cmp.Or(f.message, f.code)})
 }
 
 type failure struct {
-	status int
-	code   string
+	status  int
+	code    string
+	message string
 }
 
 //nolint:cyclop // a flat mapping table; splitting it hides the contract it states.
@@ -149,34 +152,44 @@ func statusFor(err error) failure {
 	case IsNotFoundError(err), blog.IsNotFoundError(err), device.IsNotFoundError(err),
 		message.IsNotFoundError(err), chat.IsNotFoundError(err), contact.IsNotFoundError(err),
 		whatsapp.IsSessionNotFoundError(err), whatsapp.IsSessionGoneError(err):
-		return failure{http.StatusNotFound, "not_found"}
+		return failure{status: http.StatusNotFound, code: "not_found"}
 	case message.IsMediaUnavailableError(err):
-		return failure{http.StatusGone, "gone"}
+		return failure{status: http.StatusGone, code: "gone"}
 	case IsPayloadTooLargeError(err), message.IsMediaTooLargeError(err):
-		return failure{http.StatusRequestEntityTooLarge, "payload_too_large"}
+		return failure{status: http.StatusRequestEntityTooLarge, code: "payload_too_large"}
 	case IsUnauthorizedError(err):
-		return failure{http.StatusUnauthorized, "unauthorized"}
+		return failure{status: http.StatusUnauthorized, code: "unauthorized"}
 	case IsMethodNotAllowedError(err):
-		return failure{http.StatusMethodNotAllowed, "method_not_allowed"}
+		return failure{status: http.StatusMethodNotAllowed, code: "method_not_allowed"}
 	case IsPreconditionRequiredError(err):
-		return failure{http.StatusPreconditionRequired, "precondition_required"}
+		return failure{status: http.StatusPreconditionRequired, code: "precondition_required"}
 	case IsPreconditionFailedError(err), blog.IsStaleVersionError(err), device.IsStaleVersionError(err):
-		return failure{http.StatusPreconditionFailed, "precondition_failed"}
-	case IsConflictError(err), blog.IsAlreadyExistsError(err), device.IsNameTakenError(err), device.IsRulesShapeConflictError(err),
+		return failure{status: http.StatusPreconditionFailed, code: "precondition_failed"}
+	case device.IsRulesShapeConflictError(err):
+		return coded(http.StatusConflict, err)
+	case device.IsInvalidRulesError(err):
+		ir, _ := errors.AsType[*device.InvalidRulesError](err)
+		return failure{status: http.StatusBadRequest, code: "bad_request", message: ir.Field + ": " + ir.Reason}
+	case IsConflictError(err), blog.IsAlreadyExistsError(err), device.IsNameTakenError(err),
 		message.IsDeviceNotLinkedError(err), message.IsEditWindowClosedError(err), message.IsNotOwnMessageError(err),
 		chat.IsNotAGroupError(err), message.IsVersionMismatchError(err), chat.IsVersionMismatchError(err),
 		whatsapp.IsAlreadyLinkedError(err), whatsapp.IsNotConnectedError(err), whatsapp.IsLinkTimeoutError(err):
-		return failure{http.StatusConflict, "conflict"}
+		return failure{status: http.StatusConflict, code: "conflict"}
 	case IsInProgressError(err):
-		return failure{http.StatusConflict, "in_progress"}
+		return failure{status: http.StatusConflict, code: "in_progress"}
 	case IsBadRequestError(err), isInvalidPost(err), isInvalidDevice(err), isInvalidMessaging(err):
-		return failure{http.StatusBadRequest, "bad_request"}
+		return failure{status: http.StatusBadRequest, code: "bad_request"}
 	case whatsapp.IsNotOwnedError(err), IsUnavailableError(err):
-		return failure{http.StatusServiceUnavailable, "unavailable"}
+		return failure{status: http.StatusServiceUnavailable, code: "unavailable"}
 	case whatsapp.IsUnsupportedError(err):
-		return failure{http.StatusNotImplemented, "not_implemented"}
+		return failure{status: http.StatusNotImplemented, code: "not_implemented"}
 	}
-	return failure{http.StatusInternalServerError, "internal"}
+	return failure{status: http.StatusInternalServerError, code: "internal"}
+}
+
+func coded(status int, err error) failure {
+	ae, _ := apperror.AsAppError(err)
+	return failure{status: status, code: ae.Code(), message: ae.Message()}
 }
 
 func isInvalidPost(err error) bool {

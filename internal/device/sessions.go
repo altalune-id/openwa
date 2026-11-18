@@ -21,12 +21,14 @@ const (
 
 // SessionStatus is what the device module shows of a WhatsApp session.
 type SessionStatus struct {
-	State    SessionState
-	Phone    string
-	PushName string
-	Reason   string
-	LastSeen *time.Time
-	Live     bool
+	State           SessionState
+	Phone           string
+	PushName        string
+	Reason          string
+	LastSeen        *time.Time
+	LastConnectedAt *time.Time
+	UpdatedAt       time.Time
+	Live            bool
 }
 
 // LinkMethod is how a pairing attempt links.

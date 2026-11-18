@@ -188,7 +188,12 @@ func (s *postgresStore) List(ctx context.Context, opts ListOpts) ([]*Contact, st
 		cond = cond.AND(s.t.DeviceID.IN(ids...))
 	}
 	if opts.Search != "" {
-		cond = cond.AND(postgres.LOWER(s.t.Name).LIKE(postgres.String(pgent.LikePrefix(opts.Search))))
+		like := postgres.String(pgent.LikePrefix(opts.Search))
+		match := []postgres.BoolExpression{postgres.LOWER(s.t.Name).LIKE(like), postgres.LOWER(s.t.PushName).LIKE(like)}
+		if digits := PhoneSearch(opts.Search); digits != "" {
+			match = append(match, s.t.Phone.LIKE(postgres.String(pgent.LikePrefix(digits))))
+		}
+		cond = cond.AND(postgres.OR(match...))
 	}
 	if opts.Cursor != "" {
 		ts, id, decErr := keyset.Decode(keyset.Cursor(opts.Cursor))

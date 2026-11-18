@@ -23,6 +23,7 @@ type Device struct {
 	SaveFn   func(ctx context.Context, d *device.Device, ifVersion int) error
 	ByIDFn   func(ctx context.Context, id uuid.UUID) (*device.Device, error)
 	DeleteFn func(ctx context.Context, id uuid.UUID) error
+	ListFn   func(ctx context.Context, opts device.ListOpts) ([]*device.Device, error)
 }
 
 // NewDevice returns an empty in-memory device.Store.
@@ -166,7 +167,10 @@ func (f *Device) BatchReads() int {
 	return f.batchReads
 }
 
-func (f *Device) List(ctx context.Context, _ device.ListOpts) ([]*device.Device, error) {
+func (f *Device) List(ctx context.Context, opts device.ListOpts) ([]*device.Device, error) {
+	if f.ListFn != nil {
+		return f.ListFn(ctx, opts)
+	}
 	tc, err := tenant.From(ctx)
 	if err != nil {
 		return nil, err

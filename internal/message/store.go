@@ -32,8 +32,12 @@ type Store interface {
 	CountOlderThan(ctx context.Context, projectID uuid.UUID, before time.Time) (int64, error)
 	// RuleHits counts, per deciding rule id, the caller's project's messages of deviceID and the newest one's time.
 	RuleHits(ctx context.Context, deviceID uuid.UUID) (map[string]RuleHit, error)
-	// CountToday counts the caller's project's messages since since.
-	CountToday(ctx context.Context, since time.Time) (int64, error)
+	// CountByDeviceSince counts the caller's project's messages since since, per device; a device with none is absent.
+	CountByDeviceSince(ctx context.Context, since time.Time) (map[uuid.UUID]int64, error)
+	// LastAtByDevice returns the newest message time of each of the caller's project's devices among deviceIDs; a device with none is absent.
+	LastAtByDevice(ctx context.Context, deviceIDs []uuid.UUID) (map[uuid.UUID]time.Time, error)
+	// HasMatched reports whether any of the caller's project's messages was decided matched.
+	HasMatched(ctx context.Context) (bool, error)
 	CountUnreadInbound(ctx context.Context, chatID uuid.UUID) (int, error)
 	// MarkChatRead stamps read_at on the chat's unread inbound rows with id <= upTo in one statement, returning how many changed.
 	MarkChatRead(ctx context.Context, chatID, upTo uuid.UUID, at time.Time) (int64, error)

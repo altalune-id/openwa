@@ -5,6 +5,7 @@ import (
 	"context"
 	"log/slog"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -68,6 +69,88 @@ func (s *Service) Create(ctx context.Context, name string) (*Device, error) {
 		span.RecordError(err)
 		return nil, s.unexpected(ctx, "device.Create: save", err, "org_id", tc.OrgID, "project_id", tc.ProjectID)
 	}
+}
+
+// CreateDefault returns the project's oldest never-paired default-named device, or creates one under the first free default name; reused reports which.
+func (s *Service) CreateDefault(ctx context.Context) (*Device, bool, error) {
+	ctx, span := tracer.Start(ctx, "device.CreateDefault")
+	defer span.End()
+
+	const attempts = 3
+	for attempt := 1; ; attempt++ {
+		views, err := s.List(ctx)
+		if err != nil {
+			return nil, false, record(span, err)
+		}
+		if d := oldestNeverPairedDefault(views); d != nil {
+			span.SetAttributes(attribute.String("device.id", d.ID.String()), attribute.Bool("device.reused", true))
+			return d, true, nil
+		}
+		d, err := s.Create(ctx, freeDefaultName(views))
+		if IsNameTakenError(err) && attempt < attempts {
+			continue
+		}
+		if err != nil {
+			return nil, false, record(span, err)
+		}
+		return d, false, nil
+	}
+}
+
+func oldestNeverPairedDefault(views []DeviceView) *Device {
+	var oldest *Device
+	for _, v := range views {
+		st := v.Status
+		if defaultNameIndex(v.Device.Name) == 0 || st.Phone != "" || st.LastSeen != nil {
+			continue
+		}
+		if st.State != "" && st.State != SessionUnlinked {
+			continue
+		}
+		if oldest == nil || olderDevice(v.Device, oldest) {
+			oldest = v.Device
+		}
+	}
+	return oldest
+}
+
+func olderDevice(a, b *Device) bool {
+	return cmp.Or(a.CreatedAt.Compare(b.CreatedAt), strings.Compare(a.ID.String(), b.ID.String())) < 0
+}
+
+func freeDefaultName(views []DeviceView) string {
+	taken := map[int]bool{}
+	for _, v := range views {
+		taken[defaultNameIndex(v.Device.Name)] = true
+	}
+	n := 1
+	for taken[n] {
+		n++
+	}
+	if n == 1 {
+		return DefaultName
+	}
+	return DefaultName + " " + strconv.Itoa(n)
+}
+
+// NOTE: returns 1 for the bare default name, n for "WhatsApp n" (n >= 2), and 0 for any other name; matching ignores case like the name index.
+func defaultNameIndex(name string) int {
+	rest, ok := strings.CutPrefix(strings.ToLower(name), strings.ToLower(DefaultName))
+	if !ok {
+		return 0
+	}
+	if rest == "" {
+		return 1
+	}
+	digits, ok := strings.CutPrefix(rest, " ")
+	if !ok || digits == "" || digits[0] == '0' {
+		return 0
+	}
+	n, err := strconv.Atoi(digits)
+	if err != nil || n < 2 {
+		return 0
+	}
+	return n
 }
 
 // Resolve returns the caller's project's device whose public id is publicID; a malformed id is not-found without a query.
@@ -245,6 +328,27 @@ func (s *Service) Rename(ctx context.Context, id uuid.UUID, name string, ifVersi
 // UpdateLegacyRules replaces the inbound rules from the legacy shape only.
 func (s *Service) UpdateLegacyRules(ctx context.Context, id uuid.UUID, rules Legacy, ifVersion int) (*Device, error) {
 	return s.Update(ctx, id, Update{Legacy: &rules}, ifVersion)
+}
+
+// ExplainRules validates rules the way Update would and explains in against them, without writing.
+func (s *Service) ExplainRules(ctx context.Context, id uuid.UUID, r Rules, in MatchInput) (Explanation, error) {
+	ctx, span := startWithID(ctx, "device.ExplainRules", id)
+	defer span.End()
+
+	if _, err := s.load(ctx, span, "device.ExplainRules", id); err != nil {
+		return Explanation{}, err
+	}
+	normalised, err := normalizeRules(s.normalizeRulePhones(r))
+	if err != nil {
+		return Explanation{}, record(span, err)
+	}
+	return normalised.Explain(in), nil
+}
+
+// NormalizePhone returns raw as canonical phone digits, with the deployment's default country code for a leading 0.
+func (s *Service) NormalizePhone(raw string) (string, bool) {
+	n, err := phone.Normalize(raw, s.defaultCC)
+	return n, err == nil
 }
 
 func (s *Service) normalizeRulePhones(r Rules) Rules {

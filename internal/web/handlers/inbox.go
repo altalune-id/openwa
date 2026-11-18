@@ -187,10 +187,11 @@ func (h *InboxHandler) GetThreadMessages(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		around := slices.Concat(recent, touched)
-		tv.Bubbles = bubbles(batch, around, h.mediaURL(sc))
+		badge := h.badger(sc, c.DeviceID)
+		tv.Bubbles = bubbles(batch, around, h.mediaURL(sc), badge)
 		tv.LastID = newSince
 		tv.Watermark = nextWatermark(queriedAt)
-		tv.Refresh = refreshed(bubbles(refreshRows(recent, touched, batch, targets), around, h.mediaURL(sc)), tv.Bubbles)
+		tv.Refresh = refreshed(bubbles(refreshRows(recent, touched, batch, targets), around, h.mediaURL(sc), badge), tv.Bubbles)
 		if more {
 			w.Header().Set("HX-Trigger", "thread-poll-now")
 		}
@@ -208,7 +209,7 @@ func (h *InboxHandler) GetThreadMessages(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	slices.Reverse(items)
-	tv.Bubbles, tv.OlderCursor = bubbles(items, recent, h.mediaURL(sc)), next
+	tv.Bubbles, tv.OlderCursor = bubbles(items, recent, h.mediaURL(sc), h.badger(sc, c.DeviceID)), next
 	Render(w, sc.req, templates.ThreadPrepend(base, tv))
 }
 
@@ -477,12 +478,8 @@ func (h *InboxHandler) inboxView(sc ProjectScope, r *http.Request, thread *templ
 }
 
 func (h *InboxHandler) threadShell(sc ProjectScope, c *chat.Chat) templates.ThreadView {
-	name := c.Name
-	if name == "" {
-		name, _, _ = strings.Cut(c.JID, "@")
-	}
 	return templates.ThreadView{
-		ProjectSlug: sc.project.Slug, ChatID: c.PublicID, Name: name, JID: c.JID, Kind: string(c.Kind),
+		ProjectSlug: sc.project.Slug, ChatID: c.PublicID, Name: c.DisplayName(), JID: c.JID, Kind: string(c.Kind),
 		LastID: firstPollToken(), MaxMediaMB: int(h.MaxMedia >> 20), Reactions: inboxReactions,
 	}
 }
@@ -497,7 +494,7 @@ func (h *InboxHandler) threadView(sc ProjectScope, c *chat.Chat) (templates.Thre
 	tv.LastID = newestID(items, tv.LastID)
 	tv.Watermark = nextWatermark(queriedAt)
 	slices.Reverse(items)
-	tv.Bubbles, tv.OlderCursor = bubbles(items, nil, h.mediaURL(sc)), next
+	tv.Bubbles, tv.OlderCursor = bubbles(items, nil, h.mediaURL(sc), h.badger(sc, c.DeviceID)), next
 	if c.Kind == chat.KindGroup {
 		if info, infoErr := h.Chats.GroupInfo(sc.req.Context(), c.ID); infoErr == nil {
 			tv.Group = &templates.GroupSummary{Topic: info.Topic, Participants: info.Participants, Announce: info.Announce, Locked: info.Locked}

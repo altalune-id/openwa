@@ -253,7 +253,7 @@ func TestDevices_RulesItemsAndCustomReads(t *testing.T) {
 	e.devices.updateErr = &device.RulesShapeConflictError{}
 	rec = send(t, e.handler(), http.MethodPatch, path, `{"rules":{"group_mode":"open"}}`, jsonHeader("If-Match", `W/"4"`))
 	require.Equal(t, http.StatusConflict, rec.Code)
-	require.Contains(t, rec.Body.String(), "conflict")
+	require.JSONEq(t, `{"code":"DEV006","message":"The device rules use items the legacy fields cannot express; send items instead"}`, rec.Body.String())
 }
 
 func TestDevices_UnauthorizedKeyNeverResolvesTheDevice(t *testing.T) {

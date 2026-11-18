@@ -22,9 +22,10 @@ import (
 func TestDeviceShims_MapEveryField(t *testing.T) {
 	t.Parallel()
 	seen := time.Date(2026, 9, 28, 9, 0, 0, 0, time.UTC)
+	connected, updated := seen.Add(-time.Hour), seen.Add(time.Hour)
 	require.Equal(t,
-		device.SessionStatus{State: device.SessionConnected, Phone: "628111", PushName: "Ops", Reason: "x", LastSeen: &seen, Live: true},
-		toDeviceStatus(whatsapp.Status{State: whatsapp.StateConnected, Phone: "628111", PushName: "Ops", Reason: "x", LastSeen: &seen, Live: true}))
+		device.SessionStatus{State: device.SessionConnected, Phone: "628111", PushName: "Ops", Reason: "x", LastSeen: &seen, LastConnectedAt: &connected, UpdatedAt: updated, Live: true},
+		toDeviceStatus(whatsapp.Status{State: whatsapp.StateConnected, Phone: "628111", PushName: "Ops", Reason: "x", LastSeen: &seen, LastConnectedAt: &connected, UpdatedAt: updated, Live: true}))
 
 	exp := seen.Add(time.Minute)
 	got := toDeviceLink(whatsapp.LinkState{ID: "lnk_V1StGXR8Z5jdHi6B", Method: whatsapp.LinkMethodPhone, Outcome: whatsapp.OutcomeFailed, QR: "2@x", PNG: []byte{1},

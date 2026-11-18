@@ -388,20 +388,54 @@ func (f *Message) RuleHits(ctx context.Context, deviceID uuid.UUID) (map[string]
 	return out, nil
 }
 
-func (f *Message) CountToday(ctx context.Context, since time.Time) (int64, error) {
+func (f *Message) CountByDeviceSince(ctx context.Context, since time.Time) (map[uuid.UUID]int64, error) {
 	tc, err := tenant.From(ctx)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	var n int64
+	out := map[uuid.UUID]int64{}
 	for _, m := range f.rows {
 		if m.OrgID == tc.OrgID && m.ProjectID == tc.ProjectID && !m.WATimestamp.Before(since) {
-			n++
+			out[m.DeviceID]++
 		}
 	}
-	return n, nil
+	return out, nil
+}
+
+func (f *Message) LastAtByDevice(ctx context.Context, deviceIDs []uuid.UUID) (map[uuid.UUID]time.Time, error) {
+	tc, err := tenant.From(ctx)
+	if err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := map[uuid.UUID]time.Time{}
+	for _, m := range f.rows {
+		if m.OrgID != tc.OrgID || m.ProjectID != tc.ProjectID || !slices.Contains(deviceIDs, m.DeviceID) {
+			continue
+		}
+		if m.WATimestamp.After(out[m.DeviceID]) {
+			out[m.DeviceID] = m.WATimestamp
+		}
+	}
+	return out, nil
+}
+
+func (f *Message) HasMatched(ctx context.Context) (bool, error) {
+	tc, err := tenant.From(ctx)
+	if err != nil {
+		return false, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, m := range f.rows {
+		if m.OrgID == tc.OrgID && m.ProjectID == tc.ProjectID && m.MatchOutcome == message.MatchMatched {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (f *Message) CountUnreadInbound(ctx context.Context, chatID uuid.UUID) (int, error) {

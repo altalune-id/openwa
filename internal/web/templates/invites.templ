@@ -37,7 +37,7 @@ templ InvitesPage(d web.LayoutData, v InvitesView) {
 			@ListShell(d, "invite-list", nil) {
 				for _, i := range v.Invites {
 					@ListRow(d, nil) {
-						<div class="min-w-0 flex-1">
+						<div class="list-col-grow min-w-0">
 							<p class="text-sm font-medium break-all">{ i.Email }</p>
 							<p class="truncate text-xs text-base-content/70">
 								{ i.Role } · { d.Tr("invites.expires") }

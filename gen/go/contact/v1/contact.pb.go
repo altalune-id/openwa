@@ -394,10 +394,10 @@ const file_contact_v1_contact_proto_rawDesc = "" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12\x10\n" +
 	"\x03jid\x18\x03 \x01(\tR\x03jid\"<\n" +
 	"\vGetResponse\x12-\n" +
-	"\acontact\x18\x01 \x01(\v2\x13.contact.v1.ContactR\acontact2\x8e\x02\n" +
-	"\x0eContactService\x12\xc3\x01\n" +
-	"\x04List\x12\x17.contact.v1.ListRequest\x1a\x18.contact.v1.ListResponse\"\x87\x01\xca\xf3\x18\x82\x01\n" +
-	"\fcontact_list\x12rList the contacts the project's devices know, most recently updated first. q is a prefix on the address-book name.\x126\n" +
+	"\acontact\x18\x01 \x01(\v2\x13.contact.v1.ContactR\acontact2\xd5\x02\n" +
+	"\x0eContactService\x12\x8a\x02\n" +
+	"\x04List\x12\x17.contact.v1.ListRequest\x1a\x18.contact.v1.ListResponse\"\xce\x01\xca\xf3\x18\xc9\x01\n" +
+	"\fcontact_list\x12\xb8\x01List the contacts the project's devices know, most recently updated first. q is a case-insensitive prefix on the name, the push name or the phone number (+, spaces and dashes ignored).\x126\n" +
 	"\x03Get\x12\x16.contact.v1.GetRequest\x1a\x17.contact.v1.GetResponseB\x97\x01\n" +
 	"\x0ecom.contact.v1B\fContactProtoP\x01Z.altalune.id/openwa/gen/go/contact/v1;contactv1\xa2\x02\x03CXX\xaa\x02\n" +
 	"Contact.V1\xca\x02\n" +

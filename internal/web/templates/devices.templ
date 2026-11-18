@@ -70,7 +70,7 @@ templ devicesActions(d web.LayoutData, v DevicesView) {
 	if v.CanManage {
 		@AppButton(ButtonProps{Kind: ButtonPrimary, Label: d.Tr("devices.new"), Icon: "plus", Href: d.ProjectPath(v.ProjectSlug, "/devices/new")})
 	} else {
-		<span class="text-xs text-muted-foreground">{ d.Tr("common.managers_only") }</span>
+		<span class="text-xs text-base-content/70">{ d.Tr("common.managers_only") }</span>
 	}
 }
 
@@ -85,9 +85,9 @@ templ deviceCard(d web.LayoutData, projectSlug string, c DeviceCard) {
 	@Card(CardProps{}) {
 		<div class="flex items-start justify-between gap-3">
 			<div class="min-w-0">
-				<a href={ templ.SafeURL(d.ProjectPath(projectSlug, "/devices/"+c.ID)) } class="block truncate text-base font-semibold text-foreground hover:underline">{ c.Name }</a>
+				<a href={ templ.SafeURL(d.ProjectPath(projectSlug, "/devices/"+c.ID)) } class="block truncate text-base font-semibold text-base-content hover:underline">{ c.Name }</a>
 				if c.PushName != "" {
-					<p class="mt-0.5 truncate text-sm text-muted-foreground">{ c.PushName }</p>
+					<p class="mt-0.5 truncate text-sm text-base-content/70">{ c.PushName }</p>
 				}
 			</div>
 			<span class="flex shrink-0 items-center gap-2">
@@ -97,22 +97,22 @@ templ deviceCard(d web.LayoutData, projectSlug string, c DeviceCard) {
 		</div>
 		<dl class="mt-3 grid grid-cols-2 gap-2 text-sm">
 			<div>
-				<dt class="text-xs text-muted-foreground">{ d.Tr("devices.phone") }</dt>
+				<dt class="text-xs text-base-content/70">{ d.Tr("devices.phone") }</dt>
 				<dd>
 					if c.Phone != "" {
 						@CopyValue(d, "+"+c.Phone)
 					} else {
-						<span class="text-muted-foreground">—</span>
+						<span class="text-base-content/70">—</span>
 					}
 				</dd>
 			</div>
 			<div>
-				<dt class="text-xs text-muted-foreground">{ d.Tr("devices.last_seen") }</dt>
+				<dt class="text-xs text-base-content/70">{ d.Tr("devices.last_seen") }</dt>
 				<dd>
 					if c.LastSeen != nil {
 						@Time(d, *c.LastSeen)
 					} else {
-						<span class="text-muted-foreground">—</span>
+						<span class="text-base-content/70">—</span>
 					}
 				</dd>
 			</div>
@@ -136,7 +136,7 @@ templ DeviceNewPage(d web.LayoutData, v DeviceFormView) {
 			</form>
 		}
 		@Card(CardProps{Title: d.Tr("devices.pairing_explainer_title")}) {
-			<p class="text-sm text-muted-foreground">{ d.Tr("devices.pairing_explainer_body") }</p>
+			<p class="text-sm text-base-content/70">{ d.Tr("devices.pairing_explainer_body") }</p>
 		}
 	</section>
 }

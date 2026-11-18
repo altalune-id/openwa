@@ -1,0 +1,779 @@
+package templates
+
+import (
+	"net/url"
+	"strconv"
+	"time"
+
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
+)
+
+// SentencePart is one run of a rule sentence; Bold marks a value, Muted a slot not filled yet.
+type SentencePart struct {
+	Text  string
+	Bold  bool
+	Muted bool
+}
+
+// RuleChip is one picked value with the name it shows.
+type RuleChip struct {
+	Value string
+	Label string
+}
+
+// RuleRowView is one row of the rules list; a rule and its direct-message twin share one row.
+type RuleRowView struct {
+	ID       string
+	Name     string
+	Sentence []SentencePart
+	Custom   bool
+	Enabled  bool
+	Hits     int64
+	LastAt   *time.Time
+	First    bool
+	Last     bool
+}
+
+// RulesListView is the rules list page.
+type RulesListView struct {
+	ProjectSlug string
+	DeviceID    string
+	Version     int
+	CanManage   bool
+	CanAdd      bool
+	NewRuleID   string
+	Rows        []RuleRowView
+	Error       string
+}
+
+func (v RulesListView) path(d web.LayoutData, suffix string) string {
+	return d.ProjectPath(v.ProjectSlug, "/devices/"+v.DeviceID+"/rules"+suffix)
+}
+
+// RuleTextView is one text condition row of the builder.
+type RuleTextView struct {
+	Index  int
+	Op     string
+	Values []string
+}
+
+// RuleTestResult is the test box answer; Block names the builder block that did not match.
+type RuleTestResult struct {
+	OK      bool
+	Message string
+	Block   string
+}
+
+// RuleTestView is the test box: sample chat, sender, text and mention.
+type RuleTestView struct {
+	Groups   []RuleChip
+	DMs      []RuleChip
+	Senders  []RuleChip
+	ChatID   string
+	ChatIsDM bool
+	Sender   string
+	Text     string
+	Mention  bool
+	Result   *RuleTestResult
+}
+
+// RuleBuilderView is the rule builder page.
+type RuleBuilderView struct {
+	ProjectSlug string
+	DeviceID    string
+	Version     int
+	RuleID      string
+	IsNew       bool
+	Custom      bool
+	ReadOnly    bool
+	CanManage   bool
+	Name        string
+	Action      string
+	Enabled     bool
+	DM          bool
+	Groups      string
+	Chats       []RuleChip
+	Mention     bool
+	Who         string
+	Senders     []RuleChip
+	Texts       []RuleTextView
+	Sentence    []SentencePart
+	ErrorBlock  string
+	ErrorText   string
+	FailedBlock string
+	Conflict    bool
+	SaveError   string
+	DMTakenBy   string
+	Test        RuleTestView
+}
+
+func (v RuleBuilderView) path(d web.LayoutData, suffix string) string {
+	return d.ProjectPath(v.ProjectSlug, "/devices/"+v.DeviceID+"/rules/"+url.PathEscape(v.RuleID)+suffix)
+}
+
+func (v RuleBuilderView) listPath(d web.LayoutData) string {
+	return d.ProjectPath(v.ProjectSlug, "/devices/"+v.DeviceID+"/rules")
+}
+
+func (v RuleBuilderView) bad(block string) bool {
+	return v.ErrorBlock == block || v.FailedBlock == block
+}
+
+// RulePickView is the chip picker's option list for one search.
+type RulePickView struct {
+	Field   string
+	Query   string
+	Options []RuleChip
+	Typed   string
+}
+
+templ ruleSentence(parts []SentencePart) {
+	for _, p := range parts {
+		if p.Bold {
+			<b>{ p.Text }</b>
+		} else if p.Muted {
+			<i>{ p.Text }</i>
+		} else {
+			{ p.Text }
+		}
+	}
+}
+
+templ RulesLayout(d web.LayoutData, v RulesListView) {
+	@Layout(web.WithContent(d, rulesPage(d, v)))
+}
+
+templ rulesPage(d web.LayoutData, v RulesListView) {
+	<section>
+		@PageHeader(d, PageHeaderProps{Title: d.Tr("rules.heading")})
+		<div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+			<p class="text-sm text-base-content/70">{ d.Tr("rules.intro") }</p>
+			if v.CanManage && v.CanAdd {
+				@AppButton(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("rules.create"), Href: v.path(d, "/"+v.NewRuleID)})
+			}
+		</div>
+		if !v.CanManage {
+			<p class="mb-3 text-sm text-base-content/70">{ d.Tr("common.managers_only") }</p>
+		}
+		@RulesList(d, v)
+	</section>
+}
+
+templ RulesList(d web.LayoutData, v RulesListView) {
+	<div id="rules-list">
+		if v.Error != "" {
+			<div role="alert" class="alert alert-warning alert-soft mb-3 alert-vertical sm:alert-horizontal">
+				@icons.Icon("triangle-exclamation-point", "size-5")
+				<span>{ v.Error }</span>
+				<a class={ ButtonClass(ButtonSecondary) } href={ templ.SafeURL(v.path(d, "")) }>{ d.Tr("rules.reload") }</a>
+			</div>
+		}
+		if len(v.Rows) == 0 {
+			<div class="card border border-dashed border-base-300 bg-base-100">
+				<div class="card-body items-start gap-2">
+					@icons.Icon("list-checks", "size-6 text-base-content/70")
+					<h2 class="font-semibold">{ d.Tr("rules.empty_title") }</h2>
+					<p class="text-sm text-base-content/70">{ d.Tr("rules.empty_body") }</p>
+					if v.CanManage && v.CanAdd {
+						@AppButton(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("rules.create_first"), Href: v.path(d, "/"+v.NewRuleID)})
+					}
+				</div>
+			</div>
+		} else {
+			<ul class="list rounded-box border border-base-300 bg-base-100">
+				for _, row := range v.Rows {
+					@ruleRow(d, v, row)
+				}
+				<li class="list-row items-center bg-base-200/60">
+					@icons.Icon("lock", "size-4 text-base-content/70")
+					<div class="min-w-0">
+						<p class="font-medium">{ d.Tr("rules.everything_else") }</p>
+						<p class="text-sm text-base-content/70">{ d.Tr("rules.everything_else_body") }</p>
+					</div>
+				</li>
+			</ul>
+		}
+	</div>
+}
+
+const (
+	rowMenuPanel = "end-0 top-full mt-1 w-48 max-lg:fixed max-lg:inset-x-0 max-lg:top-auto max-lg:bottom-0 max-lg:z-50 max-lg:mt-0 max-lg:w-auto max-lg:rounded-b-none max-lg:p-4 max-lg:pb-[max(1rem,env(safe-area-inset-bottom,0px))] max-lg:shadow-xl"
+	rowMenuItem  = "flex w-full items-center justify-start gap-2 whitespace-nowrap text-start max-lg:min-h-11"
+)
+
+func ruleRowName(d web.LayoutData, row RuleRowView) string {
+	if row.Name != "" {
+		return row.Name
+	}
+	return d.Tr("rules.untitled")
+}
+
+
+
+templ ruleRow(d web.LayoutData, v RulesListView, row RuleRowView) {
+	<li id={ "rule-" + row.ID } class="list-row items-center">
+		<div class="list-col-grow min-w-0">
+			<p class="font-medium">
+				<a class="link link-hover" href={ templ.SafeURL(v.path(d, "/"+row.ID)) }>{ ruleRowName(d, row) }</a>
+				if !row.Enabled {
+					<span class="badge badge-ghost badge-sm ms-1">{ d.Tr("rules.paused") }</span>
+				}
+			</p>
+			<p class="text-sm text-base-content/70">
+				@ruleSentence(row.Sentence)
+			</p>
+			<p class="mt-1 text-xs text-base-content/70">
+				<span class="tabular-nums">{ d.Tr("rules.matched", "Count", strconv.FormatInt(row.Hits, 10)) }</span>
+				<span aria-hidden="true">·</span>
+				if row.LastAt != nil {
+					{ d.Tr("rules.last_matched") }
+					{ " " }
+					@Time(d, *row.LastAt)
+				} else {
+					{ d.Tr("rules.never_matched") }
+				}
+			</p>
+		</div>
+		if v.CanManage {
+			<form method="post" action={ templ.SafeURL(v.path(d, "/"+row.ID+"/toggle")) } hx-post={ v.path(d, "/"+row.ID+"/toggle") } hx-trigger="change" hx-target="#rules-list" hx-swap="outerHTML" hx-nonce={ d.Nonce }>
+				<input type="hidden" name="version" value={ strconv.Itoa(v.Version) }/>
+				<label class="flex min-h-11 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap text-sm sm:w-16">
+					<input type="checkbox" class="toggle toggle-sm toggle-success" checked?={ row.Enabled } aria-label={ d.Tr("rules.toggle_label", "Name", ruleRowName(d, row)) }/>
+					<span class="hidden sm:inline">
+						if row.Enabled {
+							{ d.Tr("rules.on") }
+						} else {
+							{ d.Tr("rules.off") }
+						}
+					</span>
+				</label>
+			</form>
+			@AppDropdown(icons.Icon("ellipsis-vertical", "size-4"), d.Tr("rules.more_actions", "Name", ruleRowName(d, row)), "dropdown-end", "btn-square btn-ghost lg:btn-sm", rowMenuPanel) {
+				<ul class="menu w-full p-0 max-lg:menu-lg">
+					<li>
+						<a href={ templ.SafeURL(v.path(d, "/"+row.ID)) } class={ rowMenuItem }>
+							@icons.Icon("pencil", "size-4 shrink-0")
+							{ d.Tr("rules.edit") }
+						</a>
+					</li>
+					@ruleMove(d, v, row, "up", "arrow-up", d.Tr("rules.move_up"), row.First)
+					@ruleMove(d, v, row, "down", "arrow-down", d.Tr("rules.move_down"), row.Last)
+					<li>
+						<button type="button" class={ rowMenuItem } { ConfirmOpener(ruleDeleteProps(d, v, row).ID)... }>
+							@icons.Icon("trash-2", "size-4 shrink-0")
+							{ d.Tr("rules.delete") }
+						</button>
+					</li>
+				</ul>
+			}
+			@ConfirmDialog(d, ruleDeleteProps(d, v, row))
+		}
+	</li>
+}
+
+func ruleDeleteProps(d web.LayoutData, v RulesListView, row RuleRowView) ConfirmProps {
+	return ConfirmProps{
+		ID:           "rule-delete-" + row.ID,
+		Title:        d.Tr("rules.delete_title", "Name", ruleRowName(d, row)),
+		Body:         d.Tr("rules.delete_body"),
+		ConfirmLabel: d.Tr("rules.delete"),
+		Kind:         ButtonDanger,
+		Action:       v.path(d, "/"+row.ID+"/delete"),
+		HxTarget:     "#rules-list",
+		HxSwap:       "outerHTML",
+		Hidden:       []HiddenField{{Name: "version", Value: strconv.Itoa(v.Version)}},
+	}
+}
+
+templ ruleMove(d web.LayoutData, v RulesListView, row RuleRowView, dir, icon, label string, disabled bool) {
+	<li class={ templ.KV("menu-disabled", disabled) }>
+		<form id={ "rule-move-" + dir + "-" + row.ID } method="post" action={ templ.SafeURL(v.path(d, "/"+row.ID+"/move")) } hx-post={ v.path(d, "/"+row.ID+"/move") } hx-target="#rules-list" hx-swap="outerHTML" hx-nonce={ d.Nonce } class="hidden">
+			<input type="hidden" name="version" value={ strconv.Itoa(v.Version) }/>
+			<input type="hidden" name="to" value={ dir }/>
+		</form>
+		<button type="submit" form={ "rule-move-" + dir + "-" + row.ID } class={ rowMenuItem } disabled?={ disabled }>
+			@icons.Icon(icon, "size-4 shrink-0")
+			{ label }
+		</button>
+	</li>
+}
+
+templ RuleBuilderLayout(d web.LayoutData, v RuleBuilderView) {
+	@Layout(web.WithContent(d, ruleBuilderPage(d, v)))
+}
+
+func ruleTitle(d web.LayoutData, v RuleBuilderView) string {
+	if v.IsNew {
+		return d.Tr("rules.new_rule")
+	}
+	if v.Name != "" {
+		return v.Name
+	}
+	return d.Tr("rules.untitled")
+}
+
+templ ruleBuilderPage(d web.LayoutData, v RuleBuilderView) {
+	<form
+		id="rule-form"
+		method="post"
+		action={ templ.SafeURL(v.path(d, "")) }
+		hx-post={ v.path(d, "/preview") }
+		hx-trigger="change, rules:changed"
+		hx-target="#rule-body"
+		hx-swap="innerMorph"
+		hx-sync="this:replace"
+		hx-nonce={ d.Nonce }
+		class="max-lg:pb-24"
+		data-rule-form
+		data-undo-label={ d.Tr("rules.undo") }
+		data-undo-removed={ d.Tr("rules.undo_removed") }
+		data-undo-changed={ d.Tr("rules.undo_changed") }
+	>
+		<h1 class="sr-only">{ ruleTitle(d, v) }</h1>
+		<input type="hidden" name="version" value={ strconv.Itoa(v.Version) }/>
+		<input type="hidden" name="enabled" value={ boolValue(v.Enabled) }/>
+		<div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+			<fieldset class="fieldset w-full min-w-0 sm:w-96" disabled?={ v.ReadOnly }>
+				<label class="label text-base-content/80" for="rule-name">{ d.Tr("rules.name") }</label>
+				<input id="rule-name" name="name" class="input w-full lg:input-sm" maxlength="64" value={ v.Name } placeholder={ d.Tr("rules.name_placeholder") }/>
+			</fieldset>
+			<div class="flex gap-2">
+				<a class={ ButtonClass(ButtonGhost) } href={ templ.SafeURL(v.listPath(d)) }>{ d.Tr("common.cancel") }</a>
+				if !v.ReadOnly {
+					<button type="submit" class={ ButtonClass(ButtonPrimary) } data-rule-save>
+						<span class="loading loading-spinner loading-sm hidden" aria-hidden="true" data-rule-saving></span>
+						{ d.Tr("rules.save") }
+					</button>
+				}
+			</div>
+		</div>
+		if v.Conflict {
+			<div role="alert" class="alert alert-warning alert-soft mb-4 alert-vertical sm:alert-horizontal">
+				@icons.Icon("triangle-exclamation-point", "size-5")
+				<span>{ d.Tr("rules.conflict") }</span>
+				<a class={ ButtonClass(ButtonSecondary) } href={ templ.SafeURL(v.path(d, "")) }>{ d.Tr("rules.reload") }</a>
+			</div>
+		}
+		if v.SaveError != "" {
+			<div role="alert" class="alert alert-error alert-soft mb-4">
+				@icons.Icon("circle-exclamation-point", "size-5")
+				<span>{ v.SaveError }</span>
+			</div>
+		}
+		if v.Custom {
+			<div role="note" class="alert alert-info alert-soft mb-4">
+				@icons.Icon("info", "size-5")
+				<span>{ d.Tr("rules.custom_read_only") }</span>
+			</div>
+		} else if !v.CanManage {
+			<p class="mb-4 text-sm text-base-content/70">{ d.Tr("common.managers_only") }</p>
+		}
+		<div id="rule-body">
+			@RuleBuilderBody(d, v)
+		</div>
+	</form>
+	if !v.ReadOnly {
+		@Tip(d, "rules-where")
+		if v.Groups == "these" {
+			@Tip(d, "rules-groups")
+		}
+	}
+	@Tip(d, "rules-test")
+	<script src={ d.Static("undo.js") } nonce={ d.Nonce } defer></script>
+	<script src={ d.Static("rules.js") } nonce={ d.Nonce } defer></script>
+}
+
+func boolValue(b bool) string {
+	if b {
+		return "1"
+	}
+	return "0"
+}
+
+templ ruleSentenceCard(d web.LayoutData, v RuleBuilderView, suffix string) {
+	<section class="card border border-base-300 bg-base-200" aria-labelledby={ "rule-sentence-" + suffix } data-scan-asym="inline runs in a relaxed line height sit inside the line box">
+		<div class="card-body gap-2">
+			<h2 id={ "rule-sentence-" + suffix } class="text-sm font-semibold">{ d.Tr("rules.sentence_heading") }</h2>
+			<p class="leading-relaxed" aria-live={ ariaLive(suffix) }>
+				@ruleSentence(v.Sentence)
+			</p>
+		</div>
+	</section>
+}
+
+func ariaLive(suffix string) string {
+	if suffix == "d" {
+		return "polite"
+	}
+	return "off"
+}
+
+templ RuleBuilderBody(d web.LayoutData, v RuleBuilderView) {
+	<div id="rule-sentence-phone" class="mb-4 lg:hidden">
+		@ruleSentenceCard(d, v, "m")
+	</div>
+	<div class="grid gap-6 lg:grid-cols-12 lg:items-start">
+		<div id="rule-blocks" class="flex min-w-0 flex-col lg:col-span-7">
+			if !v.Custom {
+				<p class="mb-3 text-sm text-base-content/80">{ d.Tr("rules.blocks_hint") }</p>
+				<fieldset class="contents" disabled?={ v.ReadOnly }>
+					@ruleWhere(d, v)
+					@andSeparator(d)
+					@ruleWho(d, v)
+					for _, t := range v.Texts {
+						@andSeparator(d)
+						@ruleText(d, v, t)
+					}
+					if !v.ReadOnly {
+						<button type="button" class="btn btn-ghost mt-3 self-start lg:btn-sm" data-rule-add-text>
+							@icons.Icon("plus", "size-4")
+							{ d.Tr("rules.add_text") }
+						</button>
+					}
+					@ruleThen(d, v)
+				</fieldset>
+				<p class="mt-3 flex flex-wrap items-center gap-2 text-sm text-base-content/80">
+					<span class="badge badge-ghost badge-sm">{ d.Tr("rules.later") }</span>
+					{ d.Tr("rules.later_body") }
+				</p>
+			}
+		</div>
+		<div class="flex min-w-0 flex-col gap-5 lg:sticky lg:top-4 lg:col-span-5">
+			<div id="rule-sentence-desk" class="hidden lg:block">
+				@ruleSentenceCard(d, v, "d")
+			</div>
+			@ruleTestBox(d, v)
+		</div>
+	</div>
+	<template id="rule-text-template">
+		@andSeparator(d)
+		@ruleText(d, v, RuleTextView{Index: -1, Op: "contains"})
+	</template>
+}
+
+templ andSeparator(d web.LayoutData) {
+	<div class="flex items-center gap-2 py-1">
+		<span class="h-px flex-1 bg-base-300" aria-hidden="true"></span>
+		<span class="badge badge-ghost badge-sm font-semibold"><span aria-hidden="true">{ d.Tr("rules.and") }</span><span class="sr-only">{ d.Tr("rules.and_sr") }</span></span>
+		<span class="h-px flex-1 bg-base-300" aria-hidden="true"></span>
+	</div>
+}
+
+func blockClass(bad bool) string {
+	if bad {
+		return "fieldset min-w-0 rounded-box border p-4 border-error bg-error/10"
+	}
+	return "fieldset min-w-0 rounded-box border p-4 border-base-300 bg-base-100"
+}
+
+templ failBadge(d web.LayoutData, v RuleBuilderView, block string) {
+	if block != "" && v.FailedBlock == block {
+		<div class="flex justify-end">
+			<span class="badge badge-error badge-soft badge-sm">
+				@icons.Icon("x", "size-3")
+				{ d.Tr("rules.didnt_match") }
+			</span>
+		</div>
+	}
+}
+
+templ blockError(d web.LayoutData, v RuleBuilderView, block string) {
+	if v.ErrorBlock == block {
+		<p class="mt-1 flex items-center gap-1 text-sm text-error" role="alert">
+			@icons.Icon("circle-exclamation-point", "size-3.5 shrink-0")
+			{ v.ErrorText }
+		</p>
+	}
+}
+
+templ segmented(id, name, label, current string, options [][2]string) {
+	<div id={ id } class="join join-vertical w-full sm:join-horizontal sm:w-auto" role="radiogroup" aria-label={ label }>
+		for _, o := range options {
+			<input class="join-item btn h-auto min-h-11 w-full whitespace-normal sm:w-auto lg:btn-sm lg:min-h-8" type="radio" name={ name } value={ o[0] } aria-label={ o[1] } checked?={ current == o[0] } data-rule-preset/>
+		}
+	</div>
+}
+
+templ chipRow(d web.LayoutData, id, name, icon string, chips []RuleChip, readOnly bool) {
+	for i, c := range chips {
+		if i > 0 {
+			<span class="text-xs text-base-content/80">{ d.Tr("rules.sentence.or") }</span>
+		}
+		<span id={ id + "-" + strconv.Itoa(i) } class="badge badge-lg gap-1 pe-1 max-lg:h-11" data-rule-chip>
+			<input type="hidden" name={ name } value={ c.Value }/>
+			@icons.Icon(icon, "size-3.5")
+			{ c.Label }
+			if !readOnly {
+				<button type="button" class="btn btn-circle btn-ghost lg:btn-xs" aria-label={ d.Tr("rules.remove_value", "Name", c.Label) } data-rule-chip-remove>
+					@icons.Icon("x", "size-3")
+				</button>
+			}
+		</span>
+	}
+}
+
+templ pickTrigger(d web.LayoutData, field, label string) {
+	<button type="button" class="btn btn-ghost lg:btn-sm border border-dashed border-base-300" data-dialog-open="rule-picker" data-rule-pick={ field } aria-haspopup="dialog" aria-controls="rule-picker">
+		@icons.Icon("plus", "size-4")
+		{ label }
+	</button>
+}
+
+templ ruleWhere(d web.LayoutData, v RuleBuilderView) {
+	<fieldset id="rule-where" class={ blockClass(v.bad("where")) } data-tour="rules-where">
+		<legend class="fieldset-legend">{ d.Tr("rules.where") }</legend>
+		@failBadge(d, v, "where")
+		<label class="label min-h-11 cursor-pointer justify-between gap-3 whitespace-normal text-base-content">
+			<span>
+				<span class="font-medium">{ d.Tr("rules.dms") }</span>
+				<br/>
+				<span class="text-sm text-base-content/80">
+					if v.DM {
+						{ d.Tr("rules.dms_on") }
+					} else {
+						{ d.Tr("rules.dms_off") }
+					}
+				</span>
+			</span>
+			<input type="checkbox" class="toggle toggle-success" name="dm" value="1" checked?={ v.DM } aria-label={ d.Tr("rules.dms") }/>
+		</label>
+		if v.DM && v.DMTakenBy != "" {
+			<p role="note" class="text-sm text-base-content/80">{ d.Tr("rules.dms_taken", "Name", v.DMTakenBy) }</p>
+		}
+		<p class="mt-2 font-medium text-base-content">{ d.Tr("rules.groups") }</p>
+		@segmented("rule-groups", "groups", d.Tr("rules.groups"), v.Groups, [][2]string{{"none", d.Tr("rules.groups_none")}, {"these", d.Tr("rules.groups_these")}, {"all", d.Tr("rules.groups_all")}})
+		<div id="rule-chats" class={ "mt-2 flex flex-wrap items-center gap-2", templ.KV("hidden", v.Groups != "these") } data-tour="rules-groups">
+			@chipRow(d, "rule-chat", "chat", "users", v.Chats, v.ReadOnly)
+			if !v.ReadOnly {
+				@pickTrigger(d, "chat", d.Tr("rules.add_group"))
+			}
+		</div>
+		@blockError(d, v, "where")
+		if v.Groups != "none" {
+			<label class="label mt-2 min-h-11 cursor-pointer gap-3 whitespace-normal text-base-content">
+				<input type="checkbox" class="checkbox checkbox-sm" name="mention" value="1" checked?={ v.Mention }/>
+				{ d.Tr("rules.mention") }
+			</label>
+		}
+		if v.Mention && v.Groups == "these" && len(v.Chats) > 0 {
+			<div role="note" class="alert alert-warning alert-soft text-sm">
+				@icons.Icon("triangle-exclamation-point", "size-5")
+				<span>{ d.Tr("rules.mention_warning") }</span>
+			</div>
+		}
+	</fieldset>
+}
+
+templ ruleWho(d web.LayoutData, v RuleBuilderView) {
+	<fieldset id="rule-who" class={ blockClass(v.bad("who")) }>
+		<legend class="fieldset-legend">{ d.Tr("rules.from") }</legend>
+		@failBadge(d, v, "who")
+		@segmented("rule-who-mode", "who", d.Tr("rules.from"), v.Who, [][2]string{{"everyone", d.Tr("rules.who_everyone")}, {"only", d.Tr("rules.who_only")}, {"except", d.Tr("rules.who_except")}})
+		<div id="rule-senders" class={ "mt-2 flex flex-wrap items-center gap-2", templ.KV("hidden", v.Who == "everyone") }>
+			@chipRow(d, "rule-sender", "sender", "book-user", v.Senders, v.ReadOnly)
+			if !v.ReadOnly {
+				@pickTrigger(d, "sender", d.Tr("rules.add_person"))
+			}
+		</div>
+		@blockError(d, v, "who")
+	</fieldset>
+}
+
+func (t RuleTextView) key() string {
+	if t.Index < 0 {
+		return "__i__"
+	}
+	return strconv.Itoa(t.Index)
+}
+
+func textBlockID(t RuleTextView) string {
+	if t.Index < 0 {
+		return ""
+	}
+	return "t" + strconv.Itoa(t.Index)
+}
+
+templ ruleText(d web.LayoutData, v RuleBuilderView, t RuleTextView) {
+	<fieldset id={ "rule-text-" + t.key() } class={ blockClass(t.Index >= 0 && v.bad(textBlockID(t))) } data-rule-text={ t.key() }>
+		<legend class="fieldset-legend">{ d.Tr("rules.text") }</legend>
+		<div class="flex flex-wrap items-center gap-2">
+			<label class="sr-only" for={ "rule-text-op-" + t.key() }>{ d.Tr("rules.text_op") }</label>
+			<select id={ "rule-text-op-" + t.key() } name={ "text." + t.key() + ".op" } class="select w-auto lg:select-sm" data-rule-text-op>
+				<option value="contains" selected?={ t.Op == "contains" }>{ d.Tr("rules.op_contains") }</option>
+				<option value="starts_with" selected?={ t.Op == "starts_with" }>{ d.Tr("rules.op_starts_with") }</option>
+				<option value="equals" selected?={ t.Op == "equals" }>{ d.Tr("rules.op_equals") }</option>
+			</select>
+			<span class="flex-1"></span>
+			@failBadge(d, v, textBlockID(t))
+			if !v.ReadOnly {
+				<button type="button" class="btn btn-square btn-ghost lg:btn-sm" aria-label={ d.Tr("rules.remove_text") } data-rule-text-remove>
+					@icons.Icon("trash-2", "size-4")
+				</button>
+			}
+		</div>
+		<div class="mt-2 flex flex-wrap items-center gap-2" data-rule-words>
+			for i, w := range t.Values {
+				if i > 0 {
+					<span class="text-xs text-base-content/80">{ d.Tr("rules.sentence.or") }</span>
+				}
+				<span class="badge badge-lg gap-1 pe-1 max-lg:h-11" data-rule-chip>
+					<input type="hidden" name={ "text." + t.key() + ".value" } value={ w }/>
+					{ w }
+					if !v.ReadOnly {
+						<button type="button" class="btn btn-circle btn-ghost lg:btn-xs" aria-label={ d.Tr("rules.remove_value", "Name", w) } data-rule-chip-remove>
+							@icons.Icon("x", "size-3")
+						</button>
+					}
+				</span>
+			}
+			if !v.ReadOnly {
+				<div class="join">
+					<label class="sr-only" for={ "rule-word-" + t.key() }>{ d.Tr("rules.add_word") }</label>
+					<input id={ "rule-word-" + t.key() } class="input join-item w-36 lg:input-sm" placeholder={ d.Tr("rules.add_word") } maxlength="256" data-rule-word/>
+					<button type="button" class="btn join-item lg:btn-sm" data-rule-word-add>{ d.Tr("rules.add") }</button>
+				</div>
+			}
+		</div>
+		if t.Index >= 0 {
+			@blockError(d, v, textBlockID(t))
+		}
+	</fieldset>
+}
+
+func thenClass(on bool) string {
+	if on {
+		return "card card-sm cursor-pointer border border-primary bg-primary/10"
+	}
+	return "card card-sm cursor-pointer border border-base-300"
+}
+
+templ ruleThen(d web.LayoutData, v RuleBuilderView) {
+	<fieldset class="fieldset mt-5 min-w-0 rounded-box border border-base-300 bg-base-100 p-4">
+		<legend class="fieldset-legend">{ d.Tr("rules.then") }</legend>
+		<div class="grid gap-2 sm:grid-cols-2 sm:items-start">
+			@thenOption(d, v, "match", "send", "rules.action.match", "rules.action.match_body")
+			@thenOption(d, v, "ignore", "x", "rules.action.ignore", "rules.action.ignore_body")
+		</div>
+	</fieldset>
+}
+
+templ thenOption(d web.LayoutData, v RuleBuilderView, value, icon, title, body string) {
+	<label class={ thenClass(v.Action == value) }>
+		<div class="card-body flex-row items-start gap-3">
+			<input type="radio" class="radio radio-sm mt-1" name="action" value={ value } checked?={ v.Action == value }/>
+			<div class="min-w-0 flex-1">
+				<p class="flex items-center gap-1.5 font-medium">
+					@icons.Icon(icon, "size-4")
+					{ d.Tr(title) }
+				</p>
+				<p class="text-sm text-base-content/80">{ d.Tr(body) }</p>
+			</div>
+		</div>
+	</label>
+}
+
+templ ruleTestBox(d web.LayoutData, v RuleBuilderView) {
+	<fieldset id="rule-test" class="fieldset min-w-0 rounded-box border border-base-300 bg-base-100 p-4" data-tour="rules-test">
+		<legend class="fieldset-legend">
+			@icons.Icon("flask-conical", "size-4")
+			{ d.Tr("rules.test.legend") }
+		</legend>
+		<p class="label whitespace-normal text-base-content/80">{ d.Tr("rules.test.help") }</p>
+		if len(v.Test.Groups) == 0 && len(v.Test.DMs) == 0 {
+			<p class="text-sm text-base-content/70">{ d.Tr("rules.test.no_chats") }</p>
+		} else {
+			<label class="label text-base-content/80" for="rule-test-chat">{ d.Tr("rules.test.chat") }</label>
+			<select id="rule-test-chat" name="test_chat" class="select w-full lg:select-sm">
+				if len(v.Test.Groups) > 0 {
+					<optgroup label={ d.Tr("rules.test.groups") }>
+						for _, c := range v.Test.Groups {
+							<option value={ c.Value } selected?={ v.Test.ChatID == c.Value }>{ c.Label }</option>
+						}
+					</optgroup>
+				}
+				if len(v.Test.DMs) > 0 {
+					<optgroup label={ d.Tr("rules.test.dms") }>
+						for _, c := range v.Test.DMs {
+							<option value={ c.Value } selected?={ v.Test.ChatID == c.Value }>{ d.Tr("rules.test.direct", "Name", c.Label) }</option>
+						}
+					</optgroup>
+				}
+			</select>
+			<label class="label text-base-content/80" for="rule-test-sender">{ d.Tr("rules.test.sender") }</label>
+			<select id="rule-test-sender" name="test_sender" class="select w-full lg:select-sm" disabled?={ v.Test.ChatIsDM }>
+				for _, s := range v.Test.Senders {
+					<option value={ s.Value } selected?={ v.Test.Sender == s.Value }>{ s.Label }</option>
+				}
+			</select>
+			if v.Test.ChatIsDM {
+				<p class="label whitespace-normal text-base-content/80">{ d.Tr("rules.test.dm_sender") }</p>
+			}
+			<label class="label text-base-content/80" for="rule-test-text">{ d.Tr("rules.test.message") }</label>
+			<textarea id="rule-test-text" name="test_text" class="textarea w-full" rows="2">{ v.Test.Text }</textarea>
+			if !v.Test.ChatIsDM {
+				<label class="label min-h-11 cursor-pointer gap-3 whitespace-normal text-base-content">
+					<input type="checkbox" class="checkbox checkbox-sm" name="test_mention" value="1" checked?={ v.Test.Mention }/>
+					{ d.Tr("rules.test.mention") }
+				</label>
+			}
+			<button type="button" class="btn mt-2 self-start" hx-post={ v.path(d, "/test") } hx-include="#rule-form" hx-target="#rule-body" hx-swap="innerMorph" hx-nonce={ d.Nonce }>
+				@icons.Icon("play", "size-4")
+				{ d.Tr("rules.test.run") }
+			</button>
+		}
+		<div id="rule-test-result" class="mt-2">
+			if v.Test.Result != nil {
+				<div role="status" class={ "alert alert-soft", templ.KV("alert-success", v.Test.Result.OK), templ.KV("alert-info", !v.Test.Result.OK) }>
+					if v.Test.Result.OK {
+						@icons.Icon("circle-check", "size-5")
+					} else {
+						@icons.Icon("info", "size-5")
+					}
+					<span>{ v.Test.Result.Message }</span>
+				</div>
+			}
+		</div>
+	</fieldset>
+}
+
+templ RulePickOptions(d web.LayoutData, v RulePickView) {
+	if len(v.Options) == 0 && v.Typed == "" {
+		<li class="menu-disabled"><span>{ d.Tr("rules.pick_empty") }</span></li>
+	}
+	for _, o := range v.Options {
+		<li>
+			<button type="button" data-rule-pick-value={ o.Value } data-rule-pick-label={ o.Label } class="flex items-center max-lg:min-h-11">
+				if v.Field == "chat" {
+					@icons.Icon("users", "size-4")
+				} else {
+					@icons.Icon("book-user", "size-4")
+				}
+				{ o.Label }
+			</button>
+		</li>
+	}
+	if v.Typed != "" {
+		<li>
+			<button type="button" data-rule-pick-value={ "phone:" + v.Typed } data-rule-pick-label={ "+" + v.Typed } class="flex items-center max-lg:min-h-11">
+				@icons.Icon("phone", "size-4")
+				{ d.Tr("rules.pick_use", "Number", v.Typed) }
+			</button>
+		</li>
+	}
+}
+
+templ RulePicker(d web.LayoutData, v RuleBuilderView) {
+	@AppModal(d, "rule-picker", d.Tr("rules.pick_title")) {
+		<div class="flex flex-col gap-2" data-rule-picker>
+			<input type="hidden" name="field" value="chat" data-rule-pick-field/>
+			<label class="input input-sm w-full">
+				@icons.Icon("search", "size-4 text-base-content/70")
+				<input type="search" name="q" aria-label={ d.Tr("rules.pick_search") } placeholder={ d.Tr("rules.pick_search") } hx-get={ v.path(d, "/pick") } hx-include="[data-rule-pick-field]" hx-trigger="input changed delay:250ms, rules:pick" hx-target="#rule-pick-options" hx-swap="innerHTML" hx-nonce={ d.Nonce } data-rule-pick-q/>
+			</label>
+			<ul id="rule-pick-options" class="menu w-full p-0 lg:menu-sm" aria-live="polite"></ul>
+			<p class="text-xs text-base-content/80" data-rule-pick-help="chat">{ d.Tr("rules.pick_help_groups") }</p>
+			<p class="text-xs text-base-content/80" data-rule-pick-help="sender" hidden>{ d.Tr("rules.pick_help") }</p>
+		</div>
+	}
+}

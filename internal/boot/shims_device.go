@@ -47,12 +47,14 @@ func (s deviceSessions) Forget(ctx context.Context, id uuid.UUID) error { return
 
 func toDeviceStatus(st whatsapp.Status) device.SessionStatus {
 	return device.SessionStatus{
-		State:    device.SessionState(st.State),
-		Phone:    st.Phone,
-		PushName: st.PushName,
-		Reason:   st.Reason,
-		LastSeen: st.LastSeen,
-		Live:     st.Live,
+		State:           device.SessionState(st.State),
+		Phone:           st.Phone,
+		PushName:        st.PushName,
+		Reason:          st.Reason,
+		LastSeen:        st.LastSeen,
+		LastConnectedAt: st.LastConnectedAt,
+		UpdatedAt:       st.UpdatedAt,
+		Live:            st.Live,
 	}
 }
 

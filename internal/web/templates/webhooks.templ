@@ -70,7 +70,7 @@ templ WebhooksPage(d web.LayoutData, v WebhooksView) {
 			@ListShell(d, "webhook-list", nil) {
 				for _, e := range v.Items {
 					@ListRow(d, nil) {
-						<div class="min-w-0 flex-1">
+						<div class="list-col-grow min-w-0">
 							<a href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/webhooks/"+e.ID)) } class="block truncate font-mono text-sm font-medium text-foreground hover:underline">{ e.URL }</a>
 							if e.Description != "" {
 								<p class="mt-0.5 truncate text-xs text-muted-foreground">{ e.Description }</p>

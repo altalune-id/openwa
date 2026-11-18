@@ -194,25 +194,15 @@ func TestDevices_RulesNeedAManager(t *testing.T) {
 }
 
 // SECURITY: a member sees the rules values but not the rules form.
-func TestDevices_MembersSeeReadOnlyRules(t *testing.T) {
+func TestDevices_TheNumberPageLinksToTheRulesInsteadOfTheLegacyForm(t *testing.T) {
 	x := newDeviceFixture(t)
 	d := x.seed(t, "Sales")
 	path := devicesBase + "/" + d.PublicID
-	rec := x.do(t, http.MethodPost, path+"/rules", "version=1&group_mode=open&trigger_prefix=%21bot", false)
-	require.Equal(t, http.StatusSeeOther, rec.Code, rec.Body.String())
-	member := addMember(t, x.handlerFixture, x.org, x.uid, org.RoleMember)
-
-	rec = httptest.NewRecorder()
-	x.Mux.ServeHTTP(rec, x.authedRequest(t, http.MethodGet, path, "", member))
-	require.Equal(t, http.StatusOK, rec.Code)
-	body := rec.Body.String()
-	assert.Contains(t, body, `value="!bot"`)
-	assert.Contains(t, mainOf(t, body), managersOnlyKey)
-	assert.NotContains(t, body, `action="`+path+`/rules"`)
-
-	mgr := x.do(t, http.MethodGet, path, "", false)
-	assert.Contains(t, mgr.Body.String(), `action="`+path+`/rules"`)
-	assert.NotContains(t, mgr.Body.String(), managersOnlyKey)
+	for _, q := range []string{"", "?tab=settings"} {
+		body := x.do(t, http.MethodGet, path+q, "", false).Body.String()
+		assert.NotContains(t, body, `action="`+path+`/rules"`)
+		assert.Contains(t, body, `href="`+path+`/rules"`, "the Rules tab")
+	}
 }
 
 type deviceWriteRoute struct {
@@ -228,6 +218,8 @@ func deviceWriteRoutes() []deviceWriteRoute {
 	return []deviceWriteRoute{
 		{name: "new form", method: http.MethodGet, suffix: "/new", want: http.StatusOK},
 		{name: "create", method: http.MethodPost, form: "name=Other", want: http.StatusSeeOther},
+		{name: "create and pair", method: http.MethodPost, want: http.StatusSeeOther},
+		{name: "first-run page", method: http.MethodGet, suffix: "/new?device={device}", want: http.StatusOK},
 		{name: "qr link", method: http.MethodPost, suffix: "/{device}/links", htmx: true, want: http.StatusOK},
 		{name: "phone link", method: http.MethodPost, suffix: "/{device}/phone-links", form: "phone=%2B62+812+3456", htmx: true, want: http.StatusOK},
 		{name: "unlink", method: http.MethodPost, suffix: "/{device}/unlink", want: http.StatusSeeOther},
@@ -317,11 +309,21 @@ func TestDevices_MembersSeeReadOnlyNumberPages(t *testing.T) {
 	assert.Contains(t, mainOf(t, list), managersOnlyKey)
 
 	detail := view("/" + d.PublicID)
+	settings := view("/" + d.PublicID + "?tab=settings")
 	for _, suffix := range []string{"/links", "/phone-links", "/unlink", "/delete"} {
-		assert.NotContains(t, detail, `action="`+path+suffix+`"`, "a member sees the %s form", suffix)
+		assert.NotContains(t, detail+settings, `action="`+path+suffix+`"`, "a member sees the %s form", suffix)
 	}
-	assert.Contains(t, detail, `action="`+path+`/rename"`, "a member keeps rename")
-	assert.Equal(t, 3, strings.Count(mainOf(t, detail), managersOnlyKey), "rules, pairing and danger zone each say who can change them")
+	assert.Contains(t, settings, `action="`+path+`/rename"`, "a member keeps rename")
+	assert.Equal(t, 1, strings.Count(mainOf(t, detail), managersOnlyKey), "pairing says who can link")
+	assert.Equal(t, 1, strings.Count(mainOf(t, settings), managersOnlyKey), "the danger zone says who can unlink or delete")
+
+	x.Sessions.Statuses[d.ID] = device.SessionStatus{State: device.SessionLoggedOut, Phone: "628111"}
+	signedOut := view("/" + d.PublicID)
+	assert.NotContains(t, signedOut, "devices.fix<", "a member gets no Fix it")
+	assert.NotContains(t, signedOut, `data-tour="fix"`)
+	assert.Contains(t, mainOf(t, signedOut), managersOnlyKey)
+	assert.Contains(t, x.do(t, http.MethodGet, path, "", false).Body.String(), `data-tour="fix"`, "a manager gets Fix it")
+	delete(x.Sessions.Statuses, d.ID)
 
 	fragment := view("/" + d.PublicID + "/links/current")
 	assert.NotContains(t, fragment, `action="`+path+`/links"`, "the polled fragment offers a member no pairing form")
@@ -341,7 +343,7 @@ func TestDevices_MembersSeeReadOnlyNumberPages(t *testing.T) {
 	mgrList := x.do(t, http.MethodGet, devicesBase, "", false).Body.String()
 	assert.Contains(t, mgrList, newHref)
 	assert.NotContains(t, mgrList, managersOnlyKey)
-	mgr := x.do(t, http.MethodGet, path, "", false).Body.String()
+	mgr := x.do(t, http.MethodGet, path, "", false).Body.String() + x.do(t, http.MethodGet, path+"?tab=settings", "", false).Body.String()
 	for _, suffix := range []string{"/links", "/phone-links", "/unlink", "/delete", "/rename"} {
 		assert.Contains(t, mgr, `action="`+path+suffix+`"`, "a manager keeps the %s form", suffix)
 	}

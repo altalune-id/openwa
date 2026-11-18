@@ -786,18 +786,40 @@ func (s *Service) RuleHits(ctx context.Context, deviceID uuid.UUID) (map[string]
 	return hits, nil
 }
 
-// CountToday counts the caller's project's messages since midnight UTC.
-func (s *Service) CountToday(ctx context.Context) (int64, error) {
-	ctx, span := tracer.Start(ctx, "message.CountToday")
+// Activity returns, per device among deviceIDs, its messages over the last 24 hours and its newest message time; a device with no message is absent.
+func (s *Service) Activity(ctx context.Context, deviceIDs []uuid.UUID) (map[uuid.UUID]DeviceActivity, error) {
+	ctx, span := tracer.Start(ctx, "message.Activity")
 	defer span.End()
 	if _, err := tenant.From(ctx); err != nil {
-		return 0, err
+		return nil, err
 	}
-	n, err := s.store.CountToday(ctx, s.clock().UTC().Truncate(24*time.Hour))
+	counts, err := s.store.CountByDeviceSince(ctx, s.clock().UTC().Add(-24*time.Hour))
 	if err != nil {
-		return 0, s.unexpected(ctx, "message.CountToday: count", err)
+		return nil, s.unexpected(ctx, "message.Activity: count", err)
 	}
-	return n, nil
+	last, err := s.store.LastAtByDevice(ctx, deviceIDs)
+	if err != nil {
+		return nil, s.unexpected(ctx, "message.Activity: last", err)
+	}
+	out := make(map[uuid.UUID]DeviceActivity, len(last))
+	for id, at := range last {
+		out[id] = DeviceActivity{Last24h: counts[id], LastAt: &at}
+	}
+	return out, nil
+}
+
+// HasMatched reports whether any of the caller's project's stored messages was sent to the agent.
+func (s *Service) HasMatched(ctx context.Context) (bool, error) {
+	ctx, span := tracer.Start(ctx, "message.HasMatched")
+	defer span.End()
+	if _, err := tenant.From(ctx); err != nil {
+		return false, err
+	}
+	ok, err := s.store.HasMatched(ctx)
+	if err != nil {
+		return false, s.unexpected(ctx, "message.HasMatched: query", err)
+	}
+	return ok, nil
 }
 
 // RunRetention deletes, project by project, every message older than that project's retention, then repairs the touched chats.

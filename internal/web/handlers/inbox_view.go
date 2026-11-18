@@ -20,12 +20,8 @@ var inboxReactions = []string{"👍", "❤️", "😂", "😮", "😢", "🙏"}
 func chatRows(items []*chat.Chat, active string) []templates.ChatRowView {
 	rows := make([]templates.ChatRowView, 0, len(items))
 	for _, c := range items {
-		name := c.Name
-		if name == "" {
-			name, _, _ = strings.Cut(c.JID, "@")
-		}
 		rows = append(rows, templates.ChatRowView{
-			ID: c.PublicID, Name: name, JID: c.JID, Kind: string(c.Kind), Preview: c.LastMessagePreview,
+			ID: c.PublicID, Name: c.DisplayName(), JID: c.JID, Kind: string(c.Kind), Preview: c.LastMessagePreview,
 			At: c.LastMessageAt, Unread: c.UnreadCount, Active: c.PublicID == active,
 		})
 	}
@@ -33,7 +29,7 @@ func chatRows(items []*chat.Chat, active string) []templates.ChatRowView {
 }
 
 // NOTE: turns messages (oldest first) into bubbles; reactions and quoted text are looked up in around as well, so a bubble drawn from a small slice keeps both. Edits and revokes are not drawn.
-func bubbles(msgs, around []*message.Message, mediaURL func(publicID string) string) []templates.BubbleView {
+func bubbles(msgs, around []*message.Message, mediaURL func(publicID string) string, badge func(*message.Message) *templates.MatchBadge) []templates.BubbleView {
 	known := slices.Concat(around, msgs)
 	slices.SortStableFunc(known, func(a, b *message.Message) int { return strings.Compare(a.ID.String(), b.ID.String()) })
 	known = slices.CompactFunc(known, func(a, b *message.Message) bool { return a.ID == b.ID })
@@ -53,7 +49,7 @@ func bubbles(msgs, around []*message.Message, mediaURL func(publicID string) str
 		b := templates.BubbleView{
 			ID: bubbleID(m), WAID: m.WAMessageID, Outbound: m.Direction == message.DirectionOut, Type: string(m.Type),
 			Body: m.Body, Status: string(m.Status), At: m.WATimestamp, Error: m.Error, Reactions: reactions[m.WAMessageID],
-			Own: m.FromMe && m.Direction == message.DirectionOut,
+			Own: m.FromMe && m.Direction == message.DirectionOut, Match: badge(m),
 		}
 		if m.QuotedWAMessageID != "" {
 			b.Quoted = bodyByWAID[m.QuotedWAMessageID]

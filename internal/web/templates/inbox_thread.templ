@@ -32,6 +32,15 @@ type BubbleView struct {
 	Reactions []string
 	Error     string
 	Own       bool
+	Match     *MatchBadge
+}
+
+// MatchBadge says what the rules did with an inbound message; Href is empty when there is nothing to edit.
+type MatchBadge struct {
+	Kind   string
+	Label  string
+	Reason string
+	Href   string
 }
 
 type ThreadView struct {
@@ -74,11 +83,11 @@ func bubbleRowClass(out bool) string {
 }
 
 func bubbleClass(out bool) string {
-	const base = "max-w-[80%] rounded-lg px-3 py-2 shadow-sm "
+	const base = "max-w-[80%] rounded-box px-3 py-2 shadow-sm "
 	if out {
-		return base + "bg-primary/10 text-foreground"
+		return base + "bg-primary/10 text-base-content"
 	}
-	return base + "bg-card text-card-foreground border border-border"
+	return base + "bg-base-100 text-base-content border border-base-300"
 }
 
 func statusKey(status string) string { return "inbox.status." + status }
@@ -98,7 +107,7 @@ func statusTone(status string) Tone {
 }
 
 templ ThreadPane(d web.LayoutData, v ThreadView) {
-	<div id="thread" class="rounded-box border border-base-300 bg-base-100 flex flex-col">
+	<div id="thread" class="rounded-box border border-base-300 bg-base-100 flex flex-col" data-thread>
 		@threadHeader(d, v)
 		<div id="thread-scroll" class="flex max-h-[60vh] flex-col-reverse overflow-y-auto px-4 py-3">
 			<div>
@@ -116,13 +125,18 @@ templ ThreadPane(d web.LayoutData, v ThreadView) {
 }
 
 templ threadHeader(d web.LayoutData, v ThreadView) {
-	<header class="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
+	<header class="flex flex-wrap items-center gap-3 border-b border-base-300 px-4 py-3">
+		<a href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/inbox")) } class="btn btn-square btn-ghost lg:hidden" aria-label={ d.Tr("inbox.back_to_chats") }>
+			@icons.Icon("arrow-left", "size-5")
+		</a>
 		@Avatar(v.Name, "h-10 w-10")
 		<div class="min-w-0 flex-1">
-			<h2 class="truncate text-base font-semibold text-foreground">{ v.Name }</h2>
-			<div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-				@CopyValue(d, v.JID)
-				@CopyValue(d, v.ChatID)
+			<h2 class="truncate text-base font-semibold text-base-content">{ v.Name }</h2>
+			<div class="flex flex-wrap items-center gap-2 text-xs text-base-content/70">
+				<span class="contents max-lg:hidden">
+					@CopyValue(d, v.JID)
+					@CopyValue(d, v.ChatID)
+				</span>
 				if v.Kind == "group" {
 					@Badge(ToneInfo, d.Tr("inbox.kind_group"))
 				} else {
@@ -146,10 +160,10 @@ templ threadHeader(d web.LayoutData, v ThreadView) {
 			<div class="w-full">
 				@Disclosure(d.Tr("inbox.group_details")) {
 					<dl class="grid grid-cols-2 gap-2 text-sm">
-						<dt class="text-muted-foreground">{ d.Tr("inbox.participants_label") }</dt>
+						<dt class="text-base-content/70">{ d.Tr("inbox.participants_label") }</dt>
 						<dd>{ strconv.Itoa(v.Group.Participants) }</dd>
 						if v.Group.Topic != "" {
-							<dt class="text-muted-foreground">{ d.Tr("inbox.topic_label") }</dt>
+							<dt class="text-base-content/70">{ d.Tr("inbox.topic_label") }</dt>
 							<dd class="whitespace-pre-wrap">{ v.Group.Topic }</dd>
 						}
 					</dl>
@@ -215,12 +229,12 @@ templ Bubble(d web.LayoutData, v ThreadView, b BubbleView) {
 	<li id={ "msg-" + b.ID } class={ bubbleRowClass(b.Outbound) }>
 		<div class={ bubbleClass(b.Outbound) }>
 			if b.Quoted != "" {
-				<p class="mb-1 border-s-2 border-border ps-2 text-xs text-muted-foreground">{ b.Quoted }</p>
+				<p class="mb-1 border-s-2 border-base-300 ps-2 text-xs text-base-content/70">{ b.Quoted }</p>
 			}
 			if b.MediaURL != "" {
 				if b.IsImage {
 					<a href={ templ.SafeURL(b.MediaURL) } target="_blank" rel="noopener">
-						<img src={ b.MediaURL } alt={ b.Filename } loading="lazy" class="mb-1 max-h-64 rounded-md"/>
+						<img src={ b.MediaURL } alt={ b.Filename } loading="lazy" class="mb-1 max-h-64 rounded-field"/>
 					</a>
 				} else {
 					<a href={ templ.SafeURL(b.MediaURL) } class="mb-1 inline-flex items-center gap-1 text-sm underline">
@@ -235,7 +249,7 @@ templ Bubble(d web.LayoutData, v ThreadView, b BubbleView) {
 			if b.Body != "" {
 				<p class="whitespace-pre-wrap break-words text-sm">{ b.Body }</p>
 			}
-			<div class="mt-1 flex items-center justify-end gap-2 text-[11px] text-muted-foreground">
+			<div class="mt-1 flex items-center justify-end gap-2 text-[11px] text-base-content/70">
 				for _, r := range b.Reactions {
 					<span>{ r }</span>
 				}
@@ -245,7 +259,10 @@ templ Bubble(d web.LayoutData, v ThreadView, b BubbleView) {
 				}
 			</div>
 			if b.Error != "" {
-				<p class="mt-1 text-xs text-destructive">{ b.Error }</p>
+				<p class="mt-1 text-xs text-error">{ b.Error }</p>
+			}
+			if b.Match != nil {
+				@matchBadge(d, b)
 			}
 			@bubbleActions(d, v, b)
 		</div>
@@ -263,10 +280,10 @@ templ bubbleActions(d web.LayoutData, v ThreadView, b BubbleView) {
 				hx-status:4xx="target:#hx-error swap:innerHTML"
 				hx-status:5xx="target:#hx-error swap:innerHTML"
 				hx-nonce={ d.Nonce }
-				class="flex gap-0.5"
+				class="flex flex-wrap gap-0.5"
 			>
 				for _, e := range v.Reactions {
-					<button type="submit" name="emoji" value={ e } aria-label={ d.Tr("inbox.react") + " " + e } class="rounded px-1 text-sm hover:bg-muted">{ e }</button>
+					<button type="submit" name="emoji" value={ e } aria-label={ d.Tr("inbox.react") + " " + e } class="btn btn-ghost btn-square max-lg:size-11 lg:btn-xs">{ e }</button>
 				}
 			</form>
 			if b.Own {
@@ -299,15 +316,17 @@ templ Composer(d web.LayoutData, v ThreadView) {
 		hx-status:4xx="target:#hx-error swap:innerHTML"
 		hx-status:5xx="target:#hx-error swap:innerHTML"
 		hx-nonce={ d.Nonce }
-		class="flex flex-col gap-2 border-t border-border p-3"
+		class="flex flex-col gap-2 border-t border-base-300 p-3"
 	>
 		<label for="composer-text" class="sr-only">{ d.Tr("inbox.composer_label") }</label>
 		<textarea id="composer-text" name="text" rows="2" placeholder={ d.Tr("inbox.composer_placeholder") } class={ InputClass() }></textarea>
-		<div class="flex flex-wrap items-center justify-between gap-2">
-			<label class="inline-flex items-center gap-2 text-xs text-muted-foreground">
-				@icons.Icon("plus", "h-4 w-4")
-				<span>{ d.Tr("inbox.attach", "Max", v.MaxMediaMB) }</span>
-				<input type="file" name="file" class="text-xs"/>
+		<div class="flex flex-wrap items-end justify-between gap-2">
+			<label class="flex min-w-0 max-w-full flex-1 basis-56 flex-col gap-1 text-xs text-base-content/70">
+				<span class="flex items-center gap-1">
+					@icons.Icon("plus", "size-4 shrink-0")
+					{ d.Tr("inbox.attach", "Max", v.MaxMediaMB) }
+				</span>
+				<input type="file" name="file" class="file-input w-full max-w-full lg:file-input-sm"/>
 			</label>
 			@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("inbox.send"), Icon: "send"})
 		</div>
@@ -318,4 +337,28 @@ templ ComposerReset(d web.LayoutData, v ThreadView) {
 	<template hx type="partial" hx-target="#composer" hx-swap="outerHTML" hx-nonce={ d.Nonce }>
 		@Composer(d, v)
 	</template>
+}
+
+templ matchBadge(d web.LayoutData, b BubbleView) {
+	<details id={ "why-" + b.ID } class="mt-1">
+		<summary class="btn btn-ghost btn-xs h-auto px-1 max-lg:min-h-11">
+			<span class={ "badge badge-sm", templ.KV("badge-success badge-soft", b.Match.Kind == "sent"), templ.KV("badge-ghost", b.Match.Kind != "sent") }>
+				switch b.Match.Kind {
+					case "sent":
+						@icons.Icon("circle-check", "size-3")
+					case "not_sent":
+						@icons.Icon("x", "size-3")
+					default:
+						@icons.Icon("circle-question-mark", "size-3")
+				}
+				{ b.Match.Label }
+			</span>
+		</summary>
+		<p class="mt-1 text-sm text-base-content/80">
+			{ b.Match.Reason }
+			if b.Match.Href != "" {
+				<a class="link ms-1 inline-flex min-h-11 items-center lg:min-h-0" href={ templ.SafeURL(b.Match.Href) }>{ d.Tr("inbox.match.edit_rules") }</a>
+			}
+		</p>
+	</details>
 }

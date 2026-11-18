@@ -26,7 +26,7 @@ templ OrgsPage(d web.LayoutData, v OrgsView) {
 			@ListShell(d, "org-list", nil) {
 				for _, o := range v.Orgs {
 					@ListRow(d, nil) {
-						<div class="min-w-0 flex-1">
+						<div class="list-col-grow min-w-0">
 							<p class="flex items-center gap-2 truncate text-sm font-medium text-base-content">
 								<span class="truncate">{ o.Name }</span>
 								if o.System {

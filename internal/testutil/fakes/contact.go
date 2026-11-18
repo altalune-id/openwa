@@ -105,7 +105,7 @@ func (f *Contact) List(ctx context.Context, opts contact.ListOpts) ([]*contact.C
 		if len(opts.DeviceIDs) > 0 && !slices.Contains(opts.DeviceIDs, c.DeviceID) {
 			continue
 		}
-		if q != "" && !strings.HasPrefix(strings.ToLower(c.Name), q) {
+		if q != "" && !slices.ContainsFunc([]string{c.Name, c.PushName}, func(v string) bool { return strings.HasPrefix(strings.ToLower(v), q) }) && (contact.PhoneSearch(q) == "" || !strings.HasPrefix(c.Phone, contact.PhoneSearch(q))) {
 			continue
 		}
 		cp := *c

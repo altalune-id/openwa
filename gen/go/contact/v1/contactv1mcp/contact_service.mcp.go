@@ -28,7 +28,7 @@ func ContactServiceToolNames() []string {
 func RegisterContactServiceTools(reg *mcp.Registry, h contactv1connect.ContactServiceHandler, scopeFor func(string) string) {
 	reg.Register(mcp.ToolSpec{
 		Name:        ContactListToolName,
-		Description: "List the contacts the project's devices know, most recently updated first. q is a prefix on the address-book name.",
+		Description: "List the contacts the project's devices know, most recently updated first. q is a case-insensitive prefix on the name, the push name or the phone number (+, spaces and dashes ignored).",
 		Scope:       scopeFor(ContactListToolName),
 		Mutation:    false,
 		Destructive: false,

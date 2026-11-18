@@ -2,8 +2,11 @@ package dataplane
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
+
+	"altalune.id/openwa/internal/device"
 )
 
 func decodeJSON[T any](r *http.Request) (raw []byte, in T, err error) {
@@ -13,6 +16,9 @@ func decodeJSON[T any](r *http.Request) (raw []byte, in T, err error) {
 	}
 	if len(raw) > 0 {
 		if unmarshalErr := json.Unmarshal(raw, &in); unmarshalErr != nil {
+			if ir, ok := errors.AsType[*device.InvalidRulesError](unmarshalErr); ok {
+				return nil, in, ir
+			}
 			return nil, in, &BadRequestError{}
 		}
 	}

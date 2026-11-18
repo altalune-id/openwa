@@ -12,6 +12,12 @@ type ContactRowView struct {
 	Phone    string
 	JID      string
 	DeviceID string
+	RuleID   string
+	Sender   string
+}
+
+func contactRuleHref(d web.LayoutData, slug string, c ContactRowView) string {
+	return d.ProjectPath(slug, "/devices/"+c.DeviceID+"/rules/"+c.RuleID+"?"+url.Values{"sender": {c.Sender}}.Encode())
 }
 
 type ContactsView struct {
@@ -84,16 +90,21 @@ templ ContactsPage(d web.LayoutData, v ContactsView) {
 				for _, c := range v.Rows {
 					@ListRow(d, templ.Attributes{"id": "contact-" + c.ID}) {
 						@Avatar(c.Name, "h-9 w-9 text-sm")
-						<div class="min-w-0 flex-1">
-							<p class="truncate text-sm font-medium text-foreground">{ c.Name }</p>
+						<div class="list-col-grow min-w-0">
+							<p class="truncate text-sm font-medium text-base-content">{ c.Name }</p>
 							if c.Phone != "" {
 								@CopyValue(d, c.Phone)
 							} else {
-								<p class="text-xs text-muted-foreground">{ d.Tr("contacts.no_phone") }</p>
+								<p class="text-xs text-base-content/70">{ d.Tr("contacts.no_phone") }</p>
 							}
 						</div>
-						if c.Phone != "" && c.DeviceID != "" {
-							@AppButton(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("contacts.message"), Icon: "send", Href: contactMessageHref(d, v.ProjectSlug, c)})
+						if c.DeviceID != "" {
+							<div class="max-lg:list-col-wrap flex flex-wrap justify-end gap-2">
+								@AppButton(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("contacts.use_in_rule"), Icon: "list-checks", Href: contactRuleHref(d, v.ProjectSlug, c)})
+								if c.Phone != "" {
+									@AppButton(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("contacts.message"), Icon: "send", Href: contactMessageHref(d, v.ProjectSlug, c)})
+								}
+							</div>
 						}
 					}
 				}
