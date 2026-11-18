@@ -73,6 +73,9 @@ func NewService(store Store, scheme Scheme, members Members, projects Projects, 
 	}
 }
 
+// Scheme returns the key scheme this service mints and resolves with.
+func (s *Service) Scheme() Scheme { return s.scheme }
+
 // Mint creates a new project key in the caller's project and returns it with its one-time plaintext secret.
 func (s *Service) Mint(ctx context.Context, name string, scopes []string, resourceIDs []uuid.UUID, expiresAt *time.Time) (*APIKey, string, error) {
 	ctx, span := tracer.Start(ctx, "apikey.Mint")

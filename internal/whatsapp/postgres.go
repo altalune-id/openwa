@@ -116,7 +116,10 @@ func (s *postgresStore) save(ctx context.Context, tx *sql.Tx, tc tenant.Context,
 	if ifVersion != 0 {
 		return s.update(ctx, tx, tc, sess, ifVersion)
 	}
-	stmt := s.t.INSERT(s.t.AllColumns).
+	stmt := s.t.INSERT(
+		s.t.DeviceID, s.t.OrgID, s.t.ProjectID, s.t.Engine, s.t.JID, s.t.LID, s.t.Phone, s.t.PushName, s.t.Platform,
+		s.t.State, s.t.Reason, s.t.LastConnectedAt, s.t.LastSeenAt, s.t.LastError, s.t.Version, s.t.UpdatedAt,
+	).
 		VALUES(
 			sess.DeviceID, sess.OrgID, sess.ProjectID, sess.Engine,
 			sess.JID, sess.LID, sess.Phone, sess.PushName, sess.Platform,
@@ -133,6 +136,7 @@ func (s *postgresStore) save(ctx context.Context, tx *sql.Tx, tc tenant.Context,
 				s.t.Phone.SET(postgres.String(sess.Phone)),
 				s.t.PushName.SET(postgres.String(sess.PushName)),
 				s.t.Platform.SET(postgres.String(sess.Platform)),
+				s.t.DisconnectedAt.SET(s.outageStart(sess)),
 				s.t.State.SET(postgres.String(string(sess.State))),
 				s.t.Reason.SET(postgres.String(sess.Reason)),
 				s.t.LastConnectedAt.SET(pgNullableTimeExpr(sess.LastConnectedAt)),
@@ -149,16 +153,28 @@ func (s *postgresStore) save(ctx context.Context, tx *sql.Tx, tc tenant.Context,
 func (s *postgresStore) update(ctx context.Context, tx *sql.Tx, tc tenant.Context, sess *Session, ifVersion int) error {
 	stmt := s.t.UPDATE(
 		s.t.JID, s.t.LID, s.t.Phone, s.t.PushName, s.t.Platform, s.t.State, s.t.Reason,
-		s.t.LastConnectedAt, s.t.LastSeenAt, s.t.LastError, s.t.UpdatedAt, s.t.Version,
+		s.t.LastConnectedAt, s.t.LastSeenAt, s.t.LastError, s.t.UpdatedAt, s.t.Version, s.t.DisconnectedAt,
 	).SET(
 		postgres.String(sess.JID), postgres.String(sess.LID), postgres.String(sess.Phone),
 		postgres.String(sess.PushName), postgres.String(sess.Platform), postgres.String(string(sess.State)),
 		postgres.String(sess.Reason), pgNullableTimeExpr(sess.LastConnectedAt), pgNullableTimeExpr(sess.LastSeenAt),
 		postgres.String(sess.LastError), postgres.TimestampzT(sess.UpdatedAt.UTC()), s.t.Version.ADD(postgres.Int32(1)),
+		s.outageStart(sess),
 	).WHERE(s.t.DeviceID.EQ(postgres.UUID(sess.DeviceID)).
 		AND(s.t.OrgID.EQ(postgres.UUID(tc.OrgID))).
 		AND(versionGuard(ifVersion, s.t.Version)))
 	return s.exec(ctx, tx, tc, stmt, sess.DeviceID, ifVersion)
+}
+
+// NOTE: SET sees the old row, so the outage starts only when a connected number goes down, and any other up state clears it.
+func (s *postgresStore) outageStart(sess *Session) postgres.TimestampzExpression {
+	if sess.State != StateDisconnected && sess.State != StateLoggedOut {
+		return pgent.NullTimestampz()
+	}
+	return postgres.TimestampzExp(postgres.CASE().
+		WHEN(s.t.State.EQ(postgres.String(string(StateConnected)))).
+		THEN(postgres.TimestampzT(sess.UpdatedAt.UTC())).
+		ELSE(s.t.DisconnectedAt))
 }
 
 func (s *postgresStore) exec(ctx context.Context, tx *sql.Tx, tc tenant.Context, stmt postgres.Statement, id uuid.UUID, ifVersion int) error {

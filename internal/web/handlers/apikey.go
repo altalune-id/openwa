@@ -59,10 +59,10 @@ func (h *APIKeyHandler) PostKeyCreate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	write := h.projectWriter(w, sc)
-	if !h.mayMint(sc.req, write, sc.org.ID, sc.principal.UserID) {
+	if !h.requireManager(w, sc) {
 		return
 	}
+	write := h.projectWriter(w, sc)
 	h.mintInto(w, sc.req, write, func(in mintInput) (*apikey.APIKey, string, error) {
 		resourceIDs, err := h.Keys.ResourceIDs(sc.req.Context(), in.scopes, in.resources)
 		if err != nil {
@@ -89,7 +89,7 @@ func (h *APIKeyHandler) GetKeyScopes(w http.ResponseWriter, r *http.Request) {
 // PostKeyRevoke revokes a project key and returns the refreshed list fragment.
 func (h *APIKeyHandler) PostKeyRevoke(w http.ResponseWriter, r *http.Request) {
 	sc, ok := h.RequireProject(w, r)
-	if !ok {
+	if !ok || !h.requireManager(w, sc) {
 		return
 	}
 	h.changeInto(w, sc.req, h.projectWriter(w, sc), h.revoke, true)
@@ -115,10 +115,10 @@ func (h *APIKeyHandler) PostOrgKeyCreate(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	write := h.orgWriter(w, sc)
-	if !h.mayMint(sc.req, write, sc.org.ID, sc.principal.UserID) {
+	if !h.requireOrgManager(w, sc) {
 		return
 	}
+	write := h.orgWriter(w, sc)
 	h.mintInto(w, sc.req, write, func(in mintInput) (*apikey.APIKey, string, error) {
 		return h.Keys.MintOrg(sc.req.Context(), in.name, in.scopes, in.grant, in.expiresAt)
 	})
@@ -141,7 +141,7 @@ func (h *APIKeyHandler) PostOrgKeyRevoke(w http.ResponseWriter, r *http.Request)
 
 func (h *APIKeyHandler) changeOrgKey(w http.ResponseWriter, r *http.Request, change keyChange, revoked bool) {
 	sc, ok := h.RequireOrg(w, r)
-	if !ok {
+	if !ok || !h.requireOrgManager(w, sc) {
 		return
 	}
 	h.changeInto(w, sc.req, h.orgWriter(w, sc), change, revoked)
@@ -183,9 +183,13 @@ func (h *APIKeyHandler) mintInto(w http.ResponseWriter, r *http.Request, write l
 		write(nil, false, templates.APIKeyErrorInvalidExpiry, "")
 		return
 	}
+	scopes, preset := presetScopes(r.PostForm.Get("preset"))
+	if !preset {
+		scopes = selectedScopes(r.PostForm["scopes"])
+	}
 	in := mintInput{
 		name:      strings.TrimSpace(r.PostForm.Get("name")),
-		scopes:    selectedScopes(r.PostForm["scopes"]),
+		scopes:    scopes,
 		grant:     formGrant(r),
 		resources: r.PostForm["devices"],
 		expiresAt: expiresAt,
@@ -197,19 +201,6 @@ func (h *APIKeyHandler) mintInto(w http.ResponseWriter, r *http.Request, write l
 		return
 	}
 	write(&templates.APIKeyMinted{Name: k.Name, Plaintext: plaintext}, false, "", "")
-}
-
-func (h *APIKeyHandler) mayMint(r *http.Request, write listWriter, orgID, userID uuid.UUID) bool {
-	ok, err := h.canManage(r, orgID, userID)
-	if err != nil {
-		write(nil, false, apiKeyErrorKind(err), ErrorRef(err))
-		return false
-	}
-	if !ok {
-		notManager := &org.NotManagerError{OrgID: orgID.String(), UserID: userID.String()}
-		write(nil, false, apiKeyErrorKind(notManager), ErrorRef(notManager))
-	}
-	return ok
 }
 
 func (h *APIKeyHandler) changeInto(w http.ResponseWriter, r *http.Request, write listWriter, change keyChange, revoked bool) {
@@ -258,13 +249,27 @@ func (h *APIKeyHandler) projectView(sc ProjectScope, minted *templates.APIKeyMin
 	v := baseView(h.ProjectURL(sc, "/apikeys"), minted, revoked, errKind, code)
 	v.Scopes = projectScopes(v.Scopes)
 	v.CanManage, _ = h.canManage(sc.req, sc.org.ID, sc.principal.UserID)
+	views, err := h.Devices.List(sc.req.Context())
+	if err != nil {
+		return templates.APIKeysView{}, err
+	}
 	if v.CanManage {
-		if v.Devices, err = h.deviceOptions(sc); err != nil {
-			return templates.APIKeysView{}, err
-		}
+		v.Devices = deviceOptions(views)
+		v.Presets = keyPresets()
+	}
+	names := make(map[uuid.UUID]string, len(views))
+	for _, dv := range views {
+		names[dv.Device.ID] = dv.Device.Name
 	}
 	for _, k := range items {
-		v.Items = append(v.Items, apiKeyRow(k, v.Base, nil))
+		row := apiKeyRow(k, v.Base, nil)
+		row.AccessKey = keyAccessKey(k.Scopes)
+		for _, id := range k.ResourceIDs {
+			if n, ok := names[id]; ok {
+				row.DeviceNames = append(row.DeviceNames, n)
+			}
+		}
+		v.Items = append(v.Items, row)
 	}
 	return v, nil
 }
@@ -415,11 +420,7 @@ func apiKeyErrorKind(err error) string {
 	}
 }
 
-func (h *APIKeyHandler) deviceOptions(sc ProjectScope) ([]templates.APIKeyDeviceOption, error) {
-	views, err := h.Devices.List(sc.req.Context())
-	if err != nil {
-		return nil, err
-	}
+func deviceOptions(views []device.DeviceView) []templates.APIKeyDeviceOption {
 	out := make([]templates.APIKeyDeviceOption, 0, len(views))
 	for _, dv := range views {
 		out = append(out, templates.APIKeyDeviceOption{
@@ -430,7 +431,7 @@ func (h *APIKeyHandler) deviceOptions(sc ProjectScope) ([]templates.APIKeyDevice
 			Tone:     sessionStatus(dv.Status.State).Tone,
 		})
 	}
-	return out, nil
+	return out
 }
 
 func boundScopeOptions(all []templates.APIKeyScopeOption, ticked []string, bound bool) (opts []templates.APIKeyScopeOption, dropped bool) {
@@ -513,4 +514,46 @@ func scopeOptions() []templates.APIKeyScopeOption {
 //i18n:use apikey.scope.*
 func scopeLabelKey(scope string) string {
 	return "apikey.scope." + strings.ReplaceAll(scope, ":", "_")
+}
+
+const (
+	keyPresetSend   = "send"
+	keyPresetRead   = "read"
+	keyPresetCustom = "custom"
+)
+
+//i18n:use apikey.preset_*
+//i18n:use apikey.access_*
+func keyPresets() []templates.APIKeyPreset {
+	out := make([]templates.APIKeyPreset, 0, 3)
+	for _, p := range []string{keyPresetSend, keyPresetRead, keyPresetCustom} {
+		out = append(out, templates.APIKeyPreset{
+			Value:     p,
+			LabelKey:  "apikey.preset_" + p,
+			HelpKey:   "apikey.preset_" + p + "_help",
+			AccessKey: "apikey.access_" + p,
+			Checked:   p == keyPresetSend,
+		})
+	}
+	return out
+}
+
+func keyAccessKey(scopes []string) string {
+	for _, p := range []string{keyPresetSend, keyPresetRead} {
+		if want, _ := presetScopes(p); len(want) == len(scopes) && !slices.ContainsFunc(want, func(s string) bool { return !slices.Contains(scopes, s) }) {
+			return "apikey.access_" + p
+		}
+	}
+	return "apikey.access_" + keyPresetCustom
+}
+
+// NOTE: one table for the key presets, shared by the API keys page and the connect card.
+func presetScopes(preset string) ([]string, bool) {
+	switch preset {
+	case keyPresetSend:
+		return []string{authn.ScopeMessagesRead, authn.ScopeMessagesWrite}, true
+	case keyPresetRead:
+		return []string{authn.ScopeMessagesRead, authn.ScopeContactsRead}, true
+	}
+	return nil, false
 }

@@ -1,0 +1,12 @@
+const BASE = "{{.Base}}";
+const DEVICE = "{{.Device}}";
+
+const res = await fetch(`${BASE}/devices/${DEVICE}/messages`, {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${process.env.KEY}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ to: "628111222333", text: "Hello from OpenWA" }),
+});
+console.log(res.status, await res.json());

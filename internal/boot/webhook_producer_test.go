@@ -51,7 +51,7 @@ func assertPublishEnqueues(t *testing.T, cfg *config.Config) {
 	require.NoError(t, err)
 	projCtx := tenant.WithProject(orgCtx, p.ID)
 
-	endpoint, _, err := srv.Webhooks.Create(projCtx, "https://hooks.example.com/in", "", []events.Type{events.PostPublished})
+	endpoint, _, err := srv.Webhooks.Create(projCtx, "https://hooks.example.com/in", "", []events.Type{events.PostPublished}, "")
 	require.NoError(t, err)
 	cat, err := srv.Categories.Create(projCtx, "News", "news")
 	require.NoError(t, err)

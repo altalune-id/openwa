@@ -7,13 +7,13 @@ factory, one field on `Kernel`.
 
 ## What counts
 
-- **Adapter over an external system** — `internal/platform/{db,session,tokens,outbox,notify,queue}`,
+- **Adapter over an external system** — `internal/platform/{db,session,tokens,outbox,mailqueue,notify,queue}`,
   `mailer/`.
 - **Cross-cutting primitive** — `logger/`, `telemetry/`, `reqid/`, `nanoid/`, `slug/`, `httpclient/`,
   `internal/platform/{tenant,capabilities,sealer,authn,publicid,keyset}`. `keyset` is the `(timestamp, id)` cursor codec every keyset-paginated `List` shares (chat, message, contact); predicates stay in each module's `postgres.go` as `ts < $1 OR (ts = $1 AND id < $2)` because jet has no row-value comparison.
 - `internal/platform/publicid` — prefixed nanoid ids (`<prefix>_` + 16 characters) for every id an outside surface sees; the UUID v7 stays the primary key and never leaves the database. Each prefix is a constant of the module that owns the aggregate (`device.PublicIDPrefix`, `whatsapp.LinkIDPrefix`, spec 04's chat and message prefixes).
 - **Long-running loop** — `worker/` (the Supervisor), `scheduler/`, `outbox.Worker`,
-  `queue.Consumer`, `queue.Listen`.
+  `mailqueue.Worker`, `queue.Consumer`, `queue.Listen`.
 - **Public contract** — `internal/platform/events`: the webhook event catalog and payloads.
   Stdlib and uuid only; additive within a version ([`webhooks`](../webhooks/README.md#versioning)).
 - **Not one** — domain logic (`internal/<name>/`), a surface
@@ -117,7 +117,8 @@ depguard in `.golangci.yaml` is the source of truth.
 
 A platform package MAY import stdlib, the third-party library its adapter needs,
 `internal/apperror`, and a narrow set of siblings (`tenant`→`apperror`, `tokens`→`session`,
-`notify`→`apperror`+`mailer`, `queue`→`apperror`+`tenant`+root `worker`).
+`notify`→`apperror`+`mailer`, `queue`→`apperror`+`tenant`+root `worker`,
+`mailqueue`→`apperror`+`db`+`sealer`+root `mailer`+`worker`).
 
 ## Adapters
 
@@ -133,20 +134,21 @@ Reference: `internal/platform/session/`.
 
 ## Shape variants
 
-| Variant             | Reference impl               | What differs                                                                                                   |
-| ------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Single primitive    | `reqid/`                     | One file + test. No config, no I/O, no `Close`                                                                 |
-| Adapter             | `internal/platform/session/` | `factory.go` + the contract suite above                                                                        |
-| Worker              | `internal/platform/outbox/`  | Implements `worker.Worker`; `sup.Register` in boot                                                             |
-| Worker owning jobs  | `scheduler/`                 | Many `Job`s; per-job config under `config.SchedulerConfig.Jobs`                                                |
-| Producer + consumer | `internal/platform/outbox/`  | Producer is a `Store` registered as a Closer; consumer is the `Worker`, delivering through `webhook.Deliverer` |
-| Queue over NATS     | `internal/platform/queue/`   | `Client.Submit`/`Emit`; `queue.Consumer` and `queue.Listen` workers. Contract: [`queue`](../queue/README.md)   |
+| Variant             | Reference impl                 | What differs                                                                                                                                              |
+| ------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Single primitive    | `reqid/`                       | One file + test. No config, no I/O, no `Close`                                                                                                            |
+| Adapter             | `internal/platform/session/`   | `factory.go` + the contract suite above                                                                                                                   |
+| Worker              | `internal/platform/outbox/`    | Implements `worker.Worker`; `sup.Register` in boot                                                                                                        |
+| Worker owning jobs  | `scheduler/`                   | Many `Job`s; per-job config under `config.SchedulerConfig.Jobs`                                                                                           |
+| Producer + consumer | `internal/platform/outbox/`    | Producer is a `Store` registered as a Closer; consumer is the `Worker`, delivering through `webhook.Deliverer`                                            |
+| Queue over NATS     | `internal/platform/queue/`     | `Client.Submit`/`Emit`; `queue.Consumer` and `queue.Listen` workers. Contract: [`queue`](../queue/README.md)                                              |
+| Mail queue          | `internal/platform/mailqueue/` | `Enqueue` joins the caller's tx and wakes the `Worker` after commit; payload sealed, erased once settled; settled rows pruned by the worker after 30 days |
 
 ## Boot — the Kernel
 
 Every primitive is one field on `platform.Kernel` (`internal/platform/platform.go`): `Pool`,
 `PgConn`, `Log`, `Reporter`, `Sessions`, `Sealer`, `Verifier`, `Mail`, `AltAuth`, `Tracer`,
-`Meter`, `Notify`, `Nano`, `Caps`, `Outbox`, `Queue`, plus an unexported `closers []io.Closer`.
+`Meter`, `Notify`, `Nano`, `Caps`, `Outbox`, `MailQueue`, `Queue`, plus an unexported `closers []io.Closer`.
 
 - **`Kernel.Queue` is never nil.** It is `queue.Disabled(log)` when `queue.enabled=false`, so a
   service calls `Submit` unconditionally. Boot adds it with `AddCloser` right after `Connect`, so

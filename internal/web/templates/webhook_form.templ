@@ -7,11 +7,22 @@ import (
 )
 
 type WebhookEventOption struct {
-	Value    string
-	LabelKey string
-	Checked  bool
+	Value       string
+	LabelKey    string
+	Checked     bool
+	Recommended bool
+	DeviceBound bool
 }
 
+// WebhookDeviceOption is one project number a webhook can be scoped to.
+type WebhookDeviceOption struct {
+	PublicID string
+	Name     string
+	Phone    string
+	Selected bool
+}
+
+// WebhookFormView renders the create and edit form; DeviceLocked shows the number read-only, as it never changes after create.
 type WebhookFormView struct {
 	ProjectSlug    string
 	ID             string
@@ -19,6 +30,10 @@ type WebhookFormView struct {
 	Description    string
 	Active         bool
 	Events         []WebhookEventOption
+	Devices        []WebhookDeviceOption
+	DeviceLocked   bool
+	DeviceName     string
+	DevicePublicID string
 	MaxURLLen      int
 	MaxDescription int
 	Error          WebhookError
@@ -31,59 +46,116 @@ func webhookFormAction(d web.LayoutData, f WebhookFormView) string {
 	return d.ProjectPath(f.ProjectSlug, "/webhooks/"+f.ID)
 }
 
+func webhookCancelHref(d web.LayoutData, f WebhookFormView) string {
+	if f.ID == "" {
+		return d.ProjectPath(f.ProjectSlug, "/webhooks")
+	}
+	return d.ProjectPath(f.ProjectSlug, "/webhooks/"+f.ID)
+}
+
+func deviceOptionLabel(o WebhookDeviceOption) string {
+	if o.Phone == "" {
+		return o.Name
+	}
+	return o.Name + " (" + o.Phone + ")"
+}
+
+templ webhookDeviceField(d web.LayoutData, f WebhookFormView) {
+	if f.DeviceLocked {
+		<dl class="grid min-w-0 gap-2">
+			@KeyValue(d.Tr("webhooks.number_label")) {
+				<span class="flex min-w-0 flex-col gap-1">
+					<span>
+						@webhookNumber(d, f.DeviceName)
+					</span>
+					if f.DevicePublicID != "" {
+						<code dir="ltr" class="font-mono text-xs break-all text-base-content/70 text-start">{ f.DevicePublicID }</code>
+					}
+					<span class="text-xs text-base-content/70">{ d.Tr("webhooks.number_locked_help") }</span>
+				</span>
+			}
+		</dl>
+	} else {
+		{{ field := FieldProps{ID: "webhook-device", Label: d.Tr("webhooks.number_label"), Help: d.Tr("webhooks.number_help")} }}
+		@FormField(d, field) {
+			<select name="device" class="select w-full sm:max-w-sm lg:select-sm" { InputAttrs(field)... }>
+				<option value="">{ d.Tr("webhooks.all_numbers") }</option>
+				for _, o := range f.Devices {
+					<option value={ o.PublicID } selected?={ o.Selected } dir="auto">{ deviceOptionLabel(o) }</option>
+				}
+			</select>
+		}
+	}
+}
+
+templ webhookEventRow(d web.LayoutData, opt WebhookEventOption) {
+	<label class="flex min-h-11 cursor-pointer items-start gap-3 py-1 lg:min-h-8">
+		<input type="checkbox" name="event_types" value={ opt.Value } checked?={ opt.Checked } class="checkbox checkbox-sm mt-0.5"/>
+		<span class="flex min-w-0 flex-col gap-0.5">
+			<span class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+				{ d.Tr(opt.LabelKey) }
+				if opt.Recommended {
+					@Badge(TonePrimary, d.Tr("common.recommended"))
+				}
+			</span>
+			<code dir="ltr" class="font-mono text-xs text-base-content/70 text-start">{ opt.Value }</code>
+		</span>
+	</label>
+}
+
 templ webhookForm(d web.LayoutData, f WebhookFormView) {
 	{{ urlField := FieldProps{ID: "webhook-url", Label: d.Tr("webhooks.url_label"), Help: d.Tr("webhooks.url_help"), Required: true} }}
 	{{ descField := FieldProps{ID: "webhook-description", Label: d.Tr("webhooks.description_label")} }}
-	@Card(CardProps{}) {
-		<form
-			method="post"
-			action={ templ.SafeURL(webhookFormAction(d, f)) }
-			if f.ID == "" {
-				hx-post={ webhookFormAction(d, f) }
-				hx-nonce={ d.Nonce }
-				hx-target="#webhook-page"
-				hx-swap="outerHTML"
-				hx-disable="find button, find input"
-				hx-status:5xx="target:#hx-error swap:innerHTML"
-			}
-			class="space-y-4"
-		>
+	<form
+		method="post"
+		action={ templ.SafeURL(webhookFormAction(d, f)) }
+		if f.ID == "" {
+			hx-post={ webhookFormAction(d, f) }
+			hx-nonce={ d.Nonce }
+			hx-target="#webhook-page"
+			hx-swap="outerHTML"
+			hx-disable="find button, find input, find select"
+			hx-status:5xx="target:#hx-error swap:innerHTML"
+		}
+		class="card min-w-0 border border-base-300 bg-base-100"
+	>
+		<div class="card-body min-w-0 gap-4 p-6">
 			@webhookErrorBanner(d, f.Error)
 			@FormField(d, urlField) {
-				<input name="url" type="url" maxlength={ strconv.Itoa(f.MaxURLLen) } value={ f.URL } placeholder="https://example.com/hooks/openwa" class={ InputClass(), "font-mono" } { InputAttrs(urlField)... }/>
+				<input name="url" type="url" dir="ltr" maxlength={ strconv.Itoa(f.MaxURLLen) } value={ f.URL } placeholder="https://example.com/hooks/openwa" class={ InputClass(), "font-mono" } { InputAttrs(urlField)... }/>
 			}
+			@webhookDeviceField(d, f)
 			@FormField(d, descField) {
-				<input name="description" type="text" maxlength={ strconv.Itoa(f.MaxDescription) } value={ f.Description } class={ InputClass() } { InputAttrs(descField)... }/>
+				<input name="description" type="text" dir="auto" maxlength={ strconv.Itoa(f.MaxDescription) } value={ f.Description } class={ InputClass() } { InputAttrs(descField)... }/>
 			}
-			<fieldset>
-				<legend class="block text-sm font-medium text-foreground">{ d.Tr("webhooks.events_label") }</legend>
-				<div class="mt-1.5 flex flex-wrap gap-2">
+			@FieldGroup(d.Tr("webhooks.events_label")) {
+				<div class="flex flex-col gap-1">
 					for _, opt := range f.Events {
-						@Chip(ChipProps{Name: "event_types", Value: opt.Value, Label: d.Tr(opt.LabelKey) + " · " + opt.Value, Checked: opt.Checked})
+						@webhookEventRow(d, opt)
 					}
 				</div>
-			</fieldset>
+			}
 			if f.ID != "" {
-				<label class="inline-flex items-center gap-2 text-sm text-foreground">
-					<input type="checkbox" name="active" value="1" checked?={ f.Active } class="h-3.5 w-3.5 rounded border-border"/>
-					<span>{ d.Tr("webhooks.active_label") }</span>
+				<label class="flex min-h-11 cursor-pointer items-center justify-between gap-3 lg:min-h-8">
+					<span class="text-sm font-medium">{ d.Tr("webhooks.active_label") }</span>
+					<input type="checkbox" name="active" value="1" checked?={ f.Active } class="toggle toggle-success"/>
 				</label>
 			}
-			<div>
+			<div class="card-actions flex-wrap justify-end gap-2">
+				@AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("common.cancel"), Href: webhookCancelHref(d, f)})
 				if f.ID == "" {
 					@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Icon: "plus", Label: d.Tr("webhooks.create")})
 				} else {
 					@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("webhooks.save")})
 				}
 			</div>
-		</form>
-	}
+		</div>
+	</form>
 }
 
 templ WebhookNewPage(d web.LayoutData, f WebhookFormView) {
-	<section id="webhook-page">
+	<section id="webhook-page" class="max-w-2xl">
 		@PageHeader(d, PageHeaderProps{
-			Eyebrow:  d.Tr("nav.webhooks"),
 			Title:    d.Tr("webhooks.new_title"),
 			Subtitle: d.Tr("webhooks.new_subtitle"),
 			Actions:  AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("webhooks.back"), Href: d.ProjectPath(f.ProjectSlug, "/webhooks")}),

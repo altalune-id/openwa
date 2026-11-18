@@ -14,6 +14,7 @@ import (
 	"altalune.id/openwa/internal/apperror"
 	"altalune.id/openwa/internal/platform/capabilities"
 	"altalune.id/openwa/internal/platform/db"
+	"altalune.id/openwa/internal/platform/mailqueue"
 	"altalune.id/openwa/internal/platform/outbox"
 	"altalune.id/openwa/internal/platform/queue"
 	"altalune.id/openwa/internal/platform/sealer"
@@ -45,6 +46,8 @@ type Kernel struct {
 	Nano        NanoIDFunc
 	Caps        capabilities.Capabilities
 	Outbox      outbox.Store
+	// MailQueue is the durable queue every domain sends mail through.
+	MailQueue mailqueue.Store
 	// Queue is always non-nil: Disabled(log) when queue.enabled is false.
 	Queue *queue.Client
 

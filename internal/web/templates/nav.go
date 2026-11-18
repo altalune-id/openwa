@@ -22,6 +22,7 @@ type navGroup struct {
 //i18n:use nav.inbox
 //i18n:use nav.contacts
 //i18n:use nav.group_developers
+//i18n:use nav.quickstart
 //i18n:use nav.webhooks
 //i18n:use nav.apikeys
 //i18n:use nav.usage
@@ -35,6 +36,7 @@ func projectNav() []navGroup {
 			{Key: "contacts", Path: "/contacts", Icon: "book-user", LabelKey: "nav.contacts"},
 		}},
 		{LabelKey: "nav.group_developers", Collapsed: true, Items: []navItem{
+			{Key: "quickstart", Path: "/developers", Icon: "code", LabelKey: "nav.quickstart"},
 			{Key: "webhooks", Path: "/webhooks", Icon: "webhook", LabelKey: "nav.webhooks"},
 			{Key: "apikeys", Path: "/apikeys", Icon: "key-round", LabelKey: "nav.apikeys"},
 		}},

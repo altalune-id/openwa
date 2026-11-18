@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"altalune.id/openwa/internal/alert"
 	"altalune.id/openwa/internal/apperror"
 	"altalune.id/openwa/internal/message"
 	"altalune.id/openwa/internal/platform"
@@ -13,17 +14,20 @@ import (
 	"altalune.id/openwa/internal/platform/session"
 	"altalune.id/openwa/internal/platform/tenant"
 	"altalune.id/openwa/internal/todo"
+	"altalune.id/openwa/internal/webhook"
 	"altalune.id/openwa/scheduler"
 )
 
 //nolint:gochecknoglobals // Immutable wiring manifest; not runtime state.
-var schedulerDomains = []string{"todo", "session", "message"}
+var schedulerDomains = []string{"todo", "session", "message", "alert", "webhook"}
 
 func schedulerProviders(s *Services, sessions session.Store, loc scheduler.LocationFunc, log *slog.Logger) []scheduler.Provider {
 	return []scheduler.Provider{
 		todo.NewScheduler(s.Todos, log, loc),
 		session.NewScheduler(sessions, log),
 		message.NewScheduler(s.Messages, log, loc),
+		alert.NewScheduler(s.Alerts),
+		webhook.NewScheduler(s.Webhooks),
 	}
 }
 

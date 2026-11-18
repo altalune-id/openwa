@@ -16,6 +16,23 @@ envelope, the headers and the signature hold for every tenant endpoint. Adding a
 | Subscriptions | at least one subscribable type, no duplicates                                                                |
 | Inactive      | receives nothing new; queued deliveries retry, then fail                                                     |
 | Secret        | `whsec_` + 43 base64url chars (32 random bytes); shown once, at create/rotate                                |
+| Number        | optional, set at create only; empty = every number of the project (see [Scoping](#scoping))                  |
+
+## Scoping
+
+An endpoint may name one number (device) of its project when it is created in the console.
+
+| Endpoint     | Receives                                                                           |
+| ------------ | ---------------------------------------------------------------------------------- |
+| every number | each subscribed event of the project, as before                                    |
+| one number   | that number's `device.*` and `message.*` events, plus `webhook.ping`; nothing else |
+
+- A scoped endpoint subscribes only to device-bound types (`device.*`, `message.*`); `blog.*` is refused (`WHK003`).
+- A number from another project, or one that does not exist, is refused (`WHK009`).
+- The number never changes after create. To move, add a new endpoint.
+- Deleting a number deletes the endpoints scoped to it. Endpoints for every number stay.
+- The scope is set and shown in the console only. The REST, RPC and MCP surfaces have no webhook views.
+- Each catalog type declares `DeviceBound`; a device-bound type is always fanned out with its device (`webhook.Service.EnqueueForDevice`), so a missing device fails closed.
 
 ## Envelope
 

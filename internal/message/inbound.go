@@ -155,14 +155,14 @@ func (r *Recorder) emit(ctx context.Context, ref Ref, chat ChatRef, m *Message, 
 		mediaURL = MediaURL(r.baseURL, org, project, m.PublicID)
 	}
 	payload := eventPayload(*dev, chat, m, quotedBody, mediaURL)
-	if err := r.webhooks.Enqueue(ctx, events.MessageReceived, payload); err != nil {
+	if err := r.webhooks.EnqueueForDevice(ctx, events.MessageReceived, ref.DeviceID, payload); err != nil {
 		return err
 	}
 	if match.Outcome != MatchMatched {
 		return nil
 	}
 	payload.Matched = &events.MatchedV1{Reasons: append([]string{}, match.Reasons...), RuleID: match.RuleID, RuleName: match.RuleName}
-	return r.webhooks.Enqueue(ctx, events.MessageMatched, payload)
+	return r.webhooks.EnqueueForDevice(ctx, events.MessageMatched, ref.DeviceID, payload)
 }
 
 // NOTE: keys a DM by its phone-number JID when either address reveals one, keeping the LID beside it.

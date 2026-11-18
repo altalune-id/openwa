@@ -1,6 +1,7 @@
 package boot
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"altalune.id/openwa/internal/alert"
 	"altalune.id/openwa/internal/apikey"
 	"altalune.id/openwa/internal/auth"
 	"altalune.id/openwa/internal/blog"
@@ -16,6 +18,7 @@ import (
 	"altalune.id/openwa/internal/chat"
 	"altalune.id/openwa/internal/contact"
 	"altalune.id/openwa/internal/device"
+	i18npkg "altalune.id/openwa/internal/i18n"
 	"altalune.id/openwa/internal/invite"
 	"altalune.id/openwa/internal/message"
 	"altalune.id/openwa/internal/onboard"
@@ -66,6 +69,8 @@ type Services struct {
 	Chats      *chat.Service
 	Contacts   *contact.Service
 	Messages   *message.Service
+	Alerts     *alert.Service
+	Outages    *whatsapp.Outages
 
 	Onboard *user.OnboardWorkflow
 
@@ -75,7 +80,7 @@ type Services struct {
 	APIKeyUsage *apikey.UsageWorker
 }
 
-func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Capabilities, wa *meow.Container) (*Services, error) {
+func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Capabilities, wa *meow.Container, bundle *i18npkg.Bundle) (*Services, error) {
 	pool := k.Pool
 	pgConn := k.PgConn
 	log := k.Log
@@ -95,7 +100,8 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 	onboards := onboard.NewService(onboardStore, log, reporter.Unexpected)
 	uow := tenant.NewUnitOfWork(pgConn)
 	webhookStore := webhook.NewStore(cfg.DB, pool, pgConn)
-	webhooks := webhook.NewService(webhookStore, log, reporter.Unexpected, k.Sealer, k.Outbox, projectSlugs{svc: projects}, webhookServiceOptions(cfg)...)
+	hookDevices := &webhookDevices{}
+	webhooks := webhook.NewService(webhookStore, log, reporter.Unexpected, k.Sealer, k.Outbox, projectSlugs{svc: projects}, hookDevices, webhookServiceOptions(cfg)...)
 	posts := blog.NewService(blog.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected, uow, webhooks)
 	categories := category.NewService(category.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected)
 	tags := tag.NewService(tag.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected)
@@ -129,6 +135,7 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 		runtime, webhooks, deviceDescriber{store: deviceStore}, time.Now)
 	runtime.Subscribe(whatsappSvc)
 	devices := device.NewService(deviceStore, log, reporter.Unexpected, uow, deviceSessions{svc: whatsappSvc}, cfg.WhatsApp.DefaultCountryCode)
+	hookDevices.svc = devices
 
 	chats := chat.NewService(chat.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected, uow, groupsForChat{wa: whatsappSvc, devices: deviceStore})
 	contacts := contact.NewService(contact.NewStore(cfg.DB, pool, pgConn), log, reporter.Unexpected)
@@ -257,6 +264,20 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 	tokenAuthn := tokens.NewAuthenticator(k.Verifier, credentialScheme(keyScheme, cfg.Tokens.Introspection))
 	chain := authn.Chain{keyAuthn, user.NewAuthenticator(tokenAuthn, userStore, tenantResolution)}
 
+	outages := whatsapp.NewOutages(cfg.DB, pgConn)
+	alerts := alert.NewService(alert.Deps{
+		Store:        alert.NewStore(cfg.DB, pgConn),
+		Sessions:     alertSessions{outages: outages},
+		Members:      alertMembers{svc: orgs},
+		Projects:     alertProjects{projects: projects, orgs: orgs},
+		Queue:        k.MailQueue,
+		UnitOfWork:   uow,
+		Sealer:       k.Sealer,
+		Translations: bundle,
+		Log:          log,
+		Unexpected:   reporter.Unexpected,
+	}, alertOptions(cfg, caps))
+
 	return &Services{
 		UserStore:    userStore,
 		OrgStore:     orgStore,
@@ -283,12 +304,28 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 		Chats:        chats,
 		Contacts:     contacts,
 		Messages:     messages,
+		Alerts:       alerts,
+		Outages:      outages,
 		Onboard:      onboardWorkflow,
 		Authn:        chain,
 		KeyAuthn:     keyAuthn,
 		APIKeys:      keys,
 		APIKeyUsage:  keyUsage,
 	}, nil
+}
+
+func alertOptions(cfg *config.Config, caps capabilities.Capabilities) alert.Options {
+	n := cfg.Notifications.Disconnect
+	return alert.Options{
+		// SECURITY: List-Unsubscribe needs an absolute link, so no base URL means nothing is queued.
+		MailEnabled: caps.MailEnabled && cfg.HTTP.BaseURL != "",
+		Enabled:     n.Enabled,
+		Grace:       n.Grace,
+		Cooldown:    n.Cooldown,
+		DailyOrgCap: n.DailyOrgCap,
+		LinkBase:    strings.TrimRight(cfg.HTTP.BaseURL, "/") + cfg.HTTP.BasePath,
+		Brand:       cmp.Or(cfg.Brand.Name, "OpenWA"),
+	}
 }
 
 func onboardPolicyFrom(cfg *config.Config) user.Policy {

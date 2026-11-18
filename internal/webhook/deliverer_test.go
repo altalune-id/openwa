@@ -96,7 +96,7 @@ func (x *delivery) orgCtx(t *testing.T) context.Context {
 
 func (x *delivery) endpoint(t *testing.T, rawURL string) (*webhook.Endpoint, string) {
 	t.Helper()
-	e, err := webhook.New(x.orgID, x.project, rawURL, "orders", []events.Type{events.PostPublished})
+	e, err := webhook.New(x.orgID, x.project, nil, rawURL, "orders", []events.Type{events.PostPublished})
 	require.NoError(t, err)
 	secret, err := webhook.NewSecret()
 	require.NoError(t, err)

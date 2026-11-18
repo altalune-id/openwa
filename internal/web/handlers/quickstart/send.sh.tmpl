@@ -1,0 +1,3 @@
+curl -sS -X POST "{{.Base}}/devices/{{.Device}}/messages" -H "Authorization: Bearer $KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"to":"628111222333","text":"Hello from OpenWA"}'

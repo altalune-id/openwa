@@ -23,6 +23,8 @@ import (
 
 const managersOnlyKey = "managers_only"
 
+const webhookReadOnlyKey = "webhooks.readonly_note"
+
 func mainOf(t *testing.T, body string) string {
 	t.Helper()
 	if !strings.Contains(body, "<html") {
@@ -152,13 +154,13 @@ func TestWebhookHandler_MembersSeeAReadOnlyPage(t *testing.T) {
 	require.Equal(t, http.StatusOK, list.Code)
 	assert.Contains(t, list.Body.String(), "https://example.com/hook")
 	assert.NotContains(t, list.Body.String(), webhookBase+"/new")
-	assert.Contains(t, mainOf(t, list.Body.String()), managersOnlyKey)
+	assert.Contains(t, mainOf(t, list.Body.String()), webhookReadOnlyKey)
 
 	rec := x.doAs(t, http.MethodGet, detail, nil, member)
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
 	assert.Contains(t, body, "https://example.com/hook")
-	assert.Contains(t, mainOf(t, body), managersOnlyKey)
+	assert.Contains(t, mainOf(t, body), webhookReadOnlyKey)
 	assert.Contains(t, body, detail+"/deliveries/", "delivery details stay readable")
 	for _, suffix := range []string{`"`, `/delete"`, `/rotate"`, `/retire"`, `/test"`, `/retry"`, `/retry-failed"`} {
 		assert.NotContains(t, body, `action="`+detail+suffix, "a member sees the %s form", suffix)
@@ -168,7 +170,7 @@ func TestWebhookHandler_MembersSeeAReadOnlyPage(t *testing.T) {
 	mgr := x.do(t, http.MethodGet, detail, nil)
 	require.Equal(t, http.StatusOK, mgr.Code)
 	assert.Contains(t, mgr.Body.String(), `action="`+detail+`/rotate"`, "a manager keeps the forms")
-	assert.NotContains(t, mgr.Body.String(), managersOnlyKey)
+	assert.NotContains(t, mgr.Body.String(), webhookReadOnlyKey)
 }
 
 // SECURITY: a member is refused a rules write and the rules stay as they were.
@@ -359,7 +361,7 @@ func TestProjects_RenameNeedsAManager(t *testing.T) {
 	proj, err := f.Projects.Create(setTenant(context.Background(), o.ID, owner), o.ID, "alpha", "Alpha")
 	require.NoError(t, err)
 	mux := http.NewServeMux()
-	handlers.NewSettingsHandler(f.Deps, f.Projects, nil).Register(mux)
+	handlers.NewSettingsHandler(f.Deps, f.Projects, nil, newTestAlerts(t, nil)).Register(mux)
 	const path = "/orgs/acme/projects/alpha/rename"
 	member := addMember(t, f, o.ID, owner, org.RoleMember)
 
@@ -424,7 +426,7 @@ func TestManagerGate_ALookupErrorRefuses(t *testing.T) {
 		proj, err := f.Projects.Create(setTenant(context.Background(), o.ID, owner), o.ID, "alpha", "Alpha")
 		require.NoError(t, err)
 		mux := http.NewServeMux()
-		handlers.NewSettingsHandler(f.Deps, f.Projects, nil).Register(mux)
+		handlers.NewSettingsHandler(f.Deps, f.Projects, nil, newTestAlerts(t, nil)).Register(mux)
 		req := f.authedRequest(t, http.MethodPost, "/orgs/acme/projects/alpha/rename", "name=Renamed", session.Principal{UserID: owner, ActiveOrgID: o.ID})
 		before := failManagerLookup(f)
 

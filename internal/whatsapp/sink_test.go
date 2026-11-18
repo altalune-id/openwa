@@ -147,6 +147,7 @@ func TestSink_ConnectedEmitsOnceInsideOneUnitOfWork(t *testing.T) {
 	calls := f.hooks.Recorded()
 	require.Len(t, calls, 1)
 	require.Equal(t, events.DeviceConnected, calls[0].Type)
+	require.Equal(t, f.ref.DeviceID, *calls[0].DeviceID, "the event names its device")
 	require.True(t, calls[0].InTx, "the event must be enqueued inside the transition's unit of work")
 	require.Equal(t, events.DeviceConnectedV1{
 		Device: events.DeviceRefV1{ID: testDevicePublicID, Name: "sales-01", Phone: "628111"},

@@ -98,6 +98,7 @@ linters:
             - "**/internal/message/retention.go"
             - "**/internal/*/whatsapp.go"
             - "**/internal/*/device.go"
+            - "**/internal/*/alert.go"
             - "**/internal/device/rules.go"
             - "**/internal/whatsapp/{engine,types,jid,session,lease}.go"
             - "**/internal/blog/*/{category,tag,store,errors}.go"

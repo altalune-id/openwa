@@ -153,9 +153,12 @@ one account once and never overwrite it. Boot writes nothing — it reconciles t
 
 ## Console
 
-| Key          | Default  | Awareness | Meaning                                                                 |
-| ------------ | -------- | --------- | ----------------------------------------------------------------------- |
-| `brand.name` | `OpenWA` | `-`       | Wordmark in the top bar, the `<title>` suffix and the user-menu footer. |
+| Key                                   | Default  | Awareness | Meaning                                                                                              |
+| ------------------------------------- | -------- | --------- | ---------------------------------------------------------------------------------------------------- |
+| `brand.name`                          | `OpenWA` | `-`       | Wordmark in the top bar, the `<title>` suffix and the user-menu footer.                              |
+| `connect.recommendedAgent.name`       | `""`     | `-`       | Names one agent tile on the Connect an AI agent card. Set all three keys or none; max 40 characters. |
+| `connect.recommendedAgent.consoleURL` | `""`     | `-`       | The tile's link to that agent's console. Must be an `https://` URL.                                  |
+| `connect.recommendedAgent.guideURL`   | `""`     | `-`       | The tile's link to that agent's connect guide. Must be an `https://` URL.                            |
 
 ## MCP and queue
 

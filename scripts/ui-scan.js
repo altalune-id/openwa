@@ -1,6 +1,6 @@
 // Run with Playwright MCP browser_evaluate: pass this file's text as the function, e.g. (opts) => ...
 // opts.drawer: CSS selector of an off-canvas drawer, skipped while closed. Returns {hits, summary}.
-// Hit kinds: document-scroll, overflow-x, ancestor-clip (part of a box cut off by an overflow hidden/clip ancestor), text-overlap (skips content that scrolls clear of a fixed or sticky bar, and raised floating panels over content), occluded-content, wrapped-control, small-target (filled, .btn or menu-row controls under 44px below 1024px), asymmetric-box. asymmetric-box compares padding, then the children's union: top vs bottom always, start vs end when the last child is a non-text element or the box is justify-between/center (logical, flipped for RTL). Opt out with data-scan-asym="<reason>" or data-scan-small="<reason>".
+// Hit kinds: document-scroll, overflow-x, ancestor-clip (part of a box cut off by an overflow hidden/clip ancestor; content inside a nearer auto/scroll ancestor counts as reachable, and that scroller is checked in turn), text-overlap (skips content that scrolls clear of a fixed or sticky bar, and raised floating panels over content), occluded-content, wrapped-control, small-target (filled, .btn or menu-row controls under 44px below 1024px), asymmetric-box. asymmetric-box compares padding, then the children's union (clamped to the box on a scrolling axis): top vs bottom always, start vs end when the last child is a non-text element or the box is justify-between/center (logical, flipped for RTL). Opt out with data-scan-asym="<reason>" or data-scan-small="<reason>".
 async (opts = {}) => {
   const { drawer = null, snippet = 60 } = opts;
   const frame = () => new Promise((r) => { requestAnimationFrame(() => requestAnimationFrame(r)); setTimeout(r, 100); });
@@ -57,7 +57,7 @@ async (opts = {}) => {
     for (let n = el.parentElement; n && n !== document.documentElement; n = n.parentElement) {
       const cs = getComputedStyle(n);
       const cx = /hidden|clip/.test(cs.overflowX), cy = /hidden|clip/.test(cs.overflowY);
-      if (!cx && !cy) continue;
+      if (!cx && !cy && !/auto|scroll/.test(cs.overflowX + cs.overflowY)) continue;
       const b = n.getBoundingClientRect();
       const bl = parseFloat(cs.borderLeftWidth), br = parseFloat(cs.borderRightWidth), bt = parseFloat(cs.borderTopWidth), bb = parseFloat(cs.borderBottomWidth);
       const outX = cx && (r.left < b.left + bl - 1 || r.right > b.right - br + 1);
@@ -194,6 +194,8 @@ async (opts = {}) => {
     if (!parts.length) continue;
     const r = el.getBoundingClientRect();
     const u = { left: Math.min(...parts.map((p) => p.rect.left)), right: Math.max(...parts.map((p) => p.rect.right)), top: Math.min(...parts.map((p) => p.rect.top)), bottom: Math.max(...parts.map((p) => p.rect.bottom)) };
+    if (/auto|scroll/.test(cs.overflowY)) { u.top = Math.max(u.top, r.top + px(cs.borderTopWidth) + px(cs.paddingTop)); u.bottom = Math.min(u.bottom, r.bottom - px(cs.borderBottomWidth) - px(cs.paddingBottom)); }
+    if (/auto|scroll/.test(cs.overflowX)) { u.left = Math.max(u.left, r.left + px(cs.borderLeftWidth) + px(cs.paddingLeft)); u.right = Math.min(u.right, r.right - px(cs.borderRightWidth) - px(cs.paddingRight)); }
     const top = u.top - (r.top + px(cs.borderTopWidth) + px(cs.paddingTop));
     const bottom = r.bottom - px(cs.borderBottomWidth) - px(cs.paddingBottom) - u.bottom;
     if (Math.abs(top - bottom) > 1) add('asymmetric-box', el, [{ childTop: Math.round(top), childBottom: Math.round(bottom) }]);

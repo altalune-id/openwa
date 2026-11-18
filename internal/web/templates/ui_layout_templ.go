@@ -282,7 +282,7 @@ func Card(p CardProps) templ.Component {
 			templ_7745c5c3_Var12 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<section class=\"card min-w-0 border border-base-300 bg-base-100\"><div class=\"card-body min-w-0 gap-0\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<section class=\"card min-w-0 border border-base-300 bg-base-100\"><div class=\"card-body min-w-0 gap-0 p-6\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

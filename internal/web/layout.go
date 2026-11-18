@@ -104,6 +104,15 @@ type LayoutData struct {
 	Nonce string
 	// SECURITY: gates the hx-csp nonce gate, which strips every htmx attribute when it cannot read the nonce back.
 	CSPEnforced bool
+	// Attention is the active project's numbers that are down past the alert grace; nil hides the banner.
+	Attention *Attention
+}
+
+// Attention names the one number that needs attention, or counts several; DeviceID and Name are set only when Count is 1.
+type Attention struct {
+	Count    int
+	DeviceID string
+	Name     string
 }
 
 // LocaleOption is one row in the locale-selector dropdown.
@@ -243,6 +252,19 @@ func (d LayoutData) OrgPath(sub string) string {
 // ProjectPath returns sub under one of the active org's projects.
 func (d LayoutData) ProjectPath(projectSlug, sub string) string {
 	return d.OrgPath("/projects/" + projectSlug + sub)
+}
+
+// ShowAttention reports whether the banner shows: hidden with nothing to report, and on the page of the one number it names.
+func (d LayoutData) ShowAttention() bool {
+	if d.Attention == nil || d.Attention.Count == 0 {
+		return false
+	}
+	if d.Attention.Count > 1 || d.ActiveProject == nil {
+		return true
+	}
+	path, _, _ := strings.Cut(d.CurrentPath, "?")
+	own := d.ProjectPath(d.ActiveProject.Slug, "/devices/"+d.Attention.DeviceID)
+	return path != own && path != strings.TrimPrefix(own, d.BasePath)
 }
 
 // OIDCButtonLabel returns cfg.OIDC.ButtonLabel if set, else fallback.

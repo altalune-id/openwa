@@ -23,7 +23,7 @@ func TestSettings_ShowsRetentionAndPendingAndSaves(t *testing.T) {
 	x.Store.Seed(message.NewInbound(message.Ref{DeviceID: x.device, OrgID: x.tc.OrgID, ProjectID: x.tc.ProjectID}, uuid.New(), fakes.MessagePublicID(),
 		message.InboundInput{WAID: "OLD", Type: "text", Timestamp: time.Now().AddDate(0, 0, -40)}))
 	mux := http.NewServeMux()
-	handlers.NewSettingsHandler(x.Deps, x.Projects, x.Messages).Register(mux)
+	handlers.NewSettingsHandler(x.Deps, x.Projects, x.Messages, newTestAlerts(t, nil)).Register(mux)
 	p := session.Principal{UserID: x.uid, ActiveOrgID: x.org}
 
 	rec := httptest.NewRecorder()
@@ -52,7 +52,7 @@ func TestSettings_RetentionPostNeedsAnOwnerOrAdmin(t *testing.T) {
 	_, err := x.Orgs.AddMember(setTenant(context.Background(), x.org, x.uid), x.org, member, org.RoleMember)
 	require.NoError(t, err)
 	mux := http.NewServeMux()
-	handlers.NewSettingsHandler(x.Deps, x.Projects, x.Messages).Register(mux)
+	handlers.NewSettingsHandler(x.Deps, x.Projects, x.Messages, newTestAlerts(t, nil)).Register(mux)
 	p := session.Principal{UserID: member, ActiveOrgID: x.org}
 
 	rec := httptest.NewRecorder()
@@ -72,7 +72,7 @@ func TestSettings_RetentionPostNeedsAnOwnerOrAdmin(t *testing.T) {
 func (x *inboxFixture) settings(t *testing.T, method, target, body string, p session.Principal) *httptest.ResponseRecorder {
 	t.Helper()
 	mux := http.NewServeMux()
-	handlers.NewSettingsHandler(x.Deps, x.Projects, x.Messages).Register(mux)
+	handlers.NewSettingsHandler(x.Deps, x.Projects, x.Messages, newTestAlerts(t, nil)).Register(mux)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, x.authedRequest(t, method, target, body, p))
 	return rec

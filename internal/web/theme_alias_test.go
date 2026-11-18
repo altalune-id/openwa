@@ -5,99 +5,49 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"sort"
 	"strings"
 	"testing"
 )
 
-var (
-	aliasBlock      = regexp.MustCompile(`(?s)@theme inline \{(.*?)\n\}`)
-	aliasName       = regexp.MustCompile(`--color-([a-z0-9-]+):`)
-	classTokenSplit = regexp.MustCompile("[\\s\"'`{}(),]+")
-)
+var classTokenSplit = regexp.MustCompile("[\\s\"'`{}(),]+")
 
 const tokenUtilityPrefixes = `text|bg|border(?:-[trblxyse])?|ring(?:-offset)?|outline|divide|fill|stroke|from|via|to|accent|caret|decoration|shadow|placeholder`
 
-func aliasAllowlist() []string {
+func oldTokenNames() []string {
 	return []string{
-		"background", "border", "card", "card-foreground", "destructive", "destructive-foreground", "foreground",
-		"input", "muted", "muted-foreground", "primary-foreground", "ring",
-	}
-}
-
-func oldTokensWithoutAlias() []string {
-	return []string{
-		"accent-foreground", "chart-1", "chart-2", "chart-3", "chart-4", "chart-5", "info-foreground",
-		"popover", "popover-foreground", "secondary-foreground", "success-foreground", "warning-foreground",
+		"accent-foreground", "background", "border", "card", "card-foreground", "chart-1", "chart-2", "chart-3", "chart-4", "chart-5",
+		"destructive", "destructive-foreground", "foreground", "info-foreground", "input", "muted", "muted-foreground",
+		"popover", "popover-foreground", "primary-foreground", "ring", "secondary-foreground", "success-foreground", "warning-foreground",
 		"sidebar", "sidebar-accent", "sidebar-accent-foreground", "sidebar-border", "sidebar-foreground",
 		"sidebar-primary", "sidebar-primary-foreground", "sidebar-ring",
 	}
 }
 
-// TestAliasBlockMatchesAllowlist fails when the temporary alias block gains or loses a name the allowlist does not.
-func TestAliasBlockMatchesAllowlist(t *testing.T) {
-	got := aliasNames(t)
-	want := aliasAllowlist()
-	sort.Strings(want)
-	if !slices.Equal(got, want) {
-		t.Errorf("@theme inline aliases = %v, allowlist = %v; the alias layer only shrinks", got, want)
-	}
-}
-
-// TestNoOldTokenOutsideAllowlist fails when a template uses an old token name that the alias layer does not map.
-func TestNoOldTokenOutsideAllowlist(t *testing.T) {
-	banned := tokenUtilityPattern(oldTokensWithoutAlias())
+// TestNoOldTokenNames fails when a template, Go class string or script uses an old shadcn token utility; use daisyUI semantic colors.
+func TestNoOldTokenNames(t *testing.T) {
+	banned := tokenUtilityPattern(oldTokenNames())
 	var hits []string
 	for class, files := range tokenUses(t, banned) {
 		hits = append(hits, class+" <- "+strings.Join(dedupe(files), ", "))
 	}
 	sort.Strings(hits)
 	if len(hits) > 0 {
-		t.Errorf("old token utilities outside the alias allowlist; use daisyUI semantic colors:\n  %s", strings.Join(hits, "\n  "))
+		t.Errorf("old token utilities; use daisyUI semantic colors:\n  %s", strings.Join(hits, "\n  "))
 	}
 }
 
-// TestAliasUtilitiesAreDefined fails when a template uses an alias utility that the compiled stylesheet lacks.
-func TestAliasUtilitiesAreDefined(t *testing.T) {
-	used := tokenUses(t, tokenUtilityPattern(aliasNames(t)))
-	if len(used) == 0 {
-		t.Fatal("found no alias utilities in the templates; the scan is broken")
-	}
-	b, err := staticFS.ReadFile("static/app.css")
-	if err != nil {
-		t.Fatalf("read static/app.css: %v", err)
-	}
-	sheet := string(b)
-	var missing []string
-	for class, files := range used {
-		if !selectorDefined(sheet, "."+escapeClass(class)) {
-			missing = append(missing, class+" <- "+strings.Join(dedupe(files), ", "))
-		}
-	}
-	sort.Strings(missing)
-	if len(missing) > 0 {
-		t.Errorf("%d alias utilities are used but defined in no stylesheet; check the @theme block in internal/web/ui/app.tailwind.css and run `make ui-vendor`:\n  %s",
-			len(missing), strings.Join(missing, "\n  "))
-	}
-}
-
-func aliasNames(t *testing.T) []string {
-	t.Helper()
+// TestStylesheetDefinesNoOldTokens fails when the stylesheet source declares a color under an old token name again.
+func TestStylesheetDefinesNoOldTokens(t *testing.T) {
 	src, err := os.ReadFile("ui/app.tailwind.css")
 	if err != nil {
 		t.Fatalf("read ui/app.tailwind.css: %v", err)
 	}
-	block := aliasBlock.FindStringSubmatch(string(src))
-	if block == nil {
-		t.Fatal("no @theme inline block in ui/app.tailwind.css")
+	for _, name := range oldTokenNames() {
+		if strings.Contains(string(src), "--color-"+name+":") {
+			t.Errorf("ui/app.tailwind.css declares --color-%s; the old token layer is gone, use daisyUI semantic colors", name)
+		}
 	}
-	var names []string
-	for _, m := range aliasName.FindAllStringSubmatch(block[1], -1) {
-		names = append(names, m[1])
-	}
-	sort.Strings(names)
-	return names
 }
 
 func tokenUtilityPattern(tokens []string) *regexp.Regexp {
@@ -150,18 +100,10 @@ func classSources(t *testing.T) []string {
 	if err != nil {
 		t.Fatalf("walk templates: %v", err)
 	}
-	return out
-}
-
-func escapeClass(class string) string {
-	var b strings.Builder
-	for i := 0; i < len(class); i++ {
-		if !isClassByte(class[i]) || class[i] == '\\' {
-			b.WriteByte('\\')
-		}
-		b.WriteByte(class[i])
+	if len(out) == 0 {
+		t.Fatal("found no class sources; the scan is broken")
 	}
-	return b.String()
+	return out
 }
 
 func selectorDefined(sheet, selector string) bool {

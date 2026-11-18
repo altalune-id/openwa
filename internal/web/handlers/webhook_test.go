@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/device"
 	"altalune.id/openwa/internal/i18n"
 	"altalune.id/openwa/internal/platform/events"
 	"altalune.id/openwa/internal/platform/outbox"
@@ -44,11 +45,12 @@ func (slugOf) SlugOf(context.Context, uuid.UUID) (string, error) { return "alpha
 
 type webhookFixture struct {
 	*handlerFixture
-	Hooks  *webhook.Service
-	Store  *fakes.WebhookStore
-	Sealer sealer.Sealer
-	Outbox *fakes.Outbox
-	Mux    *http.ServeMux
+	Hooks   *webhook.Service
+	Store   *fakes.WebhookStore
+	Sealer  sealer.Sealer
+	Outbox  *fakes.Outbox
+	Devices *device.Service
+	Mux     *http.ServeMux
 
 	uid     uuid.UUID
 	org     uuid.UUID
@@ -65,7 +67,8 @@ func newWebhookFixture(t *testing.T) *webhookFixture {
 	require.NoError(t, err)
 	ob := fakes.NewOutbox()
 	store := fakes.NewWebhookStore()
-	hooks := webhook.NewService(store, discardLogger(), passthroughUnexpected(), sl, ob, slugOf{})
+	devices := device.NewService(fakes.NewDevice(), discardLogger(), passthroughUnexpected(), fakes.UnitOfWork, fakes.NewDeviceSessions(), "")
+	hooks := webhook.NewService(store, discardLogger(), passthroughUnexpected(), sl, ob, slugOf{}, deviceIDs{svc: devices})
 
 	uid := uuid.New()
 	o := f.seedOrg(t, "acme", uid)
@@ -73,8 +76,8 @@ func newWebhookFixture(t *testing.T) *webhookFixture {
 	require.NoError(t, err)
 
 	mux := http.NewServeMux()
-	handlers.NewWebhookHandler(f.Deps, f.Projects, hooks).Register(mux)
-	return &webhookFixture{handlerFixture: f, Hooks: hooks, Store: store, Sealer: sl, Outbox: ob, Mux: mux, uid: uid, org: o.ID, project: proj}
+	handlers.NewWebhookHandler(f.Deps, f.Projects, hooks, devices).Register(mux)
+	return &webhookFixture{handlerFixture: f, Hooks: hooks, Store: store, Sealer: sl, Outbox: ob, Devices: devices, Mux: mux, uid: uid, org: o.ID, project: proj}
 }
 
 func (x *webhookFixture) do(t *testing.T, method, target string, form url.Values) *httptest.ResponseRecorder {
@@ -104,7 +107,7 @@ func (x *webhookFixture) ctx() context.Context {
 
 func (x *webhookFixture) create(t *testing.T) *webhook.Endpoint {
 	t.Helper()
-	e, _, err := x.Hooks.Create(x.ctx(), "https://example.com/hook", "orders", []events.Type{events.PostPublished})
+	e, _, err := x.Hooks.Create(x.ctx(), "https://example.com/hook", "orders", []events.Type{events.PostPublished}, "")
 	require.NoError(t, err)
 	return e
 }
@@ -466,7 +469,7 @@ func TestWebhookHandler_HTMXRotateRotatesOnce(t *testing.T) {
 		body, _ = io.ReadAll(r.Body)
 	}))
 	t.Cleanup(rcv.Close)
-	e, original, err := x.Hooks.Create(x.ctx(), rcv.URL+"/hook", "", []events.Type{events.PostPublished})
+	e, original, err := x.Hooks.Create(x.ctx(), rcv.URL+"/hook", "", []events.Type{events.PostPublished}, "")
 	require.NoError(t, err)
 
 	rec := x.doHX(t, http.MethodPost, webhookBase+"/"+e.ID.String()+"/rotate", nil)
@@ -647,7 +650,7 @@ func TestWebhookHandler_RefusalsAreNotLoggedAsErrors(t *testing.T) {
 	var buf bytes.Buffer
 	x.Deps.Logger = log.New(&buf, "", 0)
 	x.Mux = http.NewServeMux()
-	handlers.NewWebhookHandler(x.Deps, x.Projects, x.Hooks).Register(x.Mux)
+	handlers.NewWebhookHandler(x.Deps, x.Projects, x.Hooks, x.Devices).Register(x.Mux)
 	e := x.create(t)
 
 	x.do(t, http.MethodPost, webhookBase, endpointForm("http://example.com/hook", string(events.PostPublished)))
@@ -677,6 +680,8 @@ func TestWebhookErrorRules(t *testing.T) {
 		{&webhook.InvalidEventTypesError{Reason: "r"}, "webhooks.error.invalid_event_types", true, 0},
 		{&webhook.InvalidDescriptionError{Reason: "r"}, "webhooks.error.invalid_description", true, webhook.MaxDescriptionRunes},
 		{&webhook.EndpointLimitError{Limit: webhook.MaxEndpointsPerProject}, "webhooks.error.limit", true, webhook.MaxEndpointsPerProject},
+		{&webhook.DeviceNotFoundError{ID: "dev_x"}, "webhooks.error.number_not_found", true, 0},
+		{&webhook.DuplicateEndpointError{URL: "https://x.example"}, "webhooks.error.duplicate", true, 0},
 		{&webhook.NotFoundError{ID: "x"}, "webhooks.error.not_found", true, 0},
 		{&webhook.DeliveryNotFoundError{ID: "x"}, "webhooks.error.delivery_not_found", true, 0},
 		{&webhook.DeliveryNotRetryableError{ID: "x"}, "webhooks.error.not_retryable", true, 0},

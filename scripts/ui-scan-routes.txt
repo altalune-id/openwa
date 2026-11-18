@@ -1,4 +1,4 @@
-# route<TAB>state<TAB>seed step. Widths: 390, 768, 1024, 1280. Modes: light, dark; plus ar-SA (POST /locale) at 390. Placeholders: {o} org slug, {p} project slug, {d} device id, {r} rule id, {c} chat id, {w} webhook id, {dl} delivery id. Pass the drawer selector ".drawer-side" for every signed-in route.
+# route<TAB>state<TAB>seed step. Widths: 390, 768, 1024, 1280. Modes: light, dark; plus ar-SA (POST /locale) at 390. Placeholders: {o} org slug, {p} project slug, {d} device id, {r} rule id, {c} chat id, {w} webhook id, {dl} delivery id, {t} unsubscribe token. Pass the drawer selector ".drawer-side" for every signed-in route.
 /login	default	none, signed out
 /login	error	submit a wrong credential
 /login	theme open	open the appearance dropdown in the top bar
@@ -99,9 +99,34 @@
 /orgs/{o}/projects/{p}/webhooks/new	error	submit with an invalid URL
 /orgs/{o}/projects/{p}/webhooks/{w}	default	create a webhook and send a test delivery
 /orgs/{o}/projects/{p}/webhooks/{w}/deliveries/{dl}	default	send a test delivery
+/orgs/{o}/projects/{p}/webhooks	member	sign in as a plain member (read-only note, no New or Rotate)
+/orgs/{o}/projects/{p}/webhooks	rotate dialog open	click Rotate on a webhook row
+/orgs/{o}/projects/{p}/webhooks/new	number picked	pair a number, pick it in the Number select
+/orgs/{o}/projects/{p}/webhooks/{w}	created	create a webhook (signing secret shown once)
+/orgs/{o}/projects/{p}/webhooks/{w}	rotated	click Rotate signing secret (new secret shown once, Finish switch)
+/orgs/{o}/projects/{p}/webhooks/{w}	scoped	create a webhook for one number (Number and its ID shown, read-only on edit)
+/orgs/{o}/projects/{p}/webhooks/{w}	failing	point a webhook at a dead address and send a test (failed alert, Retry)
+/orgs/{o}/projects/{p}/webhooks/{w}	member	sign in as a plain member (values read-only, no Settings form, no send-a-test hint)
+/orgs/{o}/projects/{p}/devices/{d}/connect	default	pair a number, open Connect an AI agent
+/orgs/{o}/projects/{p}/devices/{d}/connect	key created	click Create key (key shown once)
+/orgs/{o}/projects/{p}/devices/{d}/connect	saved	save an https agent address (signing secret shown once)
+/orgs/{o}/projects/{p}/devices/{d}/connect	testing	click Send a test (spinner)
+/orgs/{o}/projects/{p}/devices/{d}/connect	delivered	send a test to a receiver that answers 200
+/orgs/{o}/projects/{p}/devices/{d}/connect	failed	send a test to a receiver that answers 401 (Details open)
+/orgs/{o}/projects/{p}/devices/{d}/connect	recommended agent	set connect.recommendedAgent in config
+/orgs/{o}/projects/{p}/devices/{d}/connect	member	sign in as a plain member (read-only, managers-only note)
+/orgs/{o}/projects/{p}/developers	default	pair a number, open Developers > Quickstart
+/orgs/{o}/projects/{p}/developers	payload open	open What a message looks like
+/orgs/{o}/projects/{p}/developers	no number	create a project with no number
+/orgs/{o}/projects/{p}/developers	member	sign in as a plain member (no Send a test)
 /orgs/{o}/projects/{p}/apikeys	empty	create a project
 /orgs/{o}/projects/{p}/apikeys	data	create 2 project API keys
 /orgs/{o}/projects/{p}/apikeys	dialog open	click revoke on a key
+/orgs/{o}/projects/{p}/apikeys	preset dialog open	pick Let my agent send replies, click Continue
+/orgs/{o}/projects/{p}/apikeys	custom dialog open	pick Custom, click Continue (scope chips shown)
+/orgs/{o}/projects/{p}/apikeys	created	create a key from a preset (key shown once)
+/orgs/{o}/projects/{p}/apikeys	more key types open	open More key types
+/orgs/{o}/projects/{p}/apikeys	member	sign in as a plain member (read-only note, no presets)
 /orgs/{o}/projects/{p}/usage	default	create a project
 /orgs/{o}/projects/{p}/settings	default	sign in as an org owner
 /orgs/{o}/projects/{p}/settings	saved	rename the project (lands on ?saved=name)
@@ -111,4 +136,14 @@
 /orgs/{o}/projects/{p}/settings	project time open	set scheduler zone to one that differs from the browser, open Project time
 /orgs/{o}/projects/{p}/settings	advanced open	open Advanced
 /orgs/{o}/projects/{p}/settings	retention error	save retention days 0
+/orgs/{o}/projects/{p}/settings	alerts error	save alert recipients with an invalid address
+/orgs/{o}/projects/{p}/settings	alerts off	turn the disconnect email toggle off and save
+/orgs/{o}/projects/{p}/settings	alerts unsubscribed	unsubscribe a saved recipient from its email link
+/orgs/{o}/projects/{p}/settings	alerts mail off	run with mail.driver=console (email not set up note, test disabled)
+/orgs/{o}/projects/{p}/overview	banner one	set one number logged_out past grace (banner names it, Fix it)
+/orgs/{o}/projects/{p}/overview	banner several	set two numbers logged_out (banner count, Review)
+/orgs/{o}/projects/{p}/settings	banner member	banner one, signed in as a plain member
+/alerts/unsubscribe?t={t}	confirm	signed out, open the unsubscribe link from a disconnect email ({t} = its token)
+/alerts/unsubscribe	done	click Stop emails
+/alerts/unsubscribe?t=bad	invalid	signed out, open a tampered link
 /onboard	default	open an onboarding link as a signed-out visitor

@@ -64,20 +64,20 @@ templ postStatusBadge(d web.LayoutData, published bool) {
 templ PostList(d web.LayoutData, v PostsView) {
 	<div id="post-list" class="mt-6">
 		@postBanner(d, v.ErrorKind, v.ErrorCode)
-		<ul class="mt-4 divide-y divide-border/50 overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+		<ul class="mt-4 divide-y divide-base-300 overflow-hidden rounded-box border border-base-300 bg-base-100">
 			if len(v.Items) == 0 {
-				<li class="px-4 py-8 text-center text-sm text-muted-foreground">{ d.Tr("blog.posts_empty") }</li>
+				<li class="px-4 py-8 text-center text-sm text-base-content/70">{ d.Tr("blog.posts_empty") }</li>
 			}
 			for _, p := range v.Items {
 				<li class="flex flex-wrap items-center gap-3 px-4 py-3">
 					<div class="min-w-0 flex-1">
 						<a
 							href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/posts/"+p.ID+"/edit")) }
-							class="block truncate text-sm font-medium text-foreground hover:underline"
+							class="block truncate text-sm font-medium hover:underline"
 						>
 							{ p.Title }
 						</a>
-						<p class="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+						<p class="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-base-content/70">
 							<code class="font-mono">{ p.Slug }</code>
 							<span>·</span>
 							if p.CategoryName == "" {
@@ -137,7 +137,7 @@ templ PostList(d web.LayoutData, v PostsView) {
 						<button
 							type="submit"
 							aria-label={ d.Tr("blog.post_delete") + ": " + p.Title }
-							class="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+							class="rounded-box p-1.5 text-base-content/70 hover:bg-error/10 hover:text-error"
 						>
 							@icons.Icon("trash-2", "h-4 w-4")
 						</button>
@@ -150,10 +150,10 @@ templ PostList(d web.LayoutData, v PostsView) {
 
 templ PostsPage(d web.LayoutData, v PostsView) {
 	<section>
-		<header class="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-4">
+		<header class="flex flex-wrap items-end justify-between gap-3 border-b border-base-300 pb-4">
 			<div>
-				<h1 class="text-2xl font-semibold text-foreground">{ d.Tr("blog.posts_title") }</h1>
-				<p class="mt-1 text-sm text-muted-foreground">{ d.Tr("blog.posts_subtitle") }</p>
+				<h1 class="text-2xl font-semibold">{ d.Tr("blog.posts_title") }</h1>
+				<p class="mt-1 text-sm text-base-content/70">{ d.Tr("blog.posts_subtitle") }</p>
 			</div>
 			<a
 				href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/posts/new")) }

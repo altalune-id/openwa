@@ -65,6 +65,8 @@ func TestDevices_TimelineComesFromTheStoredTimes(t *testing.T) {
 	signedOut := connected.Add(4 * time.Hour)
 	x := newDeviceFixture(t)
 	d := x.seed(t, "Gudang")
+	d.CreatedAt = connected.Add(-time.Hour)
+	x.Store.Seed(d)
 
 	order := func(body string, keys ...string) {
 		t.Helper()

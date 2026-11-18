@@ -10,13 +10,13 @@ import (
 
 // HomeNumber is one number on Home with its activity.
 type HomeNumber struct {
-	ID      string
-	Name    string
-	Phone   string
+	ID       string
+	Name     string
+	Phone    string
 	Status   SessionStatus
 	NeedsFix bool
 	LastAt   *time.Time
-	Last24h int64
+	Last24h  int64
 }
 
 // HomeSteps says which setup checklist steps are done.
@@ -55,6 +55,13 @@ func (v OverviewView) rulesHref(d web.LayoutData) string {
 		return d.ProjectPath(v.ProjectSlug, "/devices/new")
 	}
 	return d.ProjectPath(v.ProjectSlug, "/devices/"+v.RulesDevice+"/rules")
+}
+
+func (v OverviewView) connectHref(d web.LayoutData) string {
+	if v.RulesDevice == "" {
+		return d.ProjectPath(v.ProjectSlug, "/devices/new")
+	}
+	return d.ProjectPath(v.ProjectSlug, "/devices/"+v.RulesDevice+"/connect")
 }
 
 func numberHref(d web.LayoutData, projectSlug string, n HomeNumber) string {
@@ -136,9 +143,9 @@ templ homeNumbers(d web.LayoutData, v OverviewView) {
 						<span class="text-base-content/70 tabular-nums">{ d.Tr("home.last_24h_count", "Count", n.Last24h) }</span>
 					</div>
 					if n.NeedsFix && v.CanManage {
-						<a href={ templ.SafeURL(numberHref(d, v.ProjectSlug, n)) } class="btn btn-sm max-lg:btn-md">{ d.Tr("home.fix_it") }</a>
+						<a href={ templ.SafeURL(numberHref(d, v.ProjectSlug, n)) } class="btn btn-sm whitespace-nowrap max-lg:btn-md">{ d.Tr("home.fix_it") }</a>
 					} else {
-						<a href={ templ.SafeURL(numberHref(d, v.ProjectSlug, n)) } class="btn btn-sm max-lg:btn-md">{ d.Tr("common.open") }</a>
+						<a href={ templ.SafeURL(numberHref(d, v.ProjectSlug, n)) } class="btn btn-sm whitespace-nowrap max-lg:btn-md">{ d.Tr("common.open") }</a>
 					}
 				</li>
 			}
@@ -176,9 +183,9 @@ templ homeNumbers(d web.LayoutData, v OverviewView) {
 							<td class="px-4 py-2 text-end tabular-nums">{ strconv.FormatInt(n.Last24h, 10) }</td>
 							<td class="px-4 py-2 text-end">
 								if n.NeedsFix && v.CanManage {
-									<a href={ templ.SafeURL(numberHref(d, v.ProjectSlug, n)) } class="btn btn-sm">{ d.Tr("home.fix_it") }</a>
+									<a href={ templ.SafeURL(numberHref(d, v.ProjectSlug, n)) } class="btn btn-sm whitespace-nowrap">{ d.Tr("home.fix_it") }</a>
 								} else {
-									<a href={ templ.SafeURL(numberHref(d, v.ProjectSlug, n)) } class="btn btn-sm">{ d.Tr("common.open") }</a>
+									<a href={ templ.SafeURL(numberHref(d, v.ProjectSlug, n)) } class="btn btn-sm whitespace-nowrap">{ d.Tr("common.open") }</a>
 								}
 							</td>
 						</tr>
@@ -225,7 +232,7 @@ templ homeChecklist(d web.LayoutData, v OverviewView) {
 				}
 				@homeStep(d, 3, s.Agent, d.Tr("home.step_agent"), d.Tr("home.step_agent_hint")) {
 					if v.CanManage {
-						<a href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/webhooks/new")) } class={ "btn mt-1 lg:btn-sm", templ.KV("btn-primary", s.Linked && s.Rules) }>{ d.Tr("home.step_agent_cta") }</a>
+						<a href={ templ.SafeURL(v.connectHref(d)) } class={ "btn mt-1 lg:btn-sm", templ.KV("btn-primary", s.Linked && s.Rules) }>{ d.Tr("home.step_agent_cta") }</a>
 					}
 				}
 				@homeStep(d, 4, s.Tested, d.Tr("home.step_test"), d.Tr("home.step_test_hint")) {

@@ -1,0 +1,373 @@
+package templates
+
+import (
+	"strconv"
+
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
+)
+
+// ConnectEndpoint is the number's existing scoped message.matched webhook.
+type ConnectEndpoint struct {
+	ID  string
+	URL string
+}
+
+// RecommendedAgent is the operator-configured agent tile; nil hides it.
+type RecommendedAgent struct {
+	Name       string
+	ConsoleURL string
+	GuideURL   string
+}
+
+// ConnectTest is the latest test delivery: State is idle, waiting, retrying, delivered or failed; Reason is status or unreachable; PollURL empty stops polling.
+type ConnectTest struct {
+	State   string
+	Reason  string
+	Code    int
+	Polls   int
+	PollURL string
+}
+
+// ConnectView is the connect-an-agent card. SECURITY: KeyPlaintext and Secret are set only on the response right after the write.
+type ConnectView struct {
+	ProjectSlug  string
+	OrgSlug      string
+	BaseURL      string
+	DeviceID     string
+	DeviceName   string
+	Phone        string
+	CanManage    bool
+	NeverLinked  bool
+	FirstRun     bool
+	KeyCreated   bool
+	KeyPlaintext string
+	Endpoint     *ConnectEndpoint
+	Secret       string
+	AddressValue string
+	AddressError string
+	AddressMax   int
+	Test         ConnectTest
+	Recommended  *RecommendedAgent
+}
+
+func connectPath(d web.LayoutData, v ConnectView, suffix string) string {
+	return d.ProjectPath(v.ProjectSlug, "/devices/"+v.DeviceID+"/connect"+suffix)
+}
+
+func connectKeyDone(v ConnectView) bool {
+	return v.KeyCreated || v.KeyPlaintext != ""
+}
+
+func externalLink(d web.LayoutData, label string) templ.Attributes {
+	return templ.Attributes{"target": "_blank", "rel": "noopener noreferrer", "aria-label": label + " " + d.Tr("common.opens_new_tab")}
+}
+
+templ ConnectLayout(d web.LayoutData, v ConnectView) {
+	@Layout(web.WithContent(d, ConnectPage(d, v)))
+}
+
+templ ConnectPage(d web.LayoutData, v ConnectView) {
+	<div class="mx-auto w-full max-w-2xl">
+		if v.FirstRun {
+			@FirstRunSteps(d, 2)
+		}
+		@ConnectCard(d, v)
+	</div>
+}
+
+// ConnectCard is the whole card; Create key and Save address swap it in place.
+templ ConnectCard(d web.LayoutData, v ConnectView) {
+	<section id="connect-card" class="card border border-base-300 bg-base-100" aria-labelledby="connect-h">
+		<div class="card-body min-w-0 gap-5 p-6">
+			<div class="flex flex-col gap-1">
+				<h1 id="connect-h" class="text-2xl font-semibold text-balance">{ d.Tr("connect.title") }</h1>
+				<p class="text-base-content/70">{ d.Tr("connect.lead") }</p>
+			</div>
+			if v.Recommended != nil {
+				@connectAgentTile(d, *v.Recommended)
+			}
+			if v.NeverLinked {
+				<div role="note" class="alert alert-info alert-soft">
+					@icons.Icon("info", "size-5 shrink-0")
+					<span>{ d.Tr("connect.never_linked") }</span>
+				</div>
+			}
+			if !v.CanManage {
+				<div role="note" class="alert alert-info alert-soft">
+					@icons.Icon("lock", "size-5 shrink-0")
+					<span>{ d.Tr("connect.manager_only") }</span>
+				</div>
+			}
+			<ol class="flex flex-col gap-5">
+				@connectStep(d, 1, connectKeyDone(v), d.Tr("connect.step_key"), connectKeyAction(d, v)) {
+					@connectKeyBody(d, v)
+				}
+				@connectStep(d, 2, v.Endpoint != nil, d.Tr("connect.step_address"), nil) {
+					@connectAddressBody(d, v)
+				}
+				@connectStep(d, 3, v.Test.State == "delivered", d.Tr("connect.step_test"), nil) {
+					<div id="connect-test" aria-live="polite">
+						@ConnectTestResult(d, v)
+					</div>
+				}
+			</ol>
+		</div>
+	</section>
+}
+
+templ connectStep(d web.LayoutData, n int, done bool, title string, action templ.Component) {
+	<li class="min-w-0">
+		<div class="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-2 lg:min-h-8">
+			<div class="flex min-w-0 flex-[1_1_12rem] items-center gap-3">
+				if done {
+					<span class="grid size-7 shrink-0 place-items-center rounded-full border border-success bg-success text-success-content" aria-hidden="true">
+						@icons.Icon("check", "size-4")
+					</span>
+				} else {
+					<span class="grid size-7 shrink-0 place-items-center rounded-full border border-base-300 text-sm font-semibold" aria-hidden="true">{ strconv.Itoa(n) }</span>
+				}
+				<p class="min-w-0 flex-1 font-medium">
+					{ title }
+					if done {
+						<span class="sr-only">{ d.Tr("connect.step_done") }</span>
+					}
+				</p>
+			</div>
+			if action != nil {
+				@action
+			}
+		</div>
+		<div class="ms-10 mt-2 flex min-w-0 flex-col gap-3">
+			{ children... }
+		</div>
+	</li>
+}
+
+templ connectKeyAction(d web.LayoutData, v ConnectView) {
+	if v.CanManage && !connectKeyDone(v) {
+		<form
+			method="post"
+			action={ templ.SafeURL(connectPath(d, v, "/key")) }
+			hx-post={ connectPath(d, v, "/key") }
+			hx-target="#connect-card"
+			hx-swap="outerHTML"
+			hx-disable="find button"
+			hx-status:4xx="target:#hx-error swap:innerHTML"
+			hx-status:5xx="target:#hx-error swap:innerHTML"
+			hx-nonce={ d.Nonce }
+		>
+			@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Icon: "key-round", Label: d.Tr("connect.key_create")})
+		</form>
+	}
+}
+
+templ connectKeyBody(d web.LayoutData, v ConnectView) {
+	if v.KeyPlaintext != "" {
+		@shownOnce(d, shownOnceProps{ID: "connect-key", Title: d.Tr("connect.key_title"), Note: d.Tr("connect.key_help"), Label: d.Tr("developers.key_label"), Value: v.KeyPlaintext})
+	} else if v.KeyCreated && v.CanManage {
+		<p class="text-sm text-base-content/70">{ d.Tr("connect.key_exists") }</p>
+	}
+	<p class="text-sm">{ d.Tr("connect.key_paste") }</p>
+	<dl class="grid min-w-0 gap-2">
+		@KeyValue(d.Tr("connect.field_address")) {
+			<span dir="ltr" class="block text-start">
+				@CopyValue(d, v.BaseURL)
+			</span>
+		}
+		@KeyValue(d.Tr("connect.field_org")) {
+			<span dir="ltr" class="block text-start">
+				@CopyValue(d, v.OrgSlug)
+			</span>
+		}
+		@KeyValue(d.Tr("common.project")) {
+			<span dir="ltr" class="block text-start">
+				@CopyValue(d, v.ProjectSlug)
+			</span>
+		}
+		@KeyValue(d.Tr("home.col_number")) {
+			<span class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+				<span dir="auto" class="font-medium">{ v.DeviceName }</span>
+				if v.Phone != "" {
+					<span dir="ltr" class="font-mono text-base-content/70">{ v.Phone }</span>
+				}
+			</span>
+		}
+		@KeyValue(d.Tr("devices.device_id")) {
+			<span dir="ltr" class="block text-start">
+				@CopyValue(d, v.DeviceID)
+			</span>
+		}
+	</dl>
+}
+
+templ connectAddressBody(d web.LayoutData, v ConnectView) {
+	if v.Endpoint != nil {
+		<p dir="ltr" class="font-mono text-sm break-all text-start">{ v.Endpoint.URL }</p>
+		if v.Secret != "" {
+			@shownOnce(d, shownOnceProps{ID: "connect-secret", Title: d.Tr("connect.secret_title"), Note: d.Tr("connect.secret_help"), Label: d.Tr("webhooks.secret_section"), Value: v.Secret})
+		} else {
+			<p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-base-content/70">
+				<span>{ d.Tr("connect.address_saved_existing") }</span>
+				<a class="link" href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/webhooks/"+v.Endpoint.ID)) }>{ d.Tr("connect.address_view") }</a>
+			</p>
+		}
+	} else if v.CanManage {
+		{{ locked := !connectKeyDone(v) }}
+		<form
+			method="post"
+			action={ templ.SafeURL(connectPath(d, v, "/address")) }
+			hx-post={ connectPath(d, v, "/address") }
+			hx-target="#connect-card"
+			hx-swap="outerHTML"
+			hx-disable="find button, find input"
+			hx-status:4xx="target:#hx-error swap:innerHTML"
+			hx-status:5xx="target:#hx-error swap:innerHTML"
+			hx-nonce={ d.Nonce }
+			novalidate
+			class="flex min-w-0 flex-col gap-1.5"
+		>
+			<label for="connect-address" class="sr-only">{ d.Tr("connect.address_label") }</label>
+			<div class="join w-full">
+				<input
+					id="connect-address"
+					name="url"
+					type="url"
+					dir="ltr"
+					inputmode="url"
+					autocomplete="off"
+					placeholder="https://"
+					value={ v.AddressValue }
+					required
+					disabled?={ locked }
+					aria-describedby="connect-address-help"
+					if v.AddressError != "" {
+						aria-invalid="true"
+					}
+					class={ "input join-item w-full min-w-0 font-mono lg:input-sm", templ.KV("input-error", v.AddressError != "") }
+				/>
+				<button type="submit" disabled?={ locked } class="btn join-item shrink-0 whitespace-nowrap lg:btn-sm">{ d.Tr("connect.address_save") }</button>
+			</div>
+			if v.AddressError != "" {
+				<p id="connect-address-help" role="alert" class="text-xs text-error">{ d.Tr(v.AddressError, "Max", v.AddressMax) }</p>
+			} else if locked {
+				<p id="connect-address-help" class="text-xs text-base-content/70">{ d.Tr("connect.key_first") }</p>
+			} else {
+				<p id="connect-address-help" class="text-xs text-base-content/70">{ d.Tr("connect.address_hint") }</p>
+			}
+		</form>
+	}
+}
+
+// ConnectTestResult is the test step body: Send a test and the polled result.
+templ ConnectTestResult(d web.LayoutData, v ConnectView) {
+	{{ t := v.Test }}
+	{{ busy := t.State == "waiting" && t.PollURL != "" }}
+	@Poll(d, PollProps{ID: "connect-test-poll", URL: t.PollURL, Every: "2s", Done: t.PollURL == ""}) {
+		<div class="flex min-w-0 flex-col gap-3">
+			if v.CanManage {
+				<form
+					method="post"
+					action={ templ.SafeURL(connectPath(d, v, "/test")) }
+					hx-post={ connectPath(d, v, "/test") }
+					hx-target="#connect-test-poll"
+					hx-swap="outerHTML"
+					hx-disable="find button"
+					hx-status:4xx="target:#hx-error swap:innerHTML"
+					hx-status:5xx="target:#hx-error swap:innerHTML"
+					hx-nonce={ d.Nonce }
+					class="flex flex-wrap items-center gap-2"
+				>
+					if busy {
+						<button type="submit" disabled class={ ButtonClass(ButtonPrimary) }>
+							<span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+							<span>{ d.Tr("connect.test_sending") }</span>
+						</button>
+					} else if v.Endpoint == nil {
+						@AppButton(ButtonProps{Kind: ButtonSecondary, Type: "submit", Icon: "send", Label: d.Tr("connect.test_send"), Disabled: true})
+					} else if t.State == "idle" || t.State == "" {
+						@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Icon: "send", Label: d.Tr("connect.test_send")})
+					} else {
+						@AppButton(ButtonProps{Kind: ButtonSecondary, Type: "submit", Icon: "send", Label: d.Tr("connect.send_again")})
+					}
+				</form>
+			}
+			@connectTestState(d, v)
+		</div>
+	}
+}
+
+templ connectTestState(d web.LayoutData, v ConnectView) {
+	{{ t := v.Test }}
+	switch t.State {
+		case "waiting":
+			<p class="flex items-center gap-2 text-sm text-base-content/70">
+				if t.PollURL != "" {
+					<span class="loading loading-dots loading-sm" aria-hidden="true"></span>
+				}
+				{ d.Tr("connect.state_waiting") }
+			</p>
+		case "retrying":
+			<p class="flex items-center gap-2 text-sm text-base-content/70">
+				@icons.Icon("refresh-cw", "size-4 shrink-0 text-warning")
+				{ d.Tr("connect.state_retrying") }
+			</p>
+			@connectTestDetails(d, t)
+		case "delivered":
+			<p class="flex items-center gap-2 text-success">
+				@icons.Icon("circle-check", "size-5 shrink-0")
+				{ d.Tr("connect.state_delivered") }
+			</p>
+			<p class="text-sm text-base-content/70">{ d.Tr("connect.delivered_note") }</p>
+			<div>
+				@AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("connect.done"), Href: d.ProjectPath(v.ProjectSlug, "/overview")})
+			</div>
+		case "failed":
+			<p class="flex items-start gap-2 text-error">
+				@icons.Icon("circle-exclamation-point", "mt-0.5 size-5 shrink-0")
+				<span>
+					{ d.Tr("connect.state_failed") }
+					{ d.Tr(connectFailKey(t.Reason)) }
+				</span>
+			</p>
+			@connectTestDetails(d, t)
+	}
+	if (t.State == "waiting" || t.State == "retrying") && t.PollURL == "" && v.CanManage {
+		<button
+			type="button"
+			hx-get={ connectPath(d, v, "/test?n=0") }
+			hx-target="#connect-test-poll"
+			hx-swap="outerHTML"
+			hx-nonce={ d.Nonce }
+			class={ ButtonClass(ButtonGhost) }
+		>{ d.Tr("connect.check_again") }</button>
+	}
+}
+
+templ connectTestDetails(d web.LayoutData, t ConnectTest) {
+	if t.Code > 0 {
+		@Disclosure(d.Tr("webhooks.show_details")) {
+			<p dir="ltr" class="font-mono text-xs text-start">{ d.Tr("connect.detail_status", "Code", t.Code) }</p>
+		}
+	}
+}
+
+templ connectAgentTile(d web.LayoutData, a RecommendedAgent) {
+	<div class="flex flex-wrap items-center gap-3 rounded-box border border-base-300 bg-base-200 p-3">
+		@icons.Icon("bot", "size-5 shrink-0")
+		<div class="min-w-0 flex-[1_1_12rem]">
+			<p class="flex flex-wrap items-center gap-2 font-medium">
+				<span dir="auto">{ a.Name }</span>
+				@Badge(TonePrimary, d.Tr("common.recommended"))
+			</p>
+		</div>
+		<div class="flex flex-wrap gap-2">
+			if a.ConsoleURL != "" {
+				@AppButton(ButtonProps{Kind: ButtonSecondary, Label: d.Tr("connect.recommended_open", "Name", a.Name), Href: a.ConsoleURL, Attrs: externalLink(d, d.Tr("connect.recommended_open", "Name", a.Name))})
+			}
+			if a.GuideURL != "" {
+				@AppButton(ButtonProps{Kind: ButtonGhost, Label: d.Tr("connect.recommended_guide", "Name", a.Name), Href: a.GuideURL, Attrs: externalLink(d, d.Tr("connect.recommended_guide", "Name", a.Name))})
+			}
+		</div>
+	</div>
+}

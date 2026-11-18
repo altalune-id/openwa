@@ -41,6 +41,7 @@ type harness struct {
 	store      *fakes.WebhookStore
 	outbox     *fakes.Outbox
 	slugs      *slugStub
+	devices    devicesStub
 	sealer     sealer.Sealer
 	unexpected *int
 }
@@ -62,11 +63,12 @@ func newHarnessWithSealer(t *testing.T, sl sealer.Sealer) *harness {
 		store:      fakes.NewWebhookStore(),
 		outbox:     fakes.NewOutbox(),
 		slugs:      &slugStub{slug: "altalune"},
+		devices:    devicesStub{},
 		sealer:     sl,
 		unexpected: &calls,
 	}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h.svc = webhook.NewService(h.store, log, unexpected, h.sealer, h.outbox, h.slugs)
+	h.svc = webhook.NewService(h.store, log, unexpected, h.sealer, h.outbox, h.slugs, h.devices)
 	return h
 }
 
@@ -78,7 +80,7 @@ func svcCtx(t *testing.T) (context.Context, tenant.Context) {
 
 func (h *harness) create(ctx context.Context, t *testing.T, types ...events.Type) (*webhook.Endpoint, string) {
 	t.Helper()
-	e, secret, err := h.svc.Create(ctx, validURL, "orders", types)
+	e, secret, err := h.svc.Create(ctx, validURL, "orders", types, "")
 	require.NoError(t, err)
 	return e, secret
 }
@@ -223,7 +225,7 @@ func TestService_Create(t *testing.T) {
 		h := newHarness(t)
 		ctx, tc := svcCtx(t)
 
-		e, secret, err := h.svc.Create(ctx, validURL, "orders", []events.Type{events.PostPublished})
+		e, secret, err := h.svc.Create(ctx, validURL, "orders", []events.Type{events.PostPublished}, "")
 		require.NoError(t, err)
 		assert.Equal(t, tc.OrgID, e.OrgID)
 		assert.Equal(t, tc.ProjectID, e.ProjectID)
@@ -240,7 +242,7 @@ func TestService_Create(t *testing.T) {
 		h := newHarness(t)
 		ctx, _ := svcCtx(t)
 
-		_, _, err := h.svc.Create(ctx, "http://example.com", "", []events.Type{events.PostPublished})
+		_, _, err := h.svc.Create(ctx, "http://example.com", "", []events.Type{events.PostPublished}, "")
 		assert.True(t, webhook.IsInvalidURLError(err), "got %T: %v", err, err)
 		assert.Zero(t, *h.unexpected)
 	})
@@ -252,7 +254,7 @@ func TestService_Create(t *testing.T) {
 			h.create(ctx, t, events.PostPublished)
 		}
 
-		_, _, err := h.svc.Create(ctx, validURL, "", []events.Type{events.PostPublished})
+		_, _, err := h.svc.Create(ctx, validURL, "", []events.Type{events.PostPublished}, "")
 		assert.True(t, webhook.IsEndpointLimitError(err), "got %T: %v", err, err)
 		assert.Zero(t, *h.unexpected)
 	})
@@ -261,7 +263,7 @@ func TestService_Create(t *testing.T) {
 		h := newHarnessWithSealer(t, sealer.Disabled())
 		ctx, _ := svcCtx(t)
 
-		_, _, err := h.svc.Create(ctx, validURL, "", []events.Type{events.PostPublished})
+		_, _, err := h.svc.Create(ctx, validURL, "", []events.Type{events.PostPublished}, "")
 		assert.True(t, sealer.IsUnavailableError(err), "got %T: %v", err, err)
 		assert.Zero(t, *h.unexpected)
 	})
@@ -713,7 +715,7 @@ func TestService_AllowInsecureURLOption(t *testing.T) {
 	t.Run("default service refuses http on create and update", func(t *testing.T) {
 		h := newHarness(t)
 		ctx, _ := svcCtx(t)
-		_, _, err := h.svc.Create(ctx, httpURL, "", types)
+		_, _, err := h.svc.Create(ctx, httpURL, "", types, "")
 		assert.True(t, webhook.IsInvalidURLError(err), "got %T: %v", err, err)
 		e, _ := h.create(ctx, t, events.PostPublished)
 		_, err = h.svc.Update(ctx, e.ID, httpURL, "", types, true)
@@ -722,9 +724,9 @@ func TestService_AllowInsecureURLOption(t *testing.T) {
 
 	t.Run("opted-in service accepts http on create and update", func(t *testing.T) {
 		h := newHarness(t)
-		h.svc = webhook.NewService(h.store, slog.New(slog.NewTextHandler(io.Discard, nil)), func(context.Context, string, error, ...any) *apperror.AppError { return nil }, h.sealer, h.outbox, h.slugs, webhook.WithAllowInsecureURL())
+		h.svc = webhook.NewService(h.store, slog.New(slog.NewTextHandler(io.Discard, nil)), func(context.Context, string, error, ...any) *apperror.AppError { return nil }, h.sealer, h.outbox, h.slugs, h.devices, webhook.WithAllowInsecureURL())
 		ctx, _ := svcCtx(t)
-		e, _, err := h.svc.Create(ctx, httpURL, "", types)
+		e, _, err := h.svc.Create(ctx, httpURL, "", types, "")
 		require.NoError(t, err)
 		got, err := h.svc.Update(ctx, e.ID, httpURL+"2", "", types, true)
 		require.NoError(t, err)

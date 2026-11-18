@@ -2,15 +2,32 @@ package templates
 
 import (
 	"strconv"
+	"time"
 
 	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
 )
 
+// WebhookLatest is an endpoint's latest delivery; Failing is decided by package webhook.
+type WebhookLatest struct {
+	Status         string
+	StatusLabelKey string
+	At             time.Time
+	Failing        bool
+}
+
+// WebhookRow is one endpoint; DevicePublicID empty means all numbers, and EventCodes runs parallel to EventLabelKeys.
 type WebhookRow struct {
 	ID             string
 	URL            string
 	Description    string
 	EventLabelKeys []string
+	EventCodes     []string
+	DeviceName     string
+	DevicePublicID string
+	Latest         *WebhookLatest
+	SecretHint     string
+	SecondaryHint  string
 	Active         bool
 	Rotating       bool
 }
@@ -52,37 +69,119 @@ templ webhookEventBadges(d web.LayoutData, keys []string) {
 	</span>
 }
 
+// webhookEventList renders each event's plain label with its code in mono beside it.
+templ webhookEventList(d web.LayoutData, keys, codes []string) {
+	<ul class="flex min-w-0 flex-col gap-1.5">
+		for i, k := range keys {
+			<li class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+				<span>{ d.Tr(k) }</span>
+				if i < len(codes) {
+					<code dir="ltr" class="font-mono text-xs text-base-content/70">{ codes[i] }</code>
+				}
+			</li>
+		}
+	</ul>
+}
+
+templ webhookNumber(d web.LayoutData, name string) {
+	if name == "" {
+		{ d.Tr("webhooks.all_numbers") }
+	} else {
+		<span dir="auto">{ name }</span>
+	}
+}
+
+func latestTone(l *WebhookLatest) Tone {
+	if l.Failing {
+		return ToneDanger
+	}
+	return deliveryTone(l.Status)
+}
+
+templ webhookLatestStatus(d web.LayoutData, l *WebhookLatest) {
+	if l != nil && l.StatusLabelKey != "" {
+		<span class="inline-flex items-center gap-1.5 text-sm">
+			@Badge(latestTone(l), d.Tr(l.StatusLabelKey))
+			if !l.At.IsZero() {
+				<span class="text-base-content/70">
+					@Time(d, l.At)
+				</span>
+			}
+		</span>
+	}
+}
+
 templ webhooksActions(d web.LayoutData, v WebhooksView) {
-	<span class="text-xs text-muted-foreground">{ d.Tr("webhooks.count", "Count", len(v.Items), "Limit", v.Limit) }</span>
-	if !v.CanManage {
-		<span class="text-xs text-muted-foreground">{ d.Tr("common.managers_only") }</span>
-	} else if len(v.Items) < v.Limit {
+	<span class="text-sm text-base-content/70">{ d.Tr("webhooks.count", "Count", len(v.Items), "Limit", v.Limit) }</span>
+	if v.CanManage && len(v.Items) < v.Limit {
 		@AppButton(ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("webhooks.new"), Href: d.ProjectPath(v.ProjectSlug, "/webhooks/new")})
 	}
 }
 
+func webhooksEmpty(d web.LayoutData, v WebhooksView) EmptyStateProps {
+	p := EmptyStateProps{Icon: "webhook", Title: d.Tr("webhooks.empty")}
+	if v.CanManage {
+		p.CTA = &ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("webhooks.new"), Href: d.ProjectPath(v.ProjectSlug, "/webhooks/new")}
+	}
+	return p
+}
+
+templ webhookRotateRow(d web.LayoutData, v WebhooksView, e WebhookRow) {
+	@ConfirmModal(d, ConfirmProps{
+		ID:           "rotate-" + e.ID,
+		Title:        d.Tr("webhooks.rotate"),
+		Body:         d.Tr("webhooks.rotate_warning"),
+		ConfirmLabel: d.Tr("webhooks.rotate_confirm"),
+		Kind:         ButtonPrimary,
+		Action:       d.ProjectPath(v.ProjectSlug, "/webhooks/"+e.ID+"/rotate"),
+		HxTarget:     "#webhook-secret-slot",
+		HxSwap:       "innerHTML",
+		Trigger:      ButtonProps{Kind: ButtonSecondary, Icon: "refresh-cw", Label: d.Tr("webhooks.rotate")},
+	})
+}
+
 templ WebhooksPage(d web.LayoutData, v WebhooksView) {
 	<section>
-		@PageHeader(d, PageHeaderProps{Eyebrow: d.Tr("nav.group_developer"), Title: d.Tr("webhooks.title"), Subtitle: d.Tr("webhooks.subtitle"), Actions: webhooksActions(d, v)})
+		@PageHeader(d, PageHeaderProps{Title: d.Tr("webhooks.title"), Subtitle: d.Tr("webhooks.subtitle"), Actions: webhooksActions(d, v)})
+		<div id="webhook-secret-slot" class="mb-4 empty:hidden" aria-live="polite"></div>
+		if !v.CanManage {
+			<div role="note" class="alert alert-info alert-soft mb-4">
+				@icons.Icon("lock", "size-5 shrink-0")
+				<span>{ d.Tr("webhooks.readonly_note") }</span>
+			</div>
+		}
 		if len(v.Items) == 0 {
-			@EmptyState(d, EmptyStateProps{Icon: "send", Title: d.Tr("webhooks.empty")})
+			@EmptyState(d, webhooksEmpty(d, v))
 		} else {
 			@ListShell(d, "webhook-list", nil) {
 				for _, e := range v.Items {
 					@ListRow(d, nil) {
+						<span class="grid size-10 shrink-0 place-items-center rounded-field bg-base-200" aria-hidden="true">
+							@icons.Icon("webhook", "size-4")
+						</span>
 						<div class="list-col-grow min-w-0">
-							<a href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/webhooks/"+e.ID)) } class="block truncate font-mono text-sm font-medium text-foreground hover:underline">{ e.URL }</a>
-							if e.Description != "" {
-								<p class="mt-0.5 truncate text-xs text-muted-foreground">{ e.Description }</p>
-							}
-							<p class="mt-1.5">
-								@webhookEventBadges(d, e.EventLabelKeys)
+							<a dir="ltr" href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/webhooks/"+e.ID)) } class="link link-hover inline-block max-w-full truncate align-top font-mono text-sm font-medium">{ e.URL }</a>
+							<p class="mt-0.5 text-sm text-base-content/70">
+								{ d.Tr("webhooks.number_label") + ": " }
+								@webhookNumber(d, e.DeviceName)
 							</p>
+							if e.Description != "" {
+								<p dir="auto" class="mt-0.5 truncate text-sm text-base-content/70">{ e.Description }</p>
+							}
+							<div class="mt-1.5">
+								@webhookEventBadges(d, e.EventLabelKeys)
+							</div>
 						</div>
-						if e.Rotating {
-							@Badge(ToneWarning, d.Tr("webhooks.rotating"))
-						}
-						@webhookActiveBadge(d, e.Active)
+						<div class="flex flex-wrap items-center gap-2 max-sm:list-col-wrap">
+							@webhookLatestStatus(d, e.Latest)
+							if e.Rotating {
+								@Badge(ToneWarning, d.Tr("webhooks.rotating"))
+							}
+							@webhookActiveBadge(d, e.Active)
+							if v.CanManage {
+								@webhookRotateRow(d, v, e)
+							}
+						</div>
 					}
 				}
 			}

@@ -18,7 +18,7 @@ func newSealedEndpoint(t *testing.T, tc tenant.Context, types ...events.Type) *w
 	if len(types) == 0 {
 		types = []events.Type{events.PostPublished, events.PostDeleted}
 	}
-	e, err := webhook.New(tc.OrgID, tc.ProjectID, validURL, "orders", types)
+	e, err := webhook.New(tc.OrgID, tc.ProjectID, nil, validURL, "orders", types)
 	require.NoError(t, err)
 	e.Secrets = webhook.SealedSecrets{Primary: []byte("sealed-primary")}
 	e.CreatedAt = e.CreatedAt.Truncate(time.Microsecond)

@@ -129,7 +129,7 @@ func (s *Service) transact(ctx context.Context, ref SessionRef, fn func(*Session
 			Reason: sess.Reason,
 			At:     s.clock().UTC().Truncate(time.Second),
 		}
-		return s.webhooks.Enqueue(ctx, out.Emit, devicePayload(out.Emit, ev))
+		return s.webhooks.EnqueueForDevice(ctx, out.Emit, ref.DeviceID, devicePayload(out.Emit, ev))
 	})
 	if err != nil {
 		nameErr = nil

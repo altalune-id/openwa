@@ -42,6 +42,15 @@ compliance:
   # env: OPENWA_COMPLIANCE_TERMS_URL
   termsURL: ""
 
+connect:
+  recommendedAgent:
+    # env: OPENWA_CONNECT_RECOMMENDED_AGENT_CONSOLE_URL
+    consoleURL: ""
+    # env: OPENWA_CONNECT_RECOMMENDED_AGENT_GUIDE_URL
+    guideURL: ""
+    # env: OPENWA_CONNECT_RECOMMENDED_AGENT_NAME
+    name: ""
+
 dataplane:
   # env: OPENWA_DATAPLANE_ENABLED
   enabled: true
@@ -143,6 +152,8 @@ mail:
   driver: console
   # env: OPENWA_MAIL_FROM
   from: no-reply@openwa.local
+  # env: OPENWA_MAIL_IDLE_POLL
+  idlePoll: 10m
   resend:
     # [secret] env: OPENWA_MAIL_RESEND_API_KEY
     apiKey: ""
@@ -185,6 +196,17 @@ media:
 
 # [required, bootstrap] env: OPENWA_MODE
 mode: selfhosted
+
+notifications:
+  disconnect:
+    # env: OPENWA_NOTIFICATIONS_DISCONNECT_COOLDOWN
+    cooldown: 6h
+    # env: OPENWA_NOTIFICATIONS_DISCONNECT_DAILY_ORG_CAP
+    dailyOrgCap: 50
+    # env: OPENWA_NOTIFICATIONS_DISCONNECT_ENABLED
+    enabled: true
+    # env: OPENWA_NOTIFICATIONS_DISCONNECT_GRACE
+    grace: 10m
 
 observability:
   reporter:

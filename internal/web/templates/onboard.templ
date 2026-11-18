@@ -9,19 +9,19 @@ import (
 )
 
 type OnboardView struct {
-	Error         string
-	ErrorCode     string
-	FieldErrors   map[string]string
-	LocalAuth     bool
-	OIDCAuth      bool
-	OIDCFinalize  bool
-	Email         string
-	Name          string
-	OrgSlug       string
-	OrgName       string
-	ProjectSlug   string
-	ProjectName   string
-	SetupToken    string
+	Error        string
+	ErrorCode    string
+	FieldErrors  map[string]string
+	LocalAuth    bool
+	OIDCAuth     bool
+	OIDCFinalize bool
+	Email        string
+	Name         string
+	OrgSlug      string
+	OrgName      string
+	ProjectSlug  string
+	ProjectName  string
+	SetupToken   string
 }
 
 func fieldErr(m map[string]string, key string) string {
@@ -39,22 +39,22 @@ templ OnboardPage(d web.LayoutData, v OnboardView) {
 		}
 		<div class="rounded-box border border-base-300 bg-base-100 p-6">
 			if v.OIDCFinalize {
-				<div class="mb-4 rounded-md border border-border/60 bg-muted/40 p-3 text-sm">
-					<p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">{ d.Tr("onboard.finalize_signed_in") }</p>
-					<p class="mt-0.5 truncate font-medium text-foreground">{ v.Email }</p>
+				<div class="mb-4 rounded-box border border-base-300 bg-base-200 p-3 text-sm">
+					<p class="text-xs font-medium uppercase tracking-wider text-base-content/70">{ d.Tr("onboard.finalize_signed_in") }</p>
+					<p class="mt-0.5 truncate font-medium">{ v.Email }</p>
 				</div>
 				<form method="post" action={ templ.SafeURL(d.Href("/onboard/complete")) } class="space-y-8" novalidate>
 					@onboardSetupToken(v.SetupToken)
 					<div class="space-y-4">
-						<div class="border-b border-border/50 pb-2">
-							<h2 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{ d.Tr("onboard.org_section") }</h2>
+						<div class="border-b border-base-300 pb-2">
+							<h2 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">{ d.Tr("onboard.org_section") }</h2>
 						</div>
 						@onboardSlugField(d, "org_slug", "acme", v.OrgSlug, v.FieldErrors)
 						@onboardField(d, "org_name", d.Tr("onboard.display_name"), "text", "organization", "Acme, Inc.", v.OrgName, v.FieldErrors, true)
 					</div>
 					<div class="space-y-4">
-						<div class="border-b border-border/50 pb-2">
-							<h2 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{ d.Tr("onboard.project_section") }</h2>
+						<div class="border-b border-base-300 pb-2">
+							<h2 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">{ d.Tr("onboard.project_section") }</h2>
 						</div>
 						@onboardSlugField(d, "project_slug", "web", v.ProjectSlug, v.FieldErrors)
 						@onboardField(d, "project_name", d.Tr("onboard.display_name"), "text", "off", "Default Project", v.ProjectName, v.FieldErrors, false)
@@ -67,36 +67,36 @@ templ OnboardPage(d web.LayoutData, v OnboardView) {
 					<span class="min-w-0 flex-1 truncate text-start">{ d.OIDCButtonLabel(d.Tr("onboard.oidc_button")) }</span>
 					@icons.Icon("chevron-right", "size-4 shrink-0 text-base-content/70 rtl:rotate-180")
 				</a>
-				<p class="mt-2 text-center text-xs text-muted-foreground">{ d.Tr("onboard.oidc_hint") }</p>
+				<p class="mt-2 text-center text-xs text-base-content/70">{ d.Tr("onboard.oidc_hint") }</p>
 			}
 			if v.LocalAuth && !v.OIDCFinalize {
 				if v.OIDCAuth {
-					<div class="my-6 flex items-center gap-3 text-xs uppercase tracking-wide text-muted-foreground">
-						<span class="h-px flex-1 bg-border"></span>
+					<div class="my-6 flex items-center gap-3 text-xs uppercase tracking-wide text-base-content/70">
+						<span class="h-px flex-1 bg-base-300"></span>
 						<span>{ d.Tr("onboard.or_local") }</span>
-						<span class="h-px flex-1 bg-border"></span>
+						<span class="h-px flex-1 bg-base-300"></span>
 					</div>
 				}
 				<form method="post" action={ templ.SafeURL(d.Href("/onboard/local")) } class="space-y-8" novalidate>
 					@onboardSetupToken(v.SetupToken)
 					<div class="space-y-4">
-						<div class="border-b border-border/50 pb-2">
-							<h2 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{ d.Tr("onboard.admin_section") }</h2>
+						<div class="border-b border-base-300 pb-2">
+							<h2 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">{ d.Tr("onboard.admin_section") }</h2>
 						</div>
 						@onboardField(d, "email", d.Tr("login.email"), "email", "email", "you@example.com", v.Email, v.FieldErrors, true)
 						@onboardField(d, "name", d.Tr("onboard.display_name"), "text", "name", "Your name", v.Name, v.FieldErrors, true)
 						@onboardPasswordField(d, v.FieldErrors)
 					</div>
 					<div class="space-y-4">
-						<div class="border-b border-border/50 pb-2">
-							<h2 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{ d.Tr("onboard.org_section") }</h2>
+						<div class="border-b border-base-300 pb-2">
+							<h2 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">{ d.Tr("onboard.org_section") }</h2>
 						</div>
 						@onboardSlugField(d, "org_slug", "acme", v.OrgSlug, v.FieldErrors)
 						@onboardField(d, "org_name", d.Tr("onboard.display_name"), "text", "organization", "Acme, Inc.", v.OrgName, v.FieldErrors, true)
 					</div>
 					<div class="space-y-4">
-						<div class="border-b border-border/50 pb-2">
-							<h2 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{ d.Tr("onboard.project_section") }</h2>
+						<div class="border-b border-base-300 pb-2">
+							<h2 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">{ d.Tr("onboard.project_section") }</h2>
 						</div>
 						@onboardSlugField(d, "project_slug", "web", v.ProjectSlug, v.FieldErrors)
 						@onboardField(d, "project_name", d.Tr("onboard.display_name"), "text", "off", "Default Project", v.ProjectName, v.FieldErrors, false)
@@ -105,7 +105,7 @@ templ OnboardPage(d web.LayoutData, v OnboardView) {
 				</form>
 			}
 			if !v.LocalAuth && !v.OIDCAuth && !v.OIDCFinalize {
-				<p class="text-sm text-muted-foreground">{ d.Tr("onboard.no_method") }</p>
+				<p class="text-sm text-base-content/70">{ d.Tr("onboard.no_method") }</p>
 			}
 		</div>
 		if v.OIDCFinalize || v.LocalAuth {
@@ -143,7 +143,7 @@ func onboardFieldError(d web.LayoutData, errs map[string]string, id string) stri
 
 templ onboardSlugField(d web.LayoutData, id, placeholder, value string, errs map[string]string) {
 	<div>
-		<label for={ "onb-" + id } class="block text-sm font-medium text-foreground/90">{ d.Tr("onboard.slug") }</label>
+		<label for={ "onb-" + id } class="block text-sm font-medium">{ d.Tr("onboard.slug") }</label>
 		<div class="mt-1.5 flex items-center gap-2">
 			<input
 				id={ "onb-" + id }
@@ -170,10 +170,10 @@ templ onboardSlugField(d web.LayoutData, id, placeholder, value string, errs map
 			}
 		</div>
 		if slugLocked(value, errs, id) {
-			<p id={ "onb-" + id + "-hint" } class="mt-1.5 text-xs text-muted-foreground">{ d.Tr("onboard.slug_hint") }</p>
+			<p id={ "onb-" + id + "-hint" } class="mt-1.5 text-xs text-base-content/70">{ d.Tr("onboard.slug_hint") }</p>
 		}
 		if e := fieldErr(errs, id); e != "" {
-			<p role="alert" class="mt-1.5 text-xs text-destructive">{ d.Tr(e) }</p>
+			<p role="alert" class="mt-1.5 text-xs text-error">{ d.Tr(e) }</p>
 		}
 	</div>
 }
@@ -182,7 +182,7 @@ func slugLocked(value string, errs map[string]string, id string) bool {
 	return value != "" && fieldErr(errs, id) == ""
 }
 
-var slugInputBase = strings.NewReplacer("mt-1.5 ", "", "bg-card ", "", "text-foreground ", "").Replace(InputClass())
+var slugInputBase = strings.NewReplacer("mt-1.5 ", "", "bg-base-100 ", "", " ", "").Replace(InputClass())
 
 func slugInputClass(locked bool) string {
 	return slugInputBase + " " + slugInputTone(locked)
@@ -190,9 +190,9 @@ func slugInputClass(locked bool) string {
 
 func slugInputTone(locked bool) string {
 	if locked {
-		return "bg-muted/50 text-muted-foreground"
+		return "bg-base-200 text-base-content/70"
 	}
-	return "bg-card text-foreground"
+	return "bg-base-100 "
 }
 
 templ slugEditScript(nonce string) {
@@ -206,8 +206,8 @@ templ slugEditScript(nonce string) {
 		var input = document.getElementById(btn.getAttribute('data-slug-edit'));
 		if (!input) return;
 		input.readOnly = false;
-		input.classList.remove('bg-muted/50', 'text-muted-foreground');
-		input.classList.add('bg-card', 'text-foreground');
+		input.classList.remove('bg-base-200', 'text-base-content/70');
+		input.classList.add('bg-base-100', '');
 		btn.hidden = true;
 		var hint = document.getElementById(input.id + '-hint');
 		if (hint) hint.hidden = true;

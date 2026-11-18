@@ -35,7 +35,7 @@ func newPgDelivery(t *testing.T, client *http.Client, rawURL string) *pgDelivery
 	t.Helper()
 	f := newPgFixture(t)
 	sl := newSealer(t)
-	e, err := webhook.New(f.tc.OrgID, f.tc.ProjectID, rawURL, "orders", []events.Type{events.PostPublished})
+	e, err := webhook.New(f.tc.OrgID, f.tc.ProjectID, nil, rawURL, "orders", []events.Type{events.PostPublished})
 	require.NoError(t, err)
 	secret, err := webhook.NewSecret()
 	require.NoError(t, err)
@@ -113,10 +113,10 @@ func TestPostgres_EnqueueWritesRowsForTheCallerProjectOnly(t *testing.T) {
 	uow := tenant.NewUnitOfWork(pc)
 	slugs := &slugStub{slug: "altalune"}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := webhook.NewService(f.store, log, unexpectedFails(t), newSealer(t), ob, slugs)
+	svc := webhook.NewService(f.store, log, unexpectedFails(t), newSealer(t), ob, slugs, nil)
 
 	ctxP := tenant.Into(t.Context(), f.tc)
-	e, _, err := svc.Create(ctxP, validURL, "", []events.Type{events.PostPublished})
+	e, _, err := svc.Create(ctxP, validURL, "", []events.Type{events.PostPublished}, "")
 	require.NoError(t, err)
 
 	enqueue := func(ctx context.Context) error {

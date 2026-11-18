@@ -255,6 +255,26 @@ func (f *Outbox) ListByTarget(ctx context.Context, target string, limit int) ([]
 	return out, nil
 }
 
+func (f *Outbox) LatestByTargets(ctx context.Context, targets []string) (map[string]outbox.Entry, error) {
+	tc, err := tenant.From(ctx)
+	if err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := map[string]outbox.Entry{}
+	for _, e := range f.byID {
+		if e.OrgID != tc.OrgID || e.ProjectID != tc.ProjectID || !slices.Contains(targets, e.Target) {
+			continue
+		}
+		if cur, ok := out[e.Target]; ok && (cur.CreatedAt.After(e.CreatedAt) || (cur.CreatedAt.Equal(e.CreatedAt) && bytes.Compare(cur.ID[:], e.ID[:]) > 0)) {
+			continue
+		}
+		out[e.Target] = cloneOutboxEntry(e)
+	}
+	return out, nil
+}
+
 func (f *Outbox) reapLocked(orgID uuid.UUID, now time.Time) {
 	for id, e := range f.byID {
 		if e.OrgID != orgID || e.Status != outbox.StatusPending || e.Attempt < outbox.MaxAttempts {

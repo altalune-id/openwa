@@ -93,13 +93,14 @@ log:
 func TestValidate_ModeInvariants(t *testing.T) {
 	base := func() *Config {
 		c := &Config{
-			Mode:      ModeSelfhosted,
-			DB:        validDB(),
-			Genesis:   GenesisConfig{Email: "root@example.com", Password: "x"},
-			Security:  validSecurity(),
-			WhatsApp:  validWhatsApp(),
-			Retention: Defaults().Retention,
-			Media:     Defaults().Media,
+			Mode:          ModeSelfhosted,
+			DB:            validDB(),
+			Genesis:       GenesisConfig{Email: "root@example.com", Password: "x"},
+			Security:      validSecurity(),
+			WhatsApp:      validWhatsApp(),
+			Retention:     Defaults().Retention,
+			Media:         Defaults().Media,
+			Notifications: Defaults().Notifications,
 		}
 		c.Tenant.SingletonOrg.Slug = "default"
 		c.Tenant.SingletonOrg.Name = "Default Organization"
@@ -565,13 +566,14 @@ func TestLoad_FirstRunSlugsHonourEnv(t *testing.T) {
 
 func validSelfhosted() *Config {
 	c := &Config{
-		Mode:      ModeSelfhosted,
-		DB:        validDB(),
-		Genesis:   GenesisConfig{Email: "root@example.com", Password: "x"},
-		Security:  validSecurity(),
-		WhatsApp:  validWhatsApp(),
-		Retention: Defaults().Retention,
-		Media:     Defaults().Media,
+		Mode:          ModeSelfhosted,
+		DB:            validDB(),
+		Genesis:       GenesisConfig{Email: "root@example.com", Password: "x"},
+		Security:      validSecurity(),
+		WhatsApp:      validWhatsApp(),
+		Retention:     Defaults().Retention,
+		Media:         Defaults().Media,
+		Notifications: Defaults().Notifications,
 	}
 	c.Tenant.SingletonOrg.Slug = "default"
 	c.Tenant.SingletonOrg.Name = "Default Organization"

@@ -159,7 +159,7 @@ func TestAPIKeys_MemberIsReadOnly(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			rec := x.as(t, x.member, http.MethodPost, target, url.Values{"name": {"sneaky"}, "grant": {"all"}, "expires_in": {"30"}})
-			assert.Contains(t, rec.Body.String(), "apikey.error_not_manager", "body=%s", rec.Body.String())
+			assert.Equal(t, http.StatusForbidden, rec.Code, "body=%s", rec.Body.String())
 		})
 	}
 	keys := x.orgKeys(t)
@@ -275,7 +275,7 @@ func TestAPIKeys_MemberIsRefusedBeforeExpiryIsChecked(t *testing.T) {
 	x := newAPIKeyWebFixture(t)
 	for _, target := range []string{"/orgs/acme/apikeys", "/orgs/acme/projects/alpha/apikeys"} {
 		rec := x.as(t, x.member, http.MethodPost, target, url.Values{"name": {"ci"}, "grant": {"all"}, "expires_in": {"never"}})
-		assert.Contains(t, rec.Body.String(), "apikey.error_not_manager", target)
+		assert.Equal(t, http.StatusForbidden, rec.Code, "%s: the role check runs first", target)
 		assert.NotContains(t, rec.Body.String(), "apikey.error_invalid_expiry", target)
 	}
 	assert.Empty(t, x.Store.All())

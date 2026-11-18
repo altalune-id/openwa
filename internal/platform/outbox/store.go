@@ -29,6 +29,8 @@ type Store interface {
 	ByID(ctx context.Context, id uuid.UUID, target string) (Entry, error)
 	// ListByTarget returns up to limit entries of target, newest first.
 	ListByTarget(ctx context.Context, target string, limit int) ([]Entry, error)
+	// LatestByTargets returns the newest entry of each of targets in the caller's project, keyed by target; a target with none is absent.
+	LatestByTargets(ctx context.Context, targets []string) (map[string]Entry, error)
 }
 
 // MaxCauseLen bounds the failure cause persisted on an entry.

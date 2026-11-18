@@ -83,13 +83,10 @@ func (h *ProjectOverviewHandler) home(sc ProjectScope) (templates.OverviewView, 
 	}
 	v.Steps, v.RulesDevice = checklistSteps(views)
 	if h.Webhooks != nil {
-		hooks, err := h.Webhooks.List(ctx)
-		if err != nil {
+		var err error
+		if v.Steps.Agent, err = h.Webhooks.Delivered(ctx, events.MessageMatched); err != nil {
 			return v, err
 		}
-		v.Steps.Agent = slices.ContainsFunc(hooks, func(e *webhook.Endpoint) bool {
-			return e.Active && e.Subscribes(events.MessageMatched)
-		})
 	}
 	if h.Messages != nil {
 		var err error
