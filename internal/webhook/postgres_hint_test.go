@@ -29,47 +29,6 @@ func TestPostgres_SecretHintsRoundTripThroughSaveAndSaveSecrets(t *testing.T) {
 	assert.Equal(t, "a1b2", got.Secrets.SecondaryHint)
 }
 
-func TestPostgres_SetHintsFillsOnlyTheSecretsItRead(t *testing.T) {
-	f := newHijackFixture(t)
-	ctxA, ctxB := tenant.Into(t.Context(), f.orgA), tenant.Into(t.Context(), f.orgB)
-	e := newSealedEndpoint(t, f.orgA)
-	require.NoError(t, f.store.Save(ctxA, e))
-	sibling := newSealedEndpoint(t, f.orgB)
-	require.NoError(t, f.store.Save(ctxB, sibling))
-
-	missing, err := f.store.ListMissingHints(ctxA)
-	require.NoError(t, err)
-	require.Len(t, missing, 1, "a run sees only its own org")
-	assert.Equal(t, e.ID, missing[0].ID)
-
-	stale := missing[0].Secrets
-	stale.PrimaryHint = "old1"
-	rotated := webhook.SealedSecrets{Primary: []byte("sealed-rotated"), PrimaryHint: "new1"}
-	require.NoError(t, f.store.SaveSecrets(ctxA, e.ID, e.Secrets, rotated))
-	require.NoError(t, f.store.SetHints(ctxA, e.ID, stale))
-	got, err := f.store.ByID(ctxA, e.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "new1", got.Secrets.PrimaryHint, "a rotation between read and write keeps the new hint")
-
-	before := got.UpdatedAt
-	fresh := got.Secrets
-	fresh.PrimaryHint = "new1"
-	require.NoError(t, f.store.SetHints(ctxA, e.ID, fresh))
-	got, err = f.store.ByID(ctxA, e.ID)
-	require.NoError(t, err)
-	assert.True(t, before.Equal(got.UpdatedAt), "a hint is derived data, not an edit")
-
-	require.NoError(t, f.store.SetHints(ctxB, e.ID, webhook.SealedSecrets{Primary: []byte("sealed-rotated"), PrimaryHint: "evil"}))
-	got, err = f.store.ByID(ctxA, e.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "new1", got.Secrets.PrimaryHint, "another org never writes the hint")
-
-	still, err := f.store.ListMissingHints(ctxB)
-	require.NoError(t, err)
-	require.Len(t, still, 1)
-	assert.Equal(t, sibling.ID, still[0].ID)
-}
-
 func TestPostgres_DeliveredReadsSuccessfulAttemptsOfOneTypeInTheProject(t *testing.T) {
 	f := newHijackFixture(t)
 	ctxA := tenant.Into(t.Context(), f.orgA)

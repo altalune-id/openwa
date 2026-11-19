@@ -609,60 +609,6 @@ func (s *Service) sealFailure(ctx context.Context, span trace.Span, msg string, 
 	return s.unexpected(ctx, msg, err, "endpoint_id", id)
 }
 
-// BackfillSecretHints fills the missing secret hints of the caller's org's endpoints, once per secret; an unreadable secret keeps no hint and is reported once per run.
-func (s *Service) BackfillSecretHints(ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "webhook.BackfillSecretHints")
-	defer span.End()
-
-	missing, err := s.store.ListMissingHints(ctx)
-	if err != nil {
-		return record(span, fmt.Errorf("webhook.BackfillSecretHints: %w", err))
-	}
-	var unreadable []string
-	filled := 0
-	for _, e := range missing {
-		next, ok := s.hintsOf(e)
-		if !ok {
-			unreadable = append(unreadable, e.ID.String())
-		}
-		if next.PrimaryHint == e.Secrets.PrimaryHint && next.SecondaryHint == e.Secrets.SecondaryHint {
-			continue
-		}
-		if err := s.store.SetHints(ctx, e.ID, next); err != nil {
-			return record(span, fmt.Errorf("webhook.BackfillSecretHints: %w", err))
-		}
-		filled++
-	}
-	span.SetAttributes(attribute.Int("webhook.hints_filled", filled), attribute.Int("webhook.hints_unreadable", len(unreadable)))
-	if len(unreadable) > 0 {
-		err := &SecretUnavailableError{}
-		span.RecordError(err)
-		_ = s.unexpected(ctx, "webhook.BackfillSecretHints: secrets cannot be opened", err,
-			"count", len(unreadable), "endpoint_ids", unreadable)
-	}
-	return nil
-}
-
-// SECURITY: the opened secrets stay in this function; only their last SecretHintLen characters leave it.
-func (s *Service) hintsOf(e *Endpoint) (SealedSecrets, bool) {
-	next, ok := e.Secrets, true
-	if next.PrimaryHint == "" {
-		if secret, err := openSecret(s.sealer, e.ID, slotPrimary, next.Primary); err == nil {
-			next.PrimaryHint = secretHint(secret)
-		} else {
-			ok = false
-		}
-	}
-	if len(next.Secondary) > 0 && next.SecondaryHint == "" {
-		if secret, err := openSecret(s.sealer, e.ID, slotSecondary, next.Secondary); err == nil {
-			next.SecondaryHint = secretHint(secret)
-		} else {
-			ok = false
-		}
-	}
-	return next, ok
-}
-
 func secretHint(secret string) string { return secret[max(len(secret)-SecretHintLen, 0):] }
 
 func (s *Service) openPrimary(ctx context.Context, e *Endpoint) (string, bool) {

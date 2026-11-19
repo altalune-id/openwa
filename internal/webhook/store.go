@@ -24,10 +24,6 @@ type Store interface {
 	SaveAttempt(ctx context.Context, a Attempt) error
 	// Delivered reports whether any endpoint of the caller's project ever got a t delivery answered with a 2xx.
 	Delivered(ctx context.Context, t events.Type) (bool, error)
-	// ListMissingHints returns the caller's org's endpoints with an empty hint for a secret they hold.
-	ListMissingHints(ctx context.Context) ([]*Endpoint, error)
-	// SetHints writes secrets' hints, without touching updated_at, only while the stored secret bytes still equal secrets'; otherwise it writes nothing.
-	SetHints(ctx context.Context, id uuid.UUID, secrets SealedSecrets) error
 	// ListAttempts returns the attempts of one delivery to one endpoint, newest first.
 	ListAttempts(ctx context.Context, endpointID, deliveryID uuid.UUID) ([]Attempt, error)
 }
