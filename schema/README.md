@@ -100,7 +100,7 @@ erDiagram
         uuid project_id FK
         uuid device_id FK "null = every number; (project_id, device_id) to devices, cascade; immutable; unique with url when set"
         text event_types
-        text secret_hint "last 4 chars of the primary secret; '' until set or backfilled"
+        text secret_hint "last 4 chars of the primary secret; '' for endpoints created before hints"
         text secondary_secret_hint "last 4 chars of the old secret during a rotation, else ''"
     }
     webhook_deliveries {

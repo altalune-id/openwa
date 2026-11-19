@@ -416,60 +416,6 @@ func isPgForeignKeyViolation(err error) bool {
 	return ok && pgErr.Code == "23503"
 }
 
-func (s *postgresStore) ListMissingHints(ctx context.Context) ([]*Endpoint, error) {
-	tx, owned, tc, err := s.txAcquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out, readErr := s.listMissingHints(ctx, tx, tc)
-	if txErr := s.endTx(tx, owned, readErr); txErr != nil {
-		return nil, txErr
-	}
-	return out, nil
-}
-
-func (s *postgresStore) listMissingHints(ctx context.Context, tx *sql.Tx, tc tenant.Context) ([]*Endpoint, error) {
-	stmt := postgres.SELECT(s.endpoints.AllColumns).
-		FROM(s.endpoints).
-		WHERE(s.endpoints.OrgID.EQ(postgres.UUID(tc.OrgID)).
-			AND(s.endpoints.SecretHint.EQ(postgres.String("")).
-				OR(s.endpoints.SecretSecondary.IS_NOT_NULL().AND(s.endpoints.SecondaryHint.EQ(postgres.String(""))))))
-	var rows []pgEndpointRow
-	if err := stmt.QueryContext(ctx, tx, &rows); err != nil && !errors.Is(err, qrm.ErrNoRows) {
-		return nil, fmt.Errorf("webhook.postgres.ListMissingHints: %w", err)
-	}
-	out := make([]*Endpoint, 0, len(rows))
-	for i := range rows {
-		e, err := rows[i].toEndpoint()
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, e)
-	}
-	return out, nil
-}
-
-func (s *postgresStore) SetHints(ctx context.Context, id uuid.UUID, secrets SealedSecrets) error {
-	tx, owned, tc, err := s.txAcquire(ctx)
-	if err != nil {
-		return err
-	}
-	stmt := s.endpoints.UPDATE().
-		SET(
-			s.endpoints.SecretHint.SET(postgres.String(secrets.PrimaryHint)),
-			s.endpoints.SecondaryHint.SET(postgres.String(secrets.SecondaryHint)),
-		).
-		WHERE(s.endpoints.OrgID.EQ(postgres.UUID(tc.OrgID)).
-			AND(s.endpoints.ID.EQ(postgres.UUID(id))).
-			AND(s.endpoints.SecretPrimary.EQ(postgres.Bytea(secrets.Primary))).
-			AND(s.endpoints.SecretSecondary.IS_NOT_DISTINCT_FROM(pgSecondary(secrets.Secondary))))
-	_, execErr := stmt.ExecContext(ctx, tx)
-	if execErr != nil {
-		execErr = fmt.Errorf("webhook.postgres.SetHints: %w", execErr)
-	}
-	return s.endTx(tx, owned, execErr)
-}
-
 func (s *postgresStore) Delivered(ctx context.Context, t events.Type) (bool, error) {
 	tx, owned, tc, err := s.txAcquire(ctx)
 	if err != nil {

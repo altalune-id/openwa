@@ -232,40 +232,6 @@ func (f *WebhookStore) Delivered(ctx context.Context, t events.Type) (bool, erro
 	}), nil
 }
 
-func (f *WebhookStore) ListMissingHints(ctx context.Context) ([]*webhook.Endpoint, error) {
-	tc, err := tenant.From(ctx)
-	if err != nil {
-		return nil, err
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	var out []*webhook.Endpoint
-	for _, e := range f.endpoints {
-		if e.OrgID != tc.OrgID {
-			continue
-		}
-		if e.Secrets.PrimaryHint == "" || (len(e.Secrets.Secondary) > 0 && e.Secrets.SecondaryHint == "") {
-			out = append(out, cloneEndpoint(e))
-		}
-	}
-	return out, nil
-}
-
-func (f *WebhookStore) SetHints(ctx context.Context, id uuid.UUID, secrets webhook.SealedSecrets) error {
-	tc, err := tenant.From(ctx)
-	if err != nil {
-		return err
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	e, ok := f.endpoints[id]
-	if !ok || e.OrgID != tc.OrgID || !bytes.Equal(e.Secrets.Primary, secrets.Primary) || !sameSecondary(e.Secrets.Secondary, secrets.Secondary) {
-		return nil
-	}
-	e.Secrets.PrimaryHint, e.Secrets.SecondaryHint = secrets.PrimaryHint, secrets.SecondaryHint
-	return nil
-}
-
 func cloneEndpoint(e *webhook.Endpoint) *webhook.Endpoint {
 	cp := *e
 	cp.EventTypes = slices.Clone(e.EventTypes)
