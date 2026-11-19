@@ -27,6 +27,23 @@ type SettingsView struct {
 	RetentionAt   time.Time
 	RetentionZone string
 	Error         string
+	Alerts        AlertsView
+}
+
+// AlertsView is the disconnect email settings card; Unsubscribed is filled for managers only, and Error and BadAddress describe a refused save.
+type AlertsView struct {
+	CanManage    bool
+	Enabled      bool
+	Recipients   string
+	Unsubscribed []string
+	MailOff      bool
+	ServerOff    bool
+	Error        string
+	BadAddress   string
+}
+
+func (a AlertsView) testDisabled() bool {
+	return a.MailOff || a.ServerOff
 }
 
 templ SettingsLayout(d web.LayoutData, v SettingsView) {
@@ -50,6 +67,7 @@ templ SettingsPage(d web.LayoutData, v SettingsView) {
 			}
 			@settingsGeneral(d, v)
 			@settingsMessages(d, v)
+			@settingsAlerts(d, v)
 		</div>
 	</section>
 }
@@ -185,5 +203,93 @@ templ settingsRetentionTime(d web.LayoutData, v SettingsView) {
 				</details>
 			}
 		</div>
+	}
+}
+
+func alertsRecipientsField(d web.LayoutData, a AlertsView) FieldProps {
+	p := FieldProps{ID: "alerts-recipients", Label: d.Tr("alerts.recipients_label"), Help: d.Tr("alerts.recipients_help")}
+	switch {
+	case a.BadAddress != "":
+		p.Error = d.Tr("alerts.recipient_invalid", "Address", "\u2066"+a.BadAddress+"\u2069")
+	case a.Error != "":
+		p.Error = d.Tr(a.Error)
+	}
+	return p
+}
+
+templ settingsAlerts(d web.LayoutData, v SettingsView) {
+	{{ a := v.Alerts }}
+	{{ locked := !a.CanManage }}
+	<form
+		id="alerts-form"
+		method="post"
+		action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/settings/alerts")) }
+		class="card border border-base-300 bg-base-100"
+		aria-labelledby="settings-alerts"
+		novalidate
+	>
+		<div class="card-body min-w-0 gap-3 p-6">
+			<h2 id="settings-alerts" class="card-title text-base">{ d.Tr("alerts.title") }</h2>
+			if a.MailOff {
+				<div role="note" class="alert alert-info alert-soft">
+					@icons.Icon("mail", "size-5 shrink-0")
+					<span>{ d.Tr("alerts.email_off") }</span>
+				</div>
+			} else if a.ServerOff {
+				<div role="note" class="alert alert-info alert-soft">
+					@icons.Icon("mail", "size-5 shrink-0")
+					<span>{ d.Tr("alerts.server_off") }</span>
+				</div>
+			}
+			<label class="flex min-h-11 cursor-pointer items-center justify-between gap-3 lg:min-h-8">
+				<span class="min-w-0">
+					<span class="font-medium">{ d.Tr("alerts.toggle") }</span>
+					<span class="block text-sm text-base-content/70">{ d.Tr("alerts.toggle_help") }</span>
+				</span>
+				<input type="checkbox" name="disconnect_enabled" value="1" checked?={ a.Enabled } disabled?={ locked } class="toggle toggle-success shrink-0"/>
+			</label>
+			if !a.Enabled {
+				<p class="text-sm text-base-content/70">{ d.Tr("alerts.off_note") }</p>
+			}
+			{{ field := alertsRecipientsField(d, a) }}
+			@FormField(d, field) {
+				<input
+					name="recipients"
+					type="text"
+					inputmode="email"
+					dir="ltr"
+					autocomplete="off"
+					value={ a.Recipients }
+					disabled?={ locked }
+					class={ InputClass(), "text-start", templ.KV("input-error", field.Error != "") }
+					{ InputAttrs(field)... }
+				/>
+			}
+			if len(a.Unsubscribed) > 0 && a.CanManage {
+				<div class="flex flex-col gap-1 text-sm text-base-content/70">
+					<p>{ d.Tr("alerts.unsubscribed_note") }</p>
+					<ul class="flex flex-wrap gap-2">
+						for _, addr := range a.Unsubscribed {
+							<li class="flex items-center gap-1.5">
+								<span dir="ltr" class="font-mono break-all">{ addr }</span>
+								@Badge(ToneWarning, d.Tr("alerts.unsubscribed"))
+							</li>
+						}
+					</ul>
+				</div>
+			}
+			if a.CanManage {
+				<div class="flex flex-wrap items-center justify-between gap-2">
+					@AppButton(ButtonProps{Kind: ButtonSecondary, Type: "submit", Icon: "mail", Label: d.Tr("alerts.test"), Disabled: a.testDisabled(), Attrs: templ.Attributes{"form": "alerts-test", "aria-describedby": "alerts-test-note"}})
+					<button type="submit" class={ ButtonClass(ButtonPrimary) }>{ d.Tr("alerts.save") }</button>
+				</div>
+				<p id="alerts-test-note" class="text-xs text-base-content/70">{ d.Tr("alerts.test_note") }</p>
+			} else {
+				<p class="text-sm text-base-content/70">{ d.Tr("alerts.readonly") }</p>
+			}
+		</div>
+	</form>
+	if a.CanManage {
+		<form id="alerts-test" method="post" action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/settings/alerts/test")) } hidden></form>
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 
+	"altalune.id/openwa/internal/device"
 	"altalune.id/openwa/internal/i18n"
 	"altalune.id/openwa/internal/platform/events"
 	"altalune.id/openwa/internal/platform/outbox"
@@ -25,12 +26,13 @@ import (
 type WebhookHandler struct {
 	Deps
 	Webhooks *webhook.Service
+	Devices  *device.Service
 }
 
 // NewWebhookHandler wires the handler.
-func NewWebhookHandler(d Deps, projects *project.Service, hooks *webhook.Service) *WebhookHandler {
+func NewWebhookHandler(d Deps, projects *project.Service, hooks *webhook.Service, devices *device.Service) *WebhookHandler {
 	d.Projects = projects
-	return &WebhookHandler{Deps: d, Webhooks: hooks}
+	return &WebhookHandler{Deps: d, Webhooks: hooks, Devices: devices}
 }
 
 // Register wires the webhook routes onto mux.
@@ -62,9 +64,25 @@ func (h *WebhookHandler) GetWebhooks(w http.ResponseWriter, r *http.Request) {
 		h.ErrorPageKey(w, sc.req, http.StatusInternalServerError, "error.load_failed", err)
 		return
 	}
+	latest, err := h.Webhooks.LatestDeliveries(sc.req.Context())
+	if err != nil {
+		h.LogErr("web webhook: latest deliveries", err)
+		h.ErrorPageKey(w, sc.req, http.StatusInternalServerError, "error.load_failed", err)
+		return
+	}
+	numbers, err := h.numbers(sc)
+	if err != nil {
+		h.LogErr("web webhook: numbers", err)
+		h.ErrorPageKey(w, sc.req, http.StatusInternalServerError, "error.load_failed", err)
+		return
+	}
 	rows := make([]templates.WebhookRow, 0, len(items))
 	for _, e := range items {
-		rows = append(rows, webhookRow(e))
+		row := webhookRow(e, numbers)
+		if d, ok := latest[e.ID]; ok {
+			row.Latest = &templates.WebhookLatest{Status: string(d.Status), StatusLabelKey: statusLabelKey(d.Status), At: d.CreatedAt, Failing: d.Failing()}
+		}
+		rows = append(rows, row)
 	}
 	v := templates.WebhooksView{
 		ProjectSlug: sc.project.Slug,
@@ -85,7 +103,7 @@ func (h *WebhookHandler) GetWebhookNew(w http.ResponseWriter, r *http.Request) {
 	if !h.requireManager(w, sc) {
 		return
 	}
-	h.writeNewForm(w, sc, webhookForm("", "", "", true, nil), templates.WebhookError{})
+	h.writeNewForm(w, sc, webhookForm("", "", "", true, []events.Type{events.MessageMatched}), "", templates.WebhookError{})
 }
 
 // PostWebhookCreate creates an endpoint and renders its detail page with the one-time secret.
@@ -102,16 +120,18 @@ func (h *WebhookHandler) PostWebhookCreate(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	rawURL, desc, types := endpointFields(r)
-	e, secret, err := h.Webhooks.Create(sc.req.Context(), rawURL, desc, types)
+	devicePublicID := strings.TrimSpace(r.PostForm.Get("device"))
+	e, secret, err := h.Webhooks.Create(sc.req.Context(), rawURL, desc, types, devicePublicID)
 	if err != nil {
 		h.logFailure("web webhook: create", err)
-		h.writeNewForm(w, sc, webhookForm("", rawURL, desc, true, types), webhookError(err))
+		h.writeNewForm(w, sc, webhookForm("", rawURL, desc, true, types), devicePublicID, webhookError(err))
 		return
 	}
 	if web.IsHTMXRequest(r) {
 		w.Header().Set(web.HeaderPushURL, h.ProjectURL(sc, "/webhooks/"+e.ID.String()))
 	}
-	// SECURITY: the plaintext secret is rendered into this one response and discarded — never logged, stored or redirected with.
+	// SECURITY: the plaintext secret is rendered into this one no-store response and discarded — never logged, stored or redirected with.
+	w.Header().Set("Cache-Control", "no-store")
 	h.writeDetail(w, sc, e, detailOpts{secret: secret, flash: h.flash(sc, "flash.webhook_saved")})
 }
 
@@ -182,7 +202,12 @@ func (h *WebhookHandler) PostWebhookRotate(w http.ResponseWriter, r *http.Reques
 		h.writeDetail(w, sc, e, detailOpts{err: webhookError(err)})
 		return
 	}
-	h.reloadDetail(w, sc, e.ID, detailOpts{secret: secret, flash: h.flash(sc, "flash.secret_rotated")})
+	w.Header().Set("Cache-Control", "no-store")
+	if strings.HasSuffix(r.Header.Get("HX-Target"), "webhook-secret-slot") {
+		h.writeSecretSlot(w, sc, e.ID, secret)
+		return
+	}
+	h.reloadDetail(w, sc, e.ID, detailOpts{secret: secret, rotated: true, flash: h.flash(sc, "flash.secret_rotated")})
 }
 
 // PostWebhookRetire drops the secondary secret and redirects to the detail page.
@@ -313,10 +338,11 @@ func (h *WebhookHandler) PostWebhookRetryFailed(w http.ResponseWriter, r *http.R
 }
 
 type detailOpts struct {
-	secret string
-	form   *templates.WebhookFormView
-	err    templates.WebhookError
-	flash  *web.FlashMessage
+	secret  string
+	rotated bool
+	form    *templates.WebhookFormView
+	err     templates.WebhookError
+	flash   *web.FlashMessage
 }
 
 func (h *WebhookHandler) requireEndpoint(w http.ResponseWriter, r *http.Request) (ProjectScope, *webhook.Endpoint, bool) {
@@ -355,6 +381,20 @@ func (h *WebhookHandler) requireDelivery(w http.ResponseWriter, r *http.Request)
 	return sc, e, did, true
 }
 
+func (h *WebhookHandler) writeSecretSlot(w http.ResponseWriter, sc ProjectScope, id uuid.UUID, secret string) {
+	e, err := h.Webhooks.ByID(sc.req.Context(), id)
+	if err == nil {
+		var numbers map[uuid.UUID]webhookNumber
+		if numbers, err = h.numbers(sc); err == nil {
+			v := templates.WebhookDetailView{ProjectSlug: sc.project.Slug, Endpoint: webhookRow(e, numbers), Secret: secret, Rotated: true, CanManage: true}
+			Render(w, sc.req, templates.WebhookSecretOnce(h.ProjectFragmentBase(sc), v))
+			return
+		}
+	}
+	h.LogErr("web webhook: secret slot", err)
+	h.ErrorPageKey(w, sc.req, http.StatusInternalServerError, "error.load_failed", err)
+}
+
 func (h *WebhookHandler) reloadDetail(w http.ResponseWriter, sc ProjectScope, id uuid.UUID, o detailOpts) {
 	e, err := h.Webhooks.ByID(sc.req.Context(), id)
 	if err != nil {
@@ -372,11 +412,19 @@ func (h *WebhookHandler) writeDetail(w http.ResponseWriter, sc ProjectScope, e *
 		h.ErrorPageKey(w, sc.req, http.StatusInternalServerError, "error.load_failed", err)
 		return
 	}
+	numbers, err := h.numbers(sc)
+	if err != nil {
+		h.LogErr("web webhook: numbers", err)
+		h.ErrorPageKey(w, sc.req, http.StatusInternalServerError, "error.load_failed", err)
+		return
+	}
+	row := webhookRow(e, numbers)
 	form := webhookForm(e.ID.String(), e.URL, e.Description, e.Active, e.EventTypes)
 	if o.form != nil {
 		form = *o.form
 	}
 	form.ProjectSlug, form.Error = sc.project.Slug, o.err
+	form.DeviceLocked, form.DeviceName, form.DevicePublicID = true, row.DeviceName, row.DevicePublicID
 	guide := webhookGuide(false)
 	snippets, err := webhook.VerifySnippets()
 	if err != nil {
@@ -387,12 +435,13 @@ func (h *WebhookHandler) writeDetail(w http.ResponseWriter, sc ProjectScope, e *
 	}
 	v := templates.WebhookDetailView{
 		ProjectSlug: sc.project.Slug,
-		Endpoint:    webhookRow(e),
+		Endpoint:    row,
 		Secret:      o.secret,
+		Rotated:     o.rotated,
 		Form:        form,
 		Deliveries:  deliveries,
 		Guide:       guide,
-		CanManage:   deliveries.CanManage,
+		CanManage:   h.canManageProject(sc),
 	}
 	l := h.layout(sc, pageTitle(sc.req, "title.webhook"))
 	if web.IsHTMXRequest(sc.req) {
@@ -405,7 +454,16 @@ func (h *WebhookHandler) writeDetail(w http.ResponseWriter, sc ProjectScope, e *
 	Render(w, sc.req, templates.WebhookDetailLayout(l, v))
 }
 
-func (h *WebhookHandler) writeNewForm(w http.ResponseWriter, sc ProjectScope, form templates.WebhookFormView, werr templates.WebhookError) {
+func (h *WebhookHandler) writeNewForm(w http.ResponseWriter, sc ProjectScope, form templates.WebhookFormView, selected string, werr templates.WebhookError) {
+	numbers, err := h.numbers(sc)
+	if err != nil {
+		h.LogErr("web webhook: numbers", err)
+		h.ErrorPageKey(w, sc.req, http.StatusInternalServerError, "error.load_failed", err)
+		return
+	}
+	for _, n := range numbers {
+		form.Devices = append(form.Devices, templates.WebhookDeviceOption{PublicID: n.PublicID, Name: n.Name, Phone: n.Phone, Selected: n.PublicID == selected})
+	}
 	form.ProjectSlug, form.Error = sc.project.Slug, werr
 	if web.IsHTMXRequest(sc.req) {
 		Render(w, sc.req, templates.WebhookNewPage(h.ProjectFragmentBase(sc), form))
@@ -527,9 +585,11 @@ func webhookForm(id, rawURL, desc string, active bool, selected []events.Type) t
 	opts := make([]templates.WebhookEventOption, 0, len(subs))
 	for _, s := range subs {
 		opts = append(opts, templates.WebhookEventOption{
-			Value:    string(s.Type),
-			LabelKey: eventLabelKey(s.Type),
-			Checked:  slices.Contains(selected, s.Type),
+			Value:       string(s.Type),
+			LabelKey:    eventLabelKey(s.Type),
+			Checked:     slices.Contains(selected, s.Type),
+			Recommended: s.Type == events.MessageMatched,
+			DeviceBound: s.DeviceBound,
 		})
 	}
 	return templates.WebhookFormView{
@@ -543,19 +603,43 @@ func webhookForm(id, rawURL, desc string, active bool, selected []events.Type) t
 	}
 }
 
-func webhookRow(e *webhook.Endpoint) templates.WebhookRow {
+type webhookNumber struct{ PublicID, Name, Phone string }
+
+func (h *WebhookHandler) numbers(sc ProjectScope) (map[uuid.UUID]webhookNumber, error) {
+	views, err := h.Devices.List(sc.req.Context())
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[uuid.UUID]webhookNumber, len(views))
+	for _, v := range views {
+		out[v.Device.ID] = webhookNumber{PublicID: v.Device.PublicID, Name: v.Device.Name, Phone: v.Status.Phone}
+	}
+	return out, nil
+}
+
+func webhookRow(e *webhook.Endpoint, numbers map[uuid.UUID]webhookNumber) templates.WebhookRow {
 	labels := make([]string, 0, len(e.EventTypes))
+	codes := make([]string, 0, len(e.EventTypes))
 	for _, t := range e.EventTypes {
 		labels = append(labels, eventLabelKey(t))
+		codes = append(codes, string(t))
 	}
-	return templates.WebhookRow{
+	row := templates.WebhookRow{
 		ID:             e.ID.String(),
 		URL:            e.URL,
 		Description:    e.Description,
 		EventLabelKeys: labels,
+		EventCodes:     codes,
 		Active:         e.Active,
 		Rotating:       e.Secrets.Secondary != nil,
+		SecretHint:     e.Secrets.PrimaryHint,
+		SecondaryHint:  e.Secrets.SecondaryHint,
 	}
+	if e.DeviceID != nil {
+		n := numbers[*e.DeviceID]
+		row.DeviceName, row.DevicePublicID = n.Name, n.PublicID
+	}
+	return row
 }
 
 func deliveryRow(d webhook.Delivery) templates.WebhookDeliveryRow {
@@ -667,6 +751,8 @@ func webhookErrorRules() []webhookErrorRule {
 		{webhook.IsInvalidEventTypesError, "webhooks.error.invalid_event_types", true, 0},
 		{webhook.IsInvalidDescriptionError, "webhooks.error.invalid_description", true, webhook.MaxDescriptionRunes},
 		{webhook.IsEndpointLimitError, "webhooks.error.limit", true, webhook.MaxEndpointsPerProject},
+		{webhook.IsDeviceNotFoundError, "webhooks.error.number_not_found", true, 0},
+		{webhook.IsDuplicateEndpointError, "webhooks.error.duplicate", true, 0},
 		{webhook.IsNotFoundError, "webhooks.error.not_found", true, 0},
 		{webhook.IsDeliveryNotFoundError, "webhooks.error.delivery_not_found", true, 0},
 		{webhook.IsDeliveryNotRetryableError, "webhooks.error.not_retryable", true, 0},

@@ -376,7 +376,7 @@ func TestProjectHandler_PostCreate_DuplicateSlug(t *testing.T) {
 func TestSettingsHandler_PostRename_MissingProject(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	h := handlers.NewSettingsHandler(f.Deps, f.Projects, nil)
+	h := handlers.NewSettingsHandler(f.Deps, f.Projects, nil, newTestAlerts(t, nil))
 	mux := http.NewServeMux()
 	h.Register(mux)
 	rec := httptest.NewRecorder()

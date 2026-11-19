@@ -8,6 +8,7 @@ import (
 
 	apperrorv1 "altalune.id/openwa/gen/go/apperror/v1"
 	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/events"
 )
 
 // NotFoundError reports that no endpoint matched the lookup.
@@ -300,5 +301,85 @@ func (e *DeliveryFailedError) Error() string {
 // IsDeliveryFailedError reports whether err's tree contains a *DeliveryFailedError.
 func IsDeliveryFailedError(err error) bool {
 	_, ok := errors.AsType[*DeliveryFailedError](err)
+	return ok
+}
+
+// DeviceNotFoundError reports that a webhook names a number that is not in the caller's project.
+type DeviceNotFoundError struct {
+	ID string
+}
+
+func (e *DeviceNotFoundError) Error() string {
+	return fmt.Sprintf("webhook: device not found: id=%s", e.ID)
+}
+
+// ToAppError converts the typed error into the wire envelope.
+func (e *DeviceNotFoundError) ToAppError() *apperror.AppError {
+	return apperror.New(
+		apperror.CodeWebhookDeviceNotFound,
+		"Webhook number not found in this project",
+		codes.NotFound,
+		&apperrorv1.ErrorDetail{Code: apperror.CodeWebhookDeviceNotFound},
+	)
+}
+
+// IsDeviceNotFoundError reports whether err's tree contains a *DeviceNotFoundError.
+func IsDeviceNotFoundError(err error) bool {
+	_, ok := errors.AsType[*DeviceNotFoundError](err)
+	return ok
+}
+
+// DeviceRequiredError reports a device-bound event type enqueued without the device it came from.
+type DeviceRequiredError struct {
+	Type events.Type
+}
+
+func (e *DeviceRequiredError) Error() string {
+	return fmt.Sprintf("webhook: event type %s is device-bound: use EnqueueForDevice", e.Type)
+}
+
+// IsDeviceRequiredError reports whether err's tree contains a *DeviceRequiredError.
+func IsDeviceRequiredError(err error) bool {
+	_, ok := errors.AsType[*DeviceRequiredError](err)
+	return ok
+}
+
+// DeviceNotBoundError reports a project-wide event type enqueued for one device.
+type DeviceNotBoundError struct {
+	Type events.Type
+}
+
+func (e *DeviceNotBoundError) Error() string {
+	return fmt.Sprintf("webhook: event type %s is not device-bound: use Enqueue", e.Type)
+}
+
+// IsDeviceNotBoundError reports whether err's tree contains a *DeviceNotBoundError.
+func IsDeviceNotBoundError(err error) bool {
+	_, ok := errors.AsType[*DeviceNotBoundError](err)
+	return ok
+}
+
+// DuplicateEndpointError reports that the number already has an endpoint at that URL.
+type DuplicateEndpointError struct {
+	URL string
+}
+
+func (e *DuplicateEndpointError) Error() string {
+	return "webhook: the number already has an endpoint at this url"
+}
+
+// ToAppError converts the typed error into the wire envelope.
+func (e *DuplicateEndpointError) ToAppError() *apperror.AppError {
+	return apperror.New(
+		apperror.CodeWebhookDuplicateEndpoint,
+		"This number already has a webhook at that address",
+		codes.AlreadyExists,
+		&apperrorv1.ErrorDetail{Code: apperror.CodeWebhookDuplicateEndpoint},
+	)
+}
+
+// IsDuplicateEndpointError reports whether err's tree contains a *DuplicateEndpointError.
+func IsDuplicateEndpointError(err error) bool {
+	_, ok := errors.AsType[*DuplicateEndpointError](err)
 	return ok
 }

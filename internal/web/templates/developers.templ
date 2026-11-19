@@ -1,0 +1,131 @@
+package templates
+
+import (
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
+)
+
+// DevelopersView is the quickstart page: snippets are prefilled with BaseURL and the selected number; KeyPrefix is the deployment's API key prefix.
+type DevelopersView struct {
+	ProjectSlug    string
+	KeyPrefix      string
+	BaseURL        string
+	Devices        []WebhookDeviceOption
+	Selected       string
+	Send           []WebhookSnippet
+	Verify         []WebhookSnippet
+	Payload        string
+	TestEndpointID string
+	CanManage      bool
+}
+
+func snippetTabs(d web.LayoutData, id, label string, snippets []WebhookSnippet) TabsProps {
+	tabs := make([]Tab, 0, len(snippets))
+	for _, s := range snippets {
+		tabs = append(tabs, Tab{Key: s.Lang, Label: s.Label, Panel: snippetPanel(d, label, s), Attrs: templ.Attributes{"data-snippet": s.Lang}})
+	}
+	return TabsProps{ID: id, Label: d.Tr("developers.example_label"), Tabs: tabs}
+}
+
+templ snippetPanel(d web.LayoutData, label string, s WebhookSnippet) {
+	<div class="flex min-w-0 flex-col gap-2">
+		<div class="flex flex-wrap justify-end">
+			@CopyButton(d, s.Code, d.Tr("common.copy")+": "+s.Label)
+		</div>
+		@CodeBlock(label+" ("+s.Label+")", s.Code, "")
+	</div>
+}
+
+templ DevelopersLayout(d web.LayoutData, v DevelopersView) {
+	@Layout(web.WithContent(d, DevelopersPage(d, v)))
+}
+
+templ DevelopersPage(d web.LayoutData, v DevelopersView) {
+	<section class="min-w-0">
+		@PageHeader(d, PageHeaderProps{Title: d.Tr("developers.title")})
+		<div class="flex max-w-3xl min-w-0 flex-col gap-8">
+			@DevelopersSend(d, v)
+			@developersReceive(d, v)
+			<p>
+				<a class="link" href="https://github.com/altalune-id/openwa/blob/main/docs/integration/README.md" { externalLink(d, d.Tr("developers.full_guide"))... }>{ d.Tr("developers.full_guide") }</a>
+			</p>
+		</div>
+	</section>
+}
+
+// DevelopersSend is the send section; choosing a number swaps it with snippets for that number.
+templ DevelopersSend(d web.LayoutData, v DevelopersView) {
+	<section id="qs-send" aria-labelledby="qs-send-h" class="flex min-w-0 flex-col gap-3">
+		<h2 id="qs-send-h" class="text-lg font-semibold">{ d.Tr("developers.send_heading") }</h2>
+		if len(v.Devices) == 0 {
+			@EmptyState(d, EmptyStateProps{Icon: "smartphone", Title: d.Tr("developers.no_numbers"), CTA: &ButtonProps{Kind: ButtonPrimary, Icon: "plus", Label: d.Tr("nav.numbers"), Href: d.ProjectPath(v.ProjectSlug, "/devices/new")}})
+		} else {
+			<div class="flex min-w-0 flex-wrap items-end gap-3">
+				{{ field := FieldProps{ID: "qs-device", Label: d.Tr("developers.number_label")} }}
+				<div class="w-full sm:w-64">
+					@FormField(d, field) {
+						<select
+							name="device"
+							hx-get={ d.ProjectPath(v.ProjectSlug, "/developers") }
+							hx-trigger="change"
+							hx-target="#qs-send"
+							hx-swap="outerHTML"
+							hx-nonce={ d.Nonce }
+							class="select w-full lg:select-sm"
+							{ InputAttrs(field)... }
+						>
+							for _, o := range v.Devices {
+								<option value={ o.PublicID } selected?={ o.PublicID == v.Selected } dir="auto">{ deviceOptionLabel(o) }</option>
+							}
+						</select>
+					}
+				</div>
+				<p class="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 text-sm lg:min-h-8">
+					<span class="text-base-content/70">{ d.Tr("developers.key_label") }:</span>
+					<code dir="ltr" class="rounded-field bg-base-200 px-2 py-1 font-mono text-sm break-all">{ "KEY=" + v.KeyPrefix + "••••" }</code>
+					<a class="link" href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/apikeys")) }>{ d.Tr("developers.create_key") }</a>
+				</p>
+			</div>
+			<p class="text-sm text-base-content/70">{ d.Tr("developers.key_note") }</p>
+		}
+		if len(v.Send) > 0 {
+			@Tabs(d, snippetTabs(d, "qs-send-tabs", d.Tr("developers.send_heading"), v.Send))
+			<p class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+				<span class="text-base-content/70">{ d.Tr("developers.response_label") }:</span>
+				<code dir="ltr" class="font-mono">202 Accepted</code>
+			</p>
+		}
+	</section>
+}
+
+templ developersReceive(d web.LayoutData, v DevelopersView) {
+	<section aria-labelledby="qs-recv-h" class="flex min-w-0 flex-col gap-3">
+		<h2 id="qs-recv-h" class="text-lg font-semibold">{ d.Tr("developers.recv_heading") }</h2>
+		<p class="text-sm text-base-content/70">
+			{ d.Tr("developers.recv_body") }
+			<a class="link" href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/webhooks")) }>{ d.Tr("developers.recv_link") }</a>
+		</p>
+		if v.Payload != "" {
+			@Disclosure(d.Tr("developers.payload_title")) {
+				@CodeBlock(d.Tr("developers.payload_title"), v.Payload, "max-h-96 overflow-y-auto")
+			}
+		}
+		if len(v.Verify) > 0 {
+			<h3 class="text-sm font-semibold">{ d.Tr("developers.verify_title") }</h3>
+			@Tabs(d, snippetTabs(d, "qs-verify-tabs", d.Tr("developers.verify_title"), v.Verify))
+		}
+		if v.CanManage {
+			if v.TestEndpointID != "" {
+				<div>
+					@AppButton(ButtonProps{Kind: ButtonSecondary, Icon: "send", Label: d.Tr("developers.send_test"), Href: d.ProjectPath(v.ProjectSlug, "/webhooks/"+v.TestEndpointID)})
+				</div>
+			} else {
+				<p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-base-content/70">
+					@icons.Icon("info", "size-4 shrink-0")
+					<span>{ d.Tr("developers.need_webhook") }</span>
+					<a class="link" href={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/webhooks/new")) }>{ d.Tr("webhooks.new") }</a>
+				</p>
+			}
+		}
+	</section>
+}

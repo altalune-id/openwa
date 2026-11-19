@@ -397,3 +397,43 @@ func (s *postgresStore) listByTarget(ctx context.Context, tx *sql.Tx, tc tenant.
 	}
 	return out, nil
 }
+
+func (s *postgresStore) LatestByTargets(ctx context.Context, targets []string) (map[string]Entry, error) {
+	if len(targets) == 0 {
+		return map[string]Entry{}, nil
+	}
+	tx, owned, tc, err := s.txAcquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out, readErr := s.latestByTargets(ctx, tx, tc, targets)
+	if txErr := s.endTx(tx, owned, readErr); txErr != nil {
+		return nil, txErr
+	}
+	return out, nil
+}
+
+func (s *postgresStore) latestByTargets(ctx context.Context, tx *sql.Tx, tc tenant.Context, targets []string) (map[string]Entry, error) {
+	in := make([]postgres.Expression, len(targets))
+	for i, t := range targets {
+		in[i] = postgres.String(t)
+	}
+	stmt := postgres.SELECT(s.entries.AllColumns).
+		DISTINCT(s.entries.Target).
+		FROM(s.entries).
+		WHERE(s.entries.OrgID.EQ(postgres.UUID(tc.OrgID)).
+			AND(s.entries.ProjectID.EQ(postgres.UUID(tc.ProjectID))).
+			AND(s.entries.Target.IN(in...))).
+		ORDER_BY(s.entries.Target, s.entries.CreatedAt.DESC(), s.entries.ID.DESC())
+
+	var rows []pgEntryRow
+	if err := stmt.QueryContext(ctx, tx, &rows); err != nil && !errorIsNoRows(err) {
+		return nil, fmt.Errorf("outbox.postgres.LatestByTargets: %w", err)
+	}
+	out := make(map[string]Entry, len(rows))
+	for i := range rows {
+		e := rows[i].toEntry()
+		out[e.Target] = e
+	}
+	return out, nil
+}

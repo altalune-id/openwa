@@ -23,7 +23,7 @@ func TestWebhookStoreScopesByOrgNotProject(t *testing.T) {
 	b := tenant.Context{OrgID: uuid.New(), ProjectID: uuid.New()}
 
 	store := fakes.NewWebhookStore()
-	e, err := webhook.New(a.OrgID, a.ProjectID, "https://example.com/hook", "", []events.Type{events.PostPublished})
+	e, err := webhook.New(a.OrgID, a.ProjectID, nil, "https://example.com/hook", "", []events.Type{events.PostPublished})
 	require.NoError(t, err)
 	require.NoError(t, store.Save(tenant.Into(t.Context(), a), e))
 
@@ -52,7 +52,7 @@ func TestWebhookStoreSaveAttemptHoldsTheProjectGuard(t *testing.T) {
 	a.ProjectID = tc.ProjectID
 	assert.True(t, webhook.IsNotFoundError(store.SaveAttempt(ctx, a)), "an attempt for a missing endpoint mirrors the FK")
 
-	e, err := webhook.New(tc.OrgID, tc.ProjectID, "https://example.com/hook", "", []events.Type{events.PostPublished})
+	e, err := webhook.New(tc.OrgID, tc.ProjectID, nil, "https://example.com/hook", "", []events.Type{events.PostPublished})
 	require.NoError(t, err)
 	require.NoError(t, store.Save(ctx, e))
 	endpointID := e.ID
@@ -86,7 +86,7 @@ func TestWebhookStoreSecretWritesMatchTheRealStores(t *testing.T) {
 	a := tenant.Context{OrgID: uuid.New(), ProjectID: uuid.New()}
 	ctx := tenant.Into(t.Context(), a)
 	store := fakes.NewWebhookStore()
-	e, err := webhook.New(a.OrgID, a.ProjectID, "https://example.com/hook", "", []events.Type{events.PostPublished})
+	e, err := webhook.New(a.OrgID, a.ProjectID, nil, "https://example.com/hook", "", []events.Type{events.PostPublished})
 	require.NoError(t, err)
 	e.Secrets = webhook.SealedSecrets{Primary: []byte("p1")}
 	require.NoError(t, store.Save(ctx, e))

@@ -27,6 +27,7 @@ type Spec struct {
 	Type         Type
 	Version      int
 	Subscribable bool
+	DeviceBound  bool
 }
 
 // APIVersion renders the payload version as it appears in the envelope.
@@ -38,12 +39,12 @@ func All() []Spec {
 		{Type: PostPublished, Version: 1, Subscribable: true},
 		{Type: PostUnpublished, Version: 1, Subscribable: true},
 		{Type: PostDeleted, Version: 1, Subscribable: true},
-		{Type: DeviceConnected, Version: 1, Subscribable: true},
-		{Type: DeviceDisconnected, Version: 1, Subscribable: true},
-		{Type: DeviceLoggedOut, Version: 1, Subscribable: true},
-		{Type: MessageReceived, Version: 1, Subscribable: true},
-		{Type: MessageMatched, Version: 1, Subscribable: true},
-		{Type: MessageStatus, Version: 1, Subscribable: true},
+		{Type: DeviceConnected, Version: 1, Subscribable: true, DeviceBound: true},
+		{Type: DeviceDisconnected, Version: 1, Subscribable: true, DeviceBound: true},
+		{Type: DeviceLoggedOut, Version: 1, Subscribable: true, DeviceBound: true},
+		{Type: MessageReceived, Version: 1, Subscribable: true, DeviceBound: true},
+		{Type: MessageMatched, Version: 1, Subscribable: true, DeviceBound: true},
+		{Type: MessageStatus, Version: 1, Subscribable: true, DeviceBound: true},
 		{Type: WebhookPing, Version: 1},
 	}
 }

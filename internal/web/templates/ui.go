@@ -239,6 +239,10 @@ func withNonce(d web.LayoutData, attrs templ.Attributes) templ.Attributes {
 	return out
 }
 
+func codeLines(code string) []string {
+	return strings.Split(strings.TrimRight(code, "\n"), "\n")
+}
+
 func avatarInitial(name string) string {
 	r := []rune(strings.TrimSpace(name))
 	if len(r) == 0 {
@@ -297,3 +301,19 @@ func confirmTrigger(p ConfirmProps) ButtonProps {
 }
 
 const proseClass = "[&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mt-7 [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_p]:mb-3 [&_p]:leading-relaxed [&_ul]:mb-3 [&_ul]:list-disc [&_ul]:ps-5 [&_ol]:mb-3 [&_ol]:list-decimal [&_ol]:ps-5 [&_li]:mb-1 [&_a]:underline [&_strong]:font-semibold"
+
+//i18n:use connect.fail_status
+//i18n:use connect.fail_unreachable
+func connectFailKey(reason string) string {
+	if reason == "status" {
+		return "connect.fail_status"
+	}
+	return "connect.fail_unreachable"
+}
+
+//i18n:use apikey.confirm_send
+//i18n:use apikey.confirm_read
+//i18n:use apikey.confirm_custom
+func presetConfirmKey(value string) string {
+	return "apikey.confirm_" + value
+}

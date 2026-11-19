@@ -104,6 +104,8 @@ const (
 	CodeWebhookDeliveryNotFound     = "WHK006"
 	CodeWebhookEndpointInactive     = "WHK007"
 	CodeWebhookSecretConflict       = "WHK008"
+	CodeWebhookDeviceNotFound       = "WHK009"
+	CodeWebhookDuplicateEndpoint    = "WHK010"
 
 	CodeDeviceNotFound           = "DEV001"
 	CodeDeviceNameTaken          = "DEV002"
@@ -140,4 +142,12 @@ const (
 	CodeChatNotAGroup       = "CHT004"
 
 	CodeContactNotFound = "CNT001"
+
+	CodeAlertInvalidRecipients       = "ALR001"
+	CodeAlertTestLimit               = "ALR002"
+	CodeAlertMailUnavailable         = "ALR003"
+	CodeAlertDisabled                = "ALR004"
+	CodeAlertNoRecipients            = "ALR005"
+	CodeAlertInvalidUnsubscribeToken = "ALR006"
+	CodeAlertTooManyRecipients       = "ALR007"
 )

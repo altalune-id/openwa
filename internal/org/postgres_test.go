@@ -36,7 +36,7 @@ func newPostgresStoreForTest(t *testing.T) (store org.Store, tc tenant.Context, 
 	ownerID := uuid.New()
 	now := time.Now().UTC()
 	_, err := sqlDB.ExecContext(t.Context(),
-		"INSERT INTO "+prefix+"users (id, email, name, avatar_url, is_admin, created_at, updated_at) VALUES ($1, $2, '', '', false, $3, $3)",
+		"INSERT INTO "+prefix+"users (id, email, name, avatar_url, is_admin, locale, created_at, updated_at) VALUES ($1, $2, '', '', false, 'id-ID', $3, $3)",
 		ownerID, ownerID.String()+"@x.co", now,
 	)
 	require.NoError(t, err)
@@ -124,6 +124,7 @@ func TestPostgres_MembershipRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, profiles, 1)
 	assert.Contains(t, profiles[0].Email, "@x.co")
+	assert.Equal(t, "id-ID", profiles[0].Locale)
 
 	require.NoError(t, store.RemoveMember(ctx, o.ID, tc.UserID))
 	_, err = store.MembershipOf(ctx, o.ID, tc.UserID)

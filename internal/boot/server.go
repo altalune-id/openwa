@@ -35,6 +35,7 @@ import (
 	"altalune.id/openwa/internal/platform/capabilities"
 	"altalune.id/openwa/internal/platform/config"
 	"altalune.id/openwa/internal/platform/db"
+	"altalune.id/openwa/internal/platform/mailqueue"
 	"altalune.id/openwa/internal/platform/notify"
 	"altalune.id/openwa/internal/platform/outbox"
 	"altalune.id/openwa/internal/platform/queue"
@@ -201,6 +202,7 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 	caps := capabilities.From(cfg)
 
 	outboxWaker := outbox.NewWaker()
+	mailWaker := mailqueue.NewWaker()
 	kernel := &platform.Kernel{
 		Pool:        pool,
 		PgConn:      pgConn,
@@ -218,6 +220,7 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 		Nano:        nanoid.New,
 		Caps:        caps,
 		Outbox:      outbox.WakeOnEnqueue(outbox.NewStore(cfg.DB, pool, pgConn), outboxWaker),
+		MailQueue:   mailqueue.WakeOnEnqueue(mailqueue.NewStore(cfg.DB, pool, sl), mailWaker),
 	}
 	for _, s := range sinks {
 		if c, ok := s.(io.Closer); ok {
@@ -249,7 +252,13 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 
 	required := &atomic.Bool{}
 
-	svcs, err := buildServices(cfg, kernel, caps, wa)
+	bundle, defaultLoc, err := buildI18nBundle(cfg)
+	if err != nil {
+		abort()
+		return nil, err
+	}
+
+	svcs, err := buildServices(cfg, kernel, caps, wa, bundle)
 	if err != nil {
 		abort()
 		return nil, err
@@ -291,6 +300,7 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 	}
 	dispatch.Waker = outboxWaker
 	sup.Register(outbox.NewWorker(kernel.Outbox, dispatchDeliverer(o, cfg, kernel, svcs, log), orgEnumerator(cfg, kernel, log), log, dispatch))
+	sup.Register(mailqueue.NewWorker(kernel.MailQueue, deliveringMailer(caps, mail), log, mailqueue.WorkerOpts{IdlePoll: cfg.Mail.IdlePoll, Waker: mailWaker}))
 	if !o.schedulerOnly && !o.consumerOnly {
 		sup.Register(svcs.Runtime)
 	}
@@ -359,12 +369,6 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 		return nil, err
 	}
 
-	bundle, defaultLoc, err := buildI18nBundle(cfg)
-	if err != nil {
-		abort()
-		return nil, err
-	}
-
 	healthOK := health.Ready
 
 	required.Store(!onboarded)
@@ -388,7 +392,7 @@ func BootServer(ctx context.Context, cfg *config.Config, opts ...Option) (*Serve
 
 	webHandler, webRoutes := buildWebHandler(cfg, kernel, caps, log, reporter, healthOK,
 		svcs.Auth, svcs.Users, svcs.Orgs, svcs.Projects, svcs.Invites, svcs.Onboards,
-		svcs.APIKeys, svcs.Webhooks, svcs.Devices, svcs.Chats, svcs.Messages, svcs.Contacts, required, gate.Complete, setup, apiHandler, dataHandler, mcpSurf, apiRes, bundle, defaultLoc, crossOrigin)
+		svcs.APIKeys, svcs.Webhooks, svcs.Devices, svcs.Chats, svcs.Messages, svcs.Contacts, svcs.Alerts, svcs.Outages, required, gate.Complete, setup, apiHandler, dataHandler, mcpSurf, apiRes, bundle, defaultLoc, crossOrigin)
 
 	httpHandler := webHandler
 	if o.schedulerOnly || o.consumerOnly {
@@ -564,6 +568,14 @@ func oidcHTTPClient() *http.Client {
 	c := httpclient.New(httpclient.WithAllowPrivateHosts(true), httpclient.WithTimeout(oidcTimeout))
 	c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	return c
+}
+
+// SECURITY: the console driver prints addresses and links to the log, so queued mail is held until a delivering driver is set.
+func deliveringMailer(caps capabilities.Capabilities, m mailer.Mailer) mailer.Mailer {
+	if !caps.MailEnabled {
+		return nil
+	}
+	return m
 }
 
 func mailerConfig(m config.MailConfig) mailer.Config {

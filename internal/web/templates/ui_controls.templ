@@ -58,7 +58,7 @@ templ FieldGroup(legend string) {
 
 // Chip renders a checkbox styled as a pill.
 templ Chip(p ChipProps) {
-	<label class="chip badge badge-outline has-checked:border-primary has-checked:bg-primary/10 h-auto min-h-11 cursor-pointer gap-2 px-3 py-1 text-sm lg:min-h-8">
+	<label class="chip badge h-auto min-h-11 cursor-pointer gap-2 border-base-300 bg-base-200 px-3 py-1 text-sm has-checked:border-primary has-checked:bg-primary/10 lg:min-h-8">
 		<input type="checkbox" name={ p.Name } value={ p.Value } checked?={ p.Checked } class="checkbox checkbox-xs"/>
 		<span>{ p.Label }</span>
 	</label>
@@ -179,7 +179,7 @@ templ KeyValue(label string) {
 templ SecretField(d web.LayoutData, id, label, value string) {
 	@FormField(d, FieldProps{ID: id, Label: label}) {
 		<div class="join w-full">
-			<input id={ id } type="password" readonly value={ value } autocomplete="off" class="input join-item w-full font-mono lg:input-sm"/>
+			<input id={ id } type="password" dir="ltr" readonly value={ value } autocomplete="off" class="input join-item w-full font-mono lg:input-sm"/>
 			<button
 				type="button"
 				data-copy={ value }
@@ -192,4 +192,46 @@ templ SecretField(d web.LayoutData, id, label, value string) {
 			</button>
 		</div>
 	}
+}
+
+// shownOnceProps configures shownOnce; Actions renders beside the field, e.g. "I've copied it".
+type shownOnceProps struct {
+	ID      string
+	Title   string
+	Note    string
+	Label   string
+	Value   string
+	Actions templ.Component
+}
+
+// shownOnce renders a one-time secret: a warning alert around the kit SecretField.
+templ shownOnce(d web.LayoutData, p shownOnceProps) {
+	<div role="status" data-shown-once class="alert alert-warning alert-soft alert-vertical items-start sm:alert-horizontal">
+		@icons.Icon("key-round", "size-5 shrink-0")
+		<div class="flex w-full min-w-0 flex-col gap-2">
+			<div>
+				<p class="font-semibold">{ p.Title }</p>
+				if p.Note != "" {
+					<p class="text-sm">{ p.Note }</p>
+				}
+			</div>
+			@SecretField(d, p.ID, p.Label, p.Value)
+			if p.Actions != nil {
+				<div class="flex flex-wrap items-center gap-2">
+					@p.Actions
+				</div>
+			}
+		</div>
+	</div>
+}
+
+// CodeBlock renders code in a dark block with line numbers; long lines scroll inside the block.
+templ CodeBlock(label, code, class string) {
+	<div role="region" aria-label={ label } tabindex="0" dir="ltr" class={ "w-full max-w-full min-w-0 overflow-x-auto rounded-box bg-neutral py-4 text-start font-mono text-xs text-neutral-content", class }>
+		<div class="w-max min-w-full">
+			for i, line := range codeLines(code) {
+				<pre class="flex leading-relaxed"><span aria-hidden="true" class="w-10 shrink-0 pe-4 text-end opacity-50">{ strconv.Itoa(i + 1) }</span><code class="pe-4">{ line }</code></pre>
+			}
+		</div>
+	</div>
 }

@@ -29,9 +29,9 @@ type SessionRuntime interface {
 	Held(deviceID uuid.UUID) (SessionRef, EngineSession, bool)
 }
 
-// Webhooks is the port a transition enqueues its outbound event through, inside the transition's unit of work.
+// Webhooks is the port a transition enqueues its device's outbound event through, inside the transition's unit of work.
 type Webhooks interface {
-	Enqueue(ctx context.Context, t events.Type, data any) error
+	EnqueueForDevice(ctx context.Context, t events.Type, deviceID uuid.UUID, data any) error
 }
 
 // DeviceDescriber resolves the public id and display name a device event payload carries.

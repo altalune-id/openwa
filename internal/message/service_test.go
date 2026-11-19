@@ -197,6 +197,7 @@ func TestMarkSentAndMarkFailed_EnqueueStatusInsideTheUnitOfWork(t *testing.T) {
 	calls := e.hooks.Recorded()
 	require.Len(t, calls, 1)
 	require.Equal(t, events.MessageStatus, calls[0].Type)
+	require.Equal(t, e.device, *calls[0].DeviceID, "the status event names the sending device")
 	require.True(t, calls[0].InTx)
 	st := calls[0].Data.(events.MessageStatusV1)
 	require.Equal(t, "sent", st.Status)

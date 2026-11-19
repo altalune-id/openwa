@@ -40,7 +40,7 @@ templ webhookGuideNote(text, header string) {
 		<span class="min-w-0 flex-1">
 			{ text }
 			if header != "" {
-				<code class="ms-1 rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{ header }</code>
+				<code class="ms-1 rounded-field bg-base-200 px-1 py-0.5 font-mono text-xs">{ header }</code>
 			}
 		</span>
 	</li>
@@ -49,9 +49,9 @@ templ webhookGuideNote(text, header string) {
 // WebhookGuide is the "How to integrate" panel on the endpoint list; it opens by default while the project has no endpoints.
 templ WebhookGuide(d web.LayoutData, g WebhookGuideView) {
 	<details data-webhook-guide open?={ g.Open } class="mt-6 rounded-box border border-base-300 bg-base-100 p-5">
-		<summary class="cursor-pointer text-sm font-semibold text-foreground">{ d.Tr("webhooks.guide_heading") }</summary>
-		<p class="mt-2 text-sm text-muted-foreground">{ d.Tr("webhooks.guide_intro") }</p>
-		<ol class="mt-4 space-y-2 text-sm text-foreground/90">
+		<summary class="cursor-pointer text-sm font-semibold">{ d.Tr("webhooks.guide_heading") }</summary>
+		<p class="mt-2 text-sm text-base-content/70">{ d.Tr("webhooks.guide_intro") }</p>
+		<ol class="mt-4 space-y-2 text-sm">
 			@webhookGuideStep(1, d.Tr("webhooks.guide_step_url"))
 			@webhookGuideStep(2, d.Tr("webhooks.guide_step_events"))
 			@webhookGuideStep(3, d.Tr("webhooks.guide_step_secret"))
@@ -65,8 +65,8 @@ templ WebhookGuide(d web.LayoutData, g WebhookGuideView) {
 }
 
 templ webhookReceiverNotes(d web.LayoutData, g WebhookGuideView) {
-	<h3 class="mt-5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{ d.Tr("webhooks.guide_receiver_heading") }</h3>
-	<ul class="mt-2 space-y-2 text-sm text-foreground/90">
+	<h3 class="mt-5 text-sm font-semibold">{ d.Tr("webhooks.guide_receiver_heading") }</h3>
+	<ul class="mt-2 space-y-2 text-sm">
 		@webhookGuideNote(d.Tr("webhooks.guide_respond"), "")
 		@webhookGuideNote(d.Tr("webhooks.guide_dedupe"), g.DeliveryIDHeader)
 		@webhookGuideNote(d.Tr("webhooks.guide_correlate"), g.EventIDHeader)
@@ -78,7 +78,9 @@ templ webhookSnippetPanel(d web.LayoutData, s WebhookSnippet) {
 	<div class="flex justify-end">
 		@CopyButton(d, s.Code, d.Tr("webhooks.verify_copy_label", "Lang", s.Label))
 	</div>
-	<pre class="mt-1 max-h-96 overflow-auto rounded border border-border/70 bg-background p-2 font-mono text-xs text-foreground"><code>{ s.Code }</code></pre>
+	<div class="mt-2">
+		@CodeBlock(d.Tr("webhooks.verify_copy_label", "Lang", s.Label), s.Code, "max-h-96 overflow-y-auto")
+	</div>
 }
 
 func webhookSnippetTabs(d web.LayoutData, g WebhookGuideView) TabsProps {
@@ -91,15 +93,15 @@ func webhookSnippetTabs(d web.LayoutData, g WebhookGuideView) TabsProps {
 
 // WebhookVerifyPanel is the collapsible "Verify signatures" section: one copyable verifier per language, switched by tabs.
 templ WebhookVerifyPanel(d web.LayoutData, g WebhookGuideView) {
-	<details data-webhook-verify class="mt-6 rounded-box border border-base-300 bg-base-100 p-5">
-		<summary class="cursor-pointer text-sm font-semibold text-foreground">{ d.Tr("webhooks.verify_heading") }</summary>
-		<p class="mt-2 text-sm text-muted-foreground">{ d.Tr("webhooks.verify_intro") }</p>
-		<p class="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+	<details data-webhook-verify class="rounded-box border border-base-300 bg-base-100 p-5">
+		<summary class="cursor-pointer text-sm font-semibold">{ d.Tr("webhooks.verify_heading") }</summary>
+		<p class="mt-2 text-sm text-base-content/70">{ d.Tr("webhooks.verify_intro") }</p>
+		<p class="mt-2 flex flex-wrap items-center gap-2 text-xs text-base-content/70">
 			<span>{ d.Tr("webhooks.verify_headers_label") }</span>
-			<code class="rounded bg-muted px-1 py-0.5 font-mono text-foreground">{ g.TimestampHeader }</code>
-			<code class="rounded bg-muted px-1 py-0.5 font-mono text-foreground">{ g.SignatureHeader }</code>
+			<code class="rounded-field bg-base-200 px-1 py-0.5 font-mono">{ g.TimestampHeader }</code>
+			<code class="rounded-field bg-base-200 px-1 py-0.5 font-mono">{ g.SignatureHeader }</code>
 		</p>
-		<p class="mt-2 text-xs text-muted-foreground">{ d.Tr("webhooks.verify_env") }</p>
+		<p class="mt-2 text-xs text-base-content/70">{ d.Tr("webhooks.verify_env") }</p>
 		if len(g.Snippets) > 0 {
 			<div class="mt-3">
 				@Tabs(d, webhookSnippetTabs(d, g))

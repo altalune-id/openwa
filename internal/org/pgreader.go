@@ -114,6 +114,7 @@ func (s *postgresStore) ListMemberProfiles(ctx context.Context, orgID uuid.UUID)
 		s.members.System,
 		s.users.Email,
 		s.users.Name,
+		s.users.Locale,
 	).
 		FROM(s.members.INNER_JOIN(s.users, s.users.ID.EQ(s.members.UserID))).
 		WHERE(s.members.OrgID.EQ(postgres.UUID(orgID))).

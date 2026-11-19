@@ -118,6 +118,47 @@ leading `+` are removed) or a JID (`628111222333@s.whatsapp.net`, a group
 queues the message; such a message ends `failed` or never reaches `delivered`. The console's
 **New chat** checks the number first when you are unsure.
 
+Your first message, from the shell, JavaScript (Node.js 18+) or Python (`requests`). The console's
+**Developers > Quickstart** page shows the same code with your address and number filled in:
+
+```bash quickstart=send-curl
+curl -sS -X POST "$BASE/devices/$DEVICE/messages" -H "Authorization: Bearer $KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"to":"628111222333","text":"Hello from OpenWA"}'
+```
+
+```js quickstart=send-js
+const BASE = "https://wa.example.com/api/v1/orgs/acme/projects/main";
+const DEVICE = "dev_V1StGXR8Z5jdHi6B";
+
+const res = await fetch(`${BASE}/devices/${DEVICE}/messages`, {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${process.env.KEY}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ to: "628111222333", text: "Hello from OpenWA" }),
+});
+console.log(res.status, await res.json());
+```
+
+```python quickstart=send-python
+import os
+
+import requests
+
+BASE = "https://wa.example.com/api/v1/orgs/acme/projects/main"
+DEVICE = "dev_V1StGXR8Z5jdHi6B"
+
+res = requests.post(
+    f"{BASE}/devices/{DEVICE}/messages",
+    headers={"Authorization": f"Bearer {os.environ['KEY']}"},
+    json={"to": "628111222333", "text": "Hello from OpenWA"},
+    timeout=10,
+)
+print(res.status_code, res.json())
+```
+
 Send `Idempotency-Key: <your id>` to make a retry safe: the same key with the same body
 within 24 hours returns the first response and sends nothing new. The key is remembered by
 the server process that took it, so keep your own dedupe too when you run several replicas.
@@ -251,23 +292,85 @@ func Verify(secret string, h http.Header, body []byte, now time.Time) bool {
 }
 ```
 
-```js
+<!-- prettier-ignore -->
+```js quickstart=verify-js
 import crypto from "node:crypto";
+import express from "express";
 
-export function verify(secret, headers, rawBody, nowMs = Date.now()) {
-  const ts = headers["x-openwa-timestamp"] ?? "";
-  if (!/^\d+$/.test(ts) || Math.abs(nowMs / 1000 - Number(ts)) > 300)
+const TOLERANCE_SECONDS = 300;
+
+export function verifyWebhook(secret, headers, rawBody, nowMs = Date.now()) {
+  if (!Buffer.isBuffer(rawBody)) {
     return false;
-  const mac = crypto
-    .createHmac("sha256", secret)
-    .update(`${ts}.`)
-    .update(rawBody);
+  }
+  const ts = headers["x-openwa-timestamp"] ?? "";
+  if (!/^\d+$/.test(ts) || Math.abs(nowMs / 1000 - Number(ts)) > TOLERANCE_SECONDS) {
+    return false;
+  }
+  const mac = crypto.createHmac("sha256", secret).update(`${ts}.`).update(rawBody);
   const want = Buffer.from(`v1=${mac.digest("hex")}`);
   return (headers["x-openwa-signature"] ?? "").split(" ").some((sig) => {
     const got = Buffer.from(sig);
     return got.length === want.length && crypto.timingSafeEqual(got, want);
   });
 }
+
+const app = express();
+
+app.post("/webhooks", express.raw({ type: "application/json" }), (req, res) => {
+  if (!verifyWebhook(process.env.OPENWA_WEBHOOK_SECRET, req.headers, req.body)) {
+    return res.sendStatus(401);
+  }
+  const deliveryId = req.headers["x-openwa-delivery-id"];
+  console.log("webhook", req.headers["x-openwa-event-type"], deliveryId);
+  // TODO: skip deliveryId if already processed, then queue req.body for your worker.
+  return res.sendStatus(204);
+});
+
+app.listen(8080);
+```
+
+```python quickstart=verify-python
+import hashlib
+import hmac
+import os
+import re
+import time
+
+from flask import Flask, abort, request
+
+TOLERANCE_SECONDS = 300
+
+app = Flask(__name__)
+
+
+def verify_webhook(secret, headers, body, now=None):
+    ts = headers.get("X-Openwa-Timestamp", "")
+    if not re.fullmatch(r"[0-9]+", ts):
+        return False
+    now = time.time() if now is None else now
+    if abs(now - int(ts)) > TOLERANCE_SECONDS:
+        return False
+    mac = hmac.new(secret.encode("utf-8"), ts.encode("ascii") + b"." + body, hashlib.sha256)
+    want = ("v1=" + mac.hexdigest()).encode("ascii")
+    return any(
+        hmac.compare_digest(sig.encode("utf-8"), want)
+        for sig in headers.get("X-Openwa-Signature", "").split()
+    )
+
+
+@app.post("/webhooks")
+def receive_webhook():
+    if not verify_webhook(os.environ["OPENWA_WEBHOOK_SECRET"], request.headers, request.get_data()):
+        abort(401)
+    delivery_id = request.headers.get("X-Openwa-Delivery-Id")
+    app.logger.info("webhook %s %s", request.headers.get("X-Openwa-Event-Type"), delivery_id)
+    # TODO: skip delivery_id if already processed, then queue the body for your worker.
+    return "", 204
+
+
+if __name__ == "__main__":
+    app.run(port=8080)
 ```
 
 During a secret rotation the header carries two signatures; accept either.

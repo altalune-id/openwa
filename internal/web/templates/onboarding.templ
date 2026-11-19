@@ -24,8 +24,8 @@ templ OnboardingPage(d web.LayoutData, v OnboardingView) {
 			@FormField(d, nameField) {
 				<input name="display_name" type="text" value={ v.DisplayName } class={ InputClass() } { InputAttrs(nameField)... }/>
 			}
-			<label class="flex items-start gap-2 text-sm text-foreground">
-				<input type="checkbox" name="accept_terms" value="1" required class="mt-1 h-4 w-4 rounded border-border"/>
+			<label class="flex items-start gap-2 text-sm">
+				<input type="checkbox" name="accept_terms" value="1" required class="mt-1 h-4 w-4 rounded-field border-base-300"/>
 				<span>{ d.Tr("onboarding.accept") }</span>
 			</label>
 			<button type="submit" class={ ButtonClass(ButtonPrimary), "w-full justify-center" }>{ d.Tr("onboarding.submit") }</button>

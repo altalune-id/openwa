@@ -95,6 +95,7 @@ type pgMemberProfileRow struct {
 	System    bool      `alias:"memberships.system"`
 	Email     string    `alias:"users.email"`
 	Name      string    `alias:"users.name"`
+	Locale    string    `alias:"users.locale"`
 }
 
 func (r *pgMemberProfileRow) toProfile() *MemberProfile {
@@ -102,6 +103,7 @@ func (r *pgMemberProfileRow) toProfile() *MemberProfile {
 		UserID:    r.UserID,
 		Email:     r.Email,
 		Name:      r.Name,
+		Locale:    r.Locale,
 		Role:      Role(r.Role),
 		CreatedAt: r.CreatedAt.UTC(),
 		System:    r.System,

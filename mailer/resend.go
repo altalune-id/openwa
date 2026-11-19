@@ -62,7 +62,7 @@ func NewResend(cfg Config) (*Resend, error) {
 		UserAgent:         resendUserAgent,
 		ResponseBodyLimit: resendBodyLimit,
 		AllowPrivateHosts: custom,
-		// NOTE: replaying a POST is safe here only because every Send carries a fresh Idempotency-Key.
+		// NOTE: replaying a POST is safe here only because every Send carries one Idempotency-Key across its retries.
 		Retry: httpclient.RetryPolicy{MaxAttempts: attempts, RetryNonIdempotent: true},
 	})
 	return &Resend{from: cfg.From, apiKey: cfg.Resend.APIKey, endpoint: endpoint, rc: rc}, nil
@@ -78,7 +78,7 @@ func (r *Resend) Send(ctx context.Context, m Message) error {
 	defer cancel()
 	from := cmp.Or(m.From, r.from)
 	// SECURITY: reject CR/LF in header fields (RFC 5322 sec 2.2.3) — Resend renders these into the outgoing message headers.
-	if err := (Message{From: from, To: m.To, Subject: m.Subject}).Validate(); err != nil {
+	if err := (Message{From: from, To: m.To, Subject: m.Subject, Headers: m.Headers}).Validate(); err != nil {
 		return err
 	}
 	if m.To == "" {
@@ -87,9 +87,12 @@ func (r *Resend) Send(ctx context.Context, m Message) error {
 	if m.TextBody == "" && m.HTMLBody == "" {
 		return &IncompleteMessageError{Field: "body"}
 	}
-	key, err := nanoid.New(resendIdempotencyLen)
-	if err != nil {
-		return fmt.Errorf("mailer: resend: idempotency key: %w", err)
+	key, ok := IdempotencyKey(ctx)
+	if !ok {
+		var err error
+		if key, err = nanoid.New(resendIdempotencyLen); err != nil {
+			return fmt.Errorf("mailer: resend: idempotency key: %w", err)
+		}
 	}
 	resp, err := r.rc.R().
 		SetContext(ctx).
@@ -104,6 +107,7 @@ func (r *Resend) Send(ctx context.Context, m Message) error {
 			Subject: m.Subject,
 			Text:    m.TextBody,
 			HTML:    m.HTMLBody,
+			Headers: m.Headers,
 		}).
 		Post(r.endpoint)
 	if err != nil {
@@ -120,11 +124,12 @@ func (r *Resend) Send(ctx context.Context, m Message) error {
 }
 
 type resendPayload struct {
-	From    string   `json:"from"`
-	To      []string `json:"to"`
-	Subject string   `json:"subject"`
-	Text    string   `json:"text,omitempty"`
-	HTML    string   `json:"html,omitempty"`
+	From    string            `json:"from"`
+	To      []string          `json:"to"`
+	Subject string            `json:"subject"`
+	Text    string            `json:"text,omitempty"`
+	HTML    string            `json:"html,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
 }
 
 // ResendAPIError is returned when the Resend API answers with a non-2xx status.
@@ -137,6 +142,12 @@ type ResendAPIError struct {
 func (e *ResendAPIError) Error() string {
 	return fmt.Sprintf("mailer: resend: api status %d: %s", e.StatusCode, e.Body)
 }
+
+// HTTPStatus returns the status code the Resend API answered with.
+func (e *ResendAPIError) HTTPStatus() int { return e.StatusCode }
+
+// RetryDelay returns the wait the API asked for in Retry-After, or zero.
+func (e *ResendAPIError) RetryDelay() time.Duration { return e.RetryAfter }
 
 // Retryable reports whether the status is a rate limit or a server fault, so a later send may succeed.
 func (e *ResendAPIError) Retryable() bool {

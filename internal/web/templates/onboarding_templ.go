@@ -151,7 +151,7 @@ func OnboardingPage(d web.LayoutData, v OnboardingView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<label class=\"flex items-start gap-2 text-sm text-foreground\"><input type=\"checkbox\" name=\"accept_terms\" value=\"1\" required class=\"mt-1 h-4 w-4 rounded border-border\"> <span>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<label class=\"flex items-start gap-2 text-sm\"><input type=\"checkbox\" name=\"accept_terms\" value=\"1\" required class=\"mt-1 h-4 w-4 rounded-field border-base-300\"> <span>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

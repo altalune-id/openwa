@@ -31,10 +31,12 @@ func TestAssertSchedulerWiring(t *testing.T) {
 		providers []scheduler.Provider
 		wantErr   string
 	}{
-		{"all wired", []scheduler.Provider{stubProvider{}, stubProvider{}, stubProvider{}}, ""},
-		{"todo slot missing", []scheduler.Provider{nil, stubProvider{}, stubProvider{}}, "todo"},
-		{"session slot missing", []scheduler.Provider{stubProvider{}, nil, stubProvider{}}, "session"},
-		{"message slot missing", []scheduler.Provider{stubProvider{}, stubProvider{}, nil}, "message"},
+		{"all wired", []scheduler.Provider{stubProvider{}, stubProvider{}, stubProvider{}, stubProvider{}, stubProvider{}}, ""},
+		{"todo slot missing", []scheduler.Provider{nil, stubProvider{}, stubProvider{}, stubProvider{}, stubProvider{}}, "todo"},
+		{"session slot missing", []scheduler.Provider{stubProvider{}, nil, stubProvider{}, stubProvider{}, stubProvider{}}, "session"},
+		{"message slot missing", []scheduler.Provider{stubProvider{}, stubProvider{}, nil, stubProvider{}, stubProvider{}}, "message"},
+		{"alert slot missing", []scheduler.Provider{stubProvider{}, stubProvider{}, stubProvider{}, nil, stubProvider{}}, "alert"},
+		{"webhook slot missing", []scheduler.Provider{stubProvider{}, stubProvider{}, stubProvider{}, stubProvider{}, nil}, "webhook"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -53,7 +55,7 @@ func TestAssertSchedulerWiring_LengthMismatchIsAnError(t *testing.T) {
 }
 
 func TestSchedulerDomains_MatchesProviderCount(t *testing.T) {
-	require.Len(t, schedulerDomains, 3, "add the new domain to schedulerDomains and schedulerProviders together")
+	require.Len(t, schedulerDomains, 5, "add the new domain to schedulerDomains and schedulerProviders together")
 }
 
 func TestWarnUnusedTimezoneOverrides(t *testing.T) {
@@ -117,7 +119,7 @@ func TestBootServer_RegistersEveryProvidersJobs(t *testing.T) {
 	for _, j := range srv.Scheduler.Jobs() {
 		names = append(names, j.Name)
 	}
-	require.ElementsMatch(t, []string{"todo-autocomplete-stale", "session-sweep", "message-retention"}, names,
+	require.ElementsMatch(t, []string{"todo-autocomplete-stale", "session-sweep", "message-retention", "alert-disconnect", "webhook-secret-hint-backfill"}, names,
 		"the db health probe is a standalone worker, not a scheduler job")
 }
 

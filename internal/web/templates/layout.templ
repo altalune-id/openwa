@@ -47,6 +47,7 @@ templ Layout(d web.LayoutData) {
 					<input id="alt-drawer" type="checkbox" class="drawer-toggle" tabindex="-1" autocomplete="off" aria-label={ d.Tr("nav.open_menu") }/>
 					<div class="drawer-content flex min-h-dvh min-w-0 flex-col">
 						@shellNavbar(d)
+						@numberAlertBanner(d)
 						<main id="main" tabindex="-1" class="w-full max-w-6xl flex-1 px-4 py-5 outline-none lg:px-8 lg:py-7">
 							@Breadcrumb(d)
 							@pageNotices(d)
@@ -385,4 +386,35 @@ func layoutDir(d web.LayoutData) string {
 		return d.Dir
 	}
 	return "ltr"
+}
+
+func attentionHref(d web.LayoutData) string {
+	if d.Attention.Count == 1 && d.Attention.DeviceID != "" {
+		return d.ProjectPath(d.ActiveProject.Slug, "/devices/"+d.Attention.DeviceID)
+	}
+	return d.ProjectPath(d.ActiveProject.Slug, "/devices")
+}
+
+// numberAlertBanner tells every project page that a number needs attention; it clears once none does.
+templ numberAlertBanner(d web.LayoutData) {
+	if d.ShowAttention() && d.ActiveProject != nil {
+		<aside aria-label={ d.Tr("banner.label") } class="border-b border-base-300 bg-base-100 px-4 py-2 lg:px-8">
+			<div class="max-w-6xl">
+				<div class="alert alert-error alert-soft alert-vertical sm:alert-horizontal">
+					@icons.Icon("triangle-exclamation-point", "size-5 shrink-0")
+					if d.Attention.Count == 1 {
+						<p class="text-sm">{ d.Tr("banner.one", "Name", d.Attention.Name) }</p>
+						if d.ActiveOrg != nil && d.ActiveOrg.CanManage {
+							<a href={ templ.SafeURL(attentionHref(d)) } class={ ButtonClass(ButtonDanger), "w-full sm:w-auto" }>{ d.Tr("banner.one_cta") }</a>
+						} else {
+							<a href={ templ.SafeURL(attentionHref(d)) } class={ ButtonClass(ButtonSecondary), "w-full sm:w-auto" }>{ d.Tr("banner.one_view") }</a>
+						}
+					} else {
+						<p class="text-sm">{ d.Tr("banner.several", "Count", d.Attention.Count) }</p>
+						<a href={ templ.SafeURL(attentionHref(d)) } class={ ButtonClass(ButtonDanger), "w-full sm:w-auto" }>{ d.Tr("banner.several_cta") }</a>
+					}
+				</div>
+			</div>
+		</aside>
+	}
 }

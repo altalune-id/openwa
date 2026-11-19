@@ -143,3 +143,26 @@ func TestLayoutData_StaticCarriesTheContentFingerprint(t *testing.T) {
 		t.Errorf("assets share one fingerprint: %q vs %q", again, got)
 	}
 }
+
+func TestShowAttention_HidesOnTheNamedNumbersOwnPage(t *testing.T) {
+	d := web.LayoutData{
+		ActiveOrg:     &web.ActiveOrg{Slug: "acme"},
+		ActiveProject: &web.ActiveProject{Slug: "shop"},
+		CurrentPath:   "/orgs/acme/projects/shop/inbox",
+	}
+	if d.ShowAttention() {
+		t.Fatal("no attention, no banner")
+	}
+	d.Attention = &web.Attention{Count: 1, DeviceID: "dev_abc", Name: "Sales"}
+	if !d.ShowAttention() {
+		t.Fatal("one number down: banner on other pages")
+	}
+	d.CurrentPath = "/orgs/acme/projects/shop/devices/dev_abc?tab=link"
+	if d.ShowAttention() {
+		t.Fatal("the number's own page already says what to do")
+	}
+	d.Attention = &web.Attention{Count: 2}
+	if !d.ShowAttention() {
+		t.Fatal("several numbers: banner everywhere")
+	}
+}

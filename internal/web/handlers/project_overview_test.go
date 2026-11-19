@@ -31,6 +31,7 @@ type overviewFixture struct {
 	Sessions *fakes.DeviceSessions
 	Messages *fakes.Message
 	Hooks    *fakes.WebhookStore
+	Outbox   *fakes.Outbox
 	now      time.Time
 	uid      uuid.UUID
 	org      uuid.UUID
@@ -50,7 +51,8 @@ func newOverviewFixture(t *testing.T) *overviewFixture {
 	x.Devices = device.NewService(fakes.NewDevice(), discardLogger(), passthroughUnexpected(), fakes.UnitOfWork, x.Sessions, "")
 	msgs := message.NewService(x.Messages, discardLogger(), passthroughUnexpected(), fakes.UnitOfWork, message.Deps{},
 		message.Options{Clock: func() time.Time { return x.now }})
-	hooks := webhook.NewService(x.Hooks, discardLogger(), passthroughUnexpected(), nil, fakes.NewOutbox(), slugOf{})
+	x.Outbox = fakes.NewOutbox()
+	hooks := webhook.NewService(x.Hooks, discardLogger(), passthroughUnexpected(), nil, x.Outbox, slugOf{}, nil)
 	x.Mux = http.NewServeMux()
 	handlers.NewProjectOverviewHandler(f.Deps, f.Projects, x.Devices, msgs, hooks).Register(x.Mux)
 	return x
@@ -85,8 +87,18 @@ func (x *overviewFixture) message(projectID, deviceID uuid.UUID, at time.Time, o
 		Direction: message.DirectionIn, Type: message.TypeText, Status: message.StatusReceived, WATimestamp: at, MatchOutcome: outcome})
 }
 
-func (x *overviewFixture) webhook(active bool, types ...events.Type) {
-	x.Hooks.Seed(&webhook.Endpoint{ID: uuid.New(), OrgID: x.org, ProjectID: x.project, URL: "https://agent.example/hook", EventTypes: types, Active: active})
+func (x *overviewFixture) webhook(active bool, types ...events.Type) uuid.UUID {
+	id := uuid.New()
+	x.Hooks.Seed(&webhook.Endpoint{ID: id, OrgID: x.org, ProjectID: x.project, URL: "https://agent.example/hook", EventTypes: types, Active: active})
+	return id
+}
+
+func (x *overviewFixture) attempt(t *testing.T, endpointID uuid.UUID, typ events.Type, status int) {
+	t.Helper()
+	require.NoError(t, x.Hooks.SaveAttempt(x.ctx(), webhook.Attempt{
+		ID: uuid.New(), OrgID: x.org, ProjectID: x.project, EndpointID: endpointID, DeliveryID: uuid.New(), EventID: uuid.New(),
+		EventType: typ, Attempt: 1, StatusCode: status, CreatedAt: x.now,
+	}))
 }
 
 var doneStep = regexp.MustCompile(`data-step-done`)
@@ -137,10 +149,28 @@ func TestHome_ChecklistStepsComeFromData(t *testing.T) {
 			_, err := x.Devices.Update(x.ctx(), d.ID, device.Update{Rules: &r}, d.Version)
 			require.NoError(t, err)
 		}, 1},
-		"an enabled message.matched webhook": {func(t *testing.T, x *overviewFixture) {
+		"an enabled message.matched webhook with no delivery yet": {func(t *testing.T, x *overviewFixture) {
 			x.number(t, "Sales", device.SessionStatus{State: device.SessionConnected, Phone: "628111"})
 			x.webhook(true, events.MessageMatched)
+		}, 1},
+		"a message.matched delivery that failed": {func(t *testing.T, x *overviewFixture) {
+			x.number(t, "Sales", device.SessionStatus{State: device.SessionConnected, Phone: "628111"})
+			x.attempt(t, x.webhook(true, events.MessageMatched), events.MessageMatched, 500)
+		}, 1},
+		"only a test ping got through": {func(t *testing.T, x *overviewFixture) {
+			x.number(t, "Sales", device.SessionStatus{State: device.SessionConnected, Phone: "628111"})
+			x.attempt(t, x.webhook(true, events.MessageMatched), events.WebhookPing, 200)
+		}, 1},
+		"a message.matched delivery succeeded, then a later one failed": {func(t *testing.T, x *overviewFixture) {
+			x.number(t, "Sales", device.SessionStatus{State: device.SessionConnected, Phone: "628111"})
+			id := x.webhook(true, events.MessageMatched)
+			x.attempt(t, id, events.MessageMatched, 200)
+			x.attempt(t, id, events.MessageMatched, 500)
 		}, 2},
+		"a successful delivery of another event": {func(t *testing.T, x *overviewFixture) {
+			x.number(t, "Sales", device.SessionStatus{State: device.SessionConnected, Phone: "628111"})
+			x.attempt(t, x.webhook(true, events.MessageReceived), events.MessageReceived, 200)
+		}, 1},
 		"a disabled or other-event webhook": {func(t *testing.T, x *overviewFixture) {
 			x.number(t, "Sales", device.SessionStatus{State: device.SessionConnected, Phone: "628111"})
 			x.webhook(false, events.MessageMatched)
@@ -171,7 +201,7 @@ func TestHome_AllStepsDoneShowsTheBannerAndCanReopen(t *testing.T) {
 	r := device.FromLegacy(device.Legacy{GroupMode: device.GroupOpen, IgnoreFromMe: true})
 	_, err := x.Devices.Update(x.ctx(), d.ID, device.Update{Rules: &r}, d.Version)
 	require.NoError(t, err)
-	x.webhook(true, events.MessageMatched)
+	x.attempt(t, x.webhook(true, events.MessageMatched), events.MessageMatched, 204)
 	x.message(x.project, d.ID, x.now.Add(-time.Hour), message.MatchMatched)
 
 	body := x.home(t, x.owner(), "")

@@ -1,0 +1,46 @@
+package templates
+
+import (
+	"altalune.id/openwa/internal/web"
+	"altalune.id/openwa/internal/web/icons"
+)
+
+// UnsubscribeView is the public disconnect-email opt-out page: State is confirm, done or invalid; Token is set only on confirm.
+type UnsubscribeView struct {
+	State   string
+	Token   string
+	Address string
+	Project string
+}
+
+templ UnsubscribeLayout(d web.LayoutData, v UnsubscribeView) {
+	@Layout(web.WithContent(d, UnsubscribePage(d, v)))
+}
+
+templ UnsubscribePage(d web.LayoutData, v UnsubscribeView) {
+	<section class="mx-auto w-full max-w-md">
+		<div class="card border border-base-300 bg-base-100">
+			<div class="card-body min-w-0 items-start gap-3 p-6">
+				switch v.State {
+					case "confirm":
+						@icons.Icon("mail", "size-6 text-base-content/70")
+						<h1 class="text-xl font-semibold text-balance">{ d.Tr("unsubscribe.title") }</h1>
+						<p class="text-sm wrap-anywhere">{ d.Tr("unsubscribe.body", "Address", v.Address, "Project", v.Project) }</p>
+						<form method="post" action={ templ.SafeURL(d.Href("/alerts/unsubscribe")) } class="card-actions mt-2">
+							<input type="hidden" name="t" value={ v.Token }/>
+							<input type="hidden" name="List-Unsubscribe" value="One-Click"/>
+							@AppButton(ButtonProps{Kind: ButtonPrimary, Type: "submit", Label: d.Tr("unsubscribe.confirm")})
+						</form>
+					case "done":
+						@icons.Icon("circle-check", "size-6 text-success")
+						<h1 class="text-xl font-semibold text-balance">{ d.Tr("unsubscribe.done_title") }</h1>
+						<p role="status" class="text-sm wrap-anywhere">{ d.Tr("unsubscribe.done_body", "Address", v.Address, "Project", v.Project) }</p>
+					default:
+						@icons.Icon("triangle-exclamation-point", "size-6 text-warning")
+						<h1 class="text-xl font-semibold text-balance">{ d.Tr("unsubscribe.invalid_title") }</h1>
+						<p class="text-sm">{ d.Tr("unsubscribe.invalid_body") }</p>
+				}
+			</div>
+		</div>
+	</section>
+}

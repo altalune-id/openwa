@@ -46,9 +46,9 @@ templ categoryBanner(d web.LayoutData, v CategoriesView) {
 templ CategoryList(d web.LayoutData, v CategoriesView) {
 	<div id="category-list" class="mt-6">
 		@categoryBanner(d, v)
-		<ul class="mt-4 divide-y divide-border/50 overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+		<ul class="mt-4 divide-y divide-base-300 overflow-hidden rounded-box border border-base-300 bg-base-100">
 			if len(v.Items) == 0 {
-				<li class="px-4 py-8 text-center text-sm text-muted-foreground">{ d.Tr("blog.categories_empty") }</li>
+				<li class="px-4 py-8 text-center text-sm text-base-content/70">{ d.Tr("blog.categories_empty") }</li>
 			}
 			for _, c := range v.Items {
 				<li class="flex flex-wrap items-center gap-3 px-4 py-3">
@@ -76,8 +76,8 @@ templ CategoryList(d web.LayoutData, v CategoriesView) {
 							{ d.Tr("blog.category_rename") }
 						</button>
 					</form>
-					<code class="shrink-0 font-mono text-xs text-muted-foreground">{ c.Slug }</code>
-					<span class="shrink-0 text-xs text-muted-foreground">{ d.TrN("blog.category_posts", c.Posts) }</span>
+					<code class="shrink-0 font-mono text-xs text-base-content/70">{ c.Slug }</code>
+					<span class="shrink-0 text-xs text-base-content/70">{ d.TrN("blog.category_posts", c.Posts) }</span>
 					<form
 						method="post"
 						action={ templ.SafeURL(d.ProjectPath(v.ProjectSlug, "/categories/"+c.ID+"/delete")) }
@@ -93,7 +93,7 @@ templ CategoryList(d web.LayoutData, v CategoriesView) {
 						<button
 							type="submit"
 							aria-label={ d.Tr("blog.category_delete") + ": " + c.Name }
-							class="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+							class="rounded-box p-1.5 text-base-content/70 hover:bg-error/10 hover:text-error"
 						>
 							@icons.Icon("trash-2", "h-4 w-4")
 						</button>
@@ -106,9 +106,9 @@ templ CategoryList(d web.LayoutData, v CategoriesView) {
 
 templ CategoriesPage(d web.LayoutData, v CategoriesView) {
 	<section>
-		<header class="border-b border-border pb-4">
-			<h1 class="text-2xl font-semibold text-foreground">{ d.Tr("blog.categories_title") }</h1>
-			<p class="mt-1 text-sm text-muted-foreground">{ d.Tr("blog.categories_subtitle") }</p>
+		<header class="border-b border-base-300 pb-4">
+			<h1 class="text-2xl font-semibold">{ d.Tr("blog.categories_title") }</h1>
+			<p class="mt-1 text-sm text-base-content/70">{ d.Tr("blog.categories_subtitle") }</p>
 		</header>
 		<form
 			method="post"

@@ -3,6 +3,7 @@ package handlers
 
 import (
 	"cmp"
+	"context"
 	"log"
 	"net/http"
 	"net/url"
@@ -24,6 +25,7 @@ import (
 	"altalune.id/openwa/internal/web"
 	"altalune.id/openwa/internal/web/middleware"
 	"altalune.id/openwa/internal/web/templates"
+	"altalune.id/openwa/internal/whatsapp"
 	"altalune.id/openwa/reqid"
 	"altalune.id/openwa/version"
 )
@@ -40,6 +42,12 @@ type Deps struct {
 	Users          *user.Service
 	I18n           *i18n.Bundle
 	Secret         []byte
+	Attention      AttentionLister
+}
+
+// AttentionLister lists the numbers of the project on ctx that have been down past grace.
+type AttentionLister interface {
+	NeedingAttention(ctx context.Context, grace time.Duration) ([]whatsapp.Attention, error)
 }
 
 // Base builds a minimal LayoutData for chromeless pages (login, onboarding, error).
@@ -205,6 +213,7 @@ func (d Deps) LayoutForProject(r *http.Request, title, orgSlug string, proj *pro
 	if l.ActiveProject == nil || l.ActiveProject.Slug != proj.Slug {
 		l.ActiveProject = &web.ActiveProject{ID: proj.ID.String(), Slug: proj.Slug, Name: proj.Name}
 	}
+	l.Attention = d.attention(r)
 	orgName := orgSlug
 	if l.ActiveOrg != nil {
 		orgName = l.ActiveOrg.Name
@@ -214,6 +223,25 @@ func (d Deps) LayoutForProject(r *http.Request, title, orgSlug string, proj *pro
 		{Label: proj.Name, Href: l.ProjectPath(proj.Slug, "/overview")},
 	}
 	return l
+}
+
+func (d Deps) attention(r *http.Request) *web.Attention {
+	if d.Attention == nil {
+		return nil
+	}
+	list, err := d.Attention.NeedingAttention(r.Context(), d.Cfg.Notifications.Disconnect.Grace)
+	if err != nil {
+		d.LogErr("web layout: attention", err)
+		return nil
+	}
+	switch len(list) {
+	case 0:
+		return nil
+	case 1:
+		return &web.Attention{Count: 1, DeviceID: list[0].PublicID, Name: list[0].Name}
+	default:
+		return &web.Attention{Count: len(list)}
+	}
 }
 
 // ProjectScopeFor resolves the project named by slug inside orgID and returns a request scoped to both. SECURITY: r must already carry the org scope from OrgScopeFor, whose membership check gates this lookup.

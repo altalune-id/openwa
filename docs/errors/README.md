@@ -205,6 +205,8 @@ unmapped `GEN900` incident.
 | `WHK006` | `apperror.CodeWebhookDeliveryNotFound`     | `NotFound`           | Webhook Delivery Not Found     |
 | `WHK007` | `apperror.CodeWebhookEndpointInactive`     | `FailedPrecondition` | Webhook Endpoint Inactive      |
 | `WHK008` | `apperror.CodeWebhookSecretConflict`       | `FailedPrecondition` | Webhook Secret Conflict        |
+| `WHK009` | `apperror.CodeWebhookDeviceNotFound`       | `NotFound`           | Webhook Device Not Found       |
+| `WHK010` | `apperror.CodeWebhookDuplicateEndpoint`    | `AlreadyExists`      | Webhook Duplicate Endpoint     |
 
 ## DEV — Devices
 
@@ -267,3 +269,15 @@ unmapped `GEN900` incident.
 | Code     | Constant                       | Status     | Meaning           |
 | -------- | ------------------------------ | ---------- | ----------------- |
 | `CNT001` | `apperror.CodeContactNotFound` | `NotFound` | Contact Not Found |
+
+## ALR — Alerts
+
+| Code     | Constant                                    | Status               | Meaning                         |
+| -------- | ------------------------------------------- | -------------------- | ------------------------------- |
+| `ALR001` | `apperror.CodeAlertInvalidRecipients`       | `InvalidArgument`    | Alert Invalid Recipients        |
+| `ALR002` | `apperror.CodeAlertTestLimit`               | `ResourceExhausted`  | Alert Test Limit                |
+| `ALR003` | `apperror.CodeAlertMailUnavailable`         | `FailedPrecondition` | Alert Mail Unavailable          |
+| `ALR004` | `apperror.CodeAlertDisabled`                | `FailedPrecondition` | Alert Disabled                  |
+| `ALR005` | `apperror.CodeAlertNoRecipients`            | `FailedPrecondition` | Alert No Recipients             |
+| `ALR006` | `apperror.CodeAlertInvalidUnsubscribeToken` | `InvalidArgument`    | Alert Invalid Unsubscribe Token |
+| `ALR007` | `apperror.CodeAlertTooManyRecipients`       | `InvalidArgument`    | Alert Too Many Recipients       |

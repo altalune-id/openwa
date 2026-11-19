@@ -26,6 +26,7 @@ const MaxDescriptionRunes = 200
 // Endpoint is the aggregate root: one tenant URL subscribed to a set of event types.
 type Endpoint struct {
 	ID, OrgID, ProjectID uuid.UUID
+	DeviceID             *uuid.UUID
 	URL, Description     string
 	EventTypes           []events.Type
 	Secrets              SealedSecrets
@@ -33,8 +34,14 @@ type Endpoint struct {
 	CreatedAt, UpdatedAt time.Time
 }
 
-// SealedSecrets holds the signing secrets as sealed bytes; Secondary is nil outside a rotation.
-type SealedSecrets struct{ Primary, Secondary []byte }
+// SealedSecrets holds the signing secrets as sealed bytes, with the last SecretHintLen characters of each in clear; Secondary is nil outside a rotation.
+type SealedSecrets struct {
+	Primary, Secondary         []byte
+	PrimaryHint, SecondaryHint string
+}
+
+// SecretHintLen is how many trailing characters of a signing secret the console may show.
+const SecretHintLen = 4
 
 // Attempt records one delivery attempt of an outbox entry to an endpoint.
 type Attempt struct {
@@ -66,9 +73,9 @@ func resolveValidateOpts(opts []ValidateOption) validateOpts {
 	return o
 }
 
-// New enforces creation invariants and returns an active endpoint without secrets.
-func New(orgID, projectID uuid.UUID, rawURL, description string, types []events.Type, opts ...ValidateOption) (*Endpoint, error) {
-	u, d, ts, err := validate(rawURL, description, types, resolveValidateOpts(opts).allowInsecureURL)
+// New enforces creation invariants and returns an active endpoint without secrets; a nil deviceID means every number of the project.
+func New(orgID, projectID uuid.UUID, deviceID *uuid.UUID, rawURL, description string, types []events.Type, opts ...ValidateOption) (*Endpoint, error) {
+	u, d, ts, err := validate(rawURL, description, types, deviceID != nil, resolveValidateOpts(opts).allowInsecureURL)
 	if err != nil {
 		return nil, err
 	}
@@ -77,6 +84,7 @@ func New(orgID, projectID uuid.UUID, rawURL, description string, types []events.
 		ID:          uuid.Must(uuid.NewV7()),
 		OrgID:       orgID,
 		ProjectID:   projectID,
+		DeviceID:    deviceID,
 		URL:         u,
 		Description: d,
 		EventTypes:  ts,
@@ -88,7 +96,7 @@ func New(orgID, projectID uuid.UUID, rawURL, description string, types []events.
 
 // Update re-validates and replaces the editable fields, leaving the secrets alone.
 func (e *Endpoint) Update(rawURL, description string, types []events.Type, active bool, opts ...ValidateOption) error {
-	u, d, ts, err := validate(rawURL, description, types, resolveValidateOpts(opts).allowInsecureURL)
+	u, d, ts, err := validate(rawURL, description, types, e.DeviceID != nil, resolveValidateOpts(opts).allowInsecureURL)
 	if err != nil {
 		return err
 	}
@@ -111,14 +119,22 @@ func (e *Endpoint) Subscribes(t events.Type) bool {
 	return slices.Contains(e.EventTypes, t)
 }
 
-func validate(rawURL, description string, types []events.Type, allowInsecureURL bool) (u, d string, ts []events.Type, err error) {
+// Receives reports whether an event of t from deviceID, nil for a project-wide event, goes to this endpoint.
+func (e *Endpoint) Receives(t events.Type, deviceID *uuid.UUID) bool {
+	if !e.Active || !e.Subscribes(t) {
+		return false
+	}
+	return e.DeviceID == nil || (deviceID != nil && *e.DeviceID == *deviceID)
+}
+
+func validate(rawURL, description string, types []events.Type, scoped, allowInsecureURL bool) (u, d string, ts []events.Type, err error) {
 	if u, err = validateURL(rawURL, allowInsecureURL); err != nil {
 		return "", "", nil, err
 	}
 	if d, err = validateDescription(description); err != nil {
 		return "", "", nil, err
 	}
-	if ts, err = validateTypes(types); err != nil {
+	if ts, err = validateTypes(types, scoped); err != nil {
 		return "", "", nil, err
 	}
 	return u, d, ts, nil
@@ -162,7 +178,7 @@ func validateDescription(description string) (string, error) {
 	return description, nil
 }
 
-func validateTypes(types []events.Type) ([]events.Type, error) {
+func validateTypes(types []events.Type, scoped bool) ([]events.Type, error) {
 	if len(types) == 0 {
 		return nil, &InvalidEventTypesError{Reason: "at least one event type is required"}
 	}
@@ -173,6 +189,9 @@ func validateTypes(types []events.Type) ([]events.Type, error) {
 		}
 		if !spec.Subscribable {
 			return nil, &InvalidEventTypesError{Reason: "event type " + string(t) + " cannot be subscribed to"}
+		}
+		if scoped && !spec.DeviceBound {
+			return nil, &InvalidEventTypesError{Reason: "event type " + string(t) + " is not sent for one number"}
 		}
 		if slices.Contains(types[:i], t) {
 			return nil, &InvalidEventTypesError{Reason: "event type " + string(t) + " is listed twice"}

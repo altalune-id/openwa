@@ -41,7 +41,7 @@ func From(c *config.Config) Capabilities {
 		MCPEnabled:        c.MCP.Enabled,
 		PublicReads:       c.Blog.PublicReads,
 		TokenAuth:         c.Tokens.Issuer != "",
-		MailEnabled:       c.Mail.Driver != "" && (c.Mail.Driver != "console" || c.Mail.SMTP.Host != ""),
+		MailEnabled:       c.Mail.Driver == "smtp" || c.Mail.Driver == "resend",
 		IsProduction:      c.Mode.IsProduction(),
 		BasePath:          c.HTTP.BasePath,
 		BaseURL:           c.HTTP.BaseURL,

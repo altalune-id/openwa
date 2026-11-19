@@ -5,6 +5,8 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/google/uuid"
+
 	"altalune.id/openwa/internal/blog"
 	"altalune.id/openwa/internal/message"
 	"altalune.id/openwa/internal/platform/db"
@@ -18,14 +20,15 @@ var _ whatsapp.Webhooks = (*Webhooks)(nil)
 
 var _ message.Webhooks = (*Webhooks)(nil)
 
-// WebhookCall is one recorded Webhooks.Enqueue.
+// WebhookCall is one recorded Enqueue or EnqueueForDevice; DeviceID is nil for Enqueue.
 type WebhookCall struct {
-	Type events.Type
-	Data any
-	InTx bool
+	Type     events.Type
+	DeviceID *uuid.UUID
+	Data     any
+	InTx     bool
 }
 
-// Webhooks is an in-memory blog.Webhooks that records every Enqueue and returns Err.
+// Webhooks is an in-memory webhooks port that records every call and returns Err, without filtering by device.
 type Webhooks struct {
 	mu    sync.Mutex
 	Calls []WebhookCall
@@ -34,10 +37,19 @@ type Webhooks struct {
 
 // Enqueue records the call, noting whether a unit of work is on ctx, and returns f.Err.
 func (f *Webhooks) Enqueue(ctx context.Context, t events.Type, data any) error {
-	_, inTx := db.CurrentTx(ctx)
+	return f.record(ctx, WebhookCall{Type: t, Data: data})
+}
+
+// EnqueueForDevice records the call with its device, noting whether a unit of work is on ctx, and returns f.Err.
+func (f *Webhooks) EnqueueForDevice(ctx context.Context, t events.Type, deviceID uuid.UUID, data any) error {
+	return f.record(ctx, WebhookCall{Type: t, DeviceID: &deviceID, Data: data})
+}
+
+func (f *Webhooks) record(ctx context.Context, c WebhookCall) error {
+	_, c.InTx = db.CurrentTx(ctx)
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.Calls = append(f.Calls, WebhookCall{Type: t, Data: data, InTx: inTx})
+	f.Calls = append(f.Calls, c)
 	return f.Err
 }
 

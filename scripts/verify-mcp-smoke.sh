@@ -175,8 +175,9 @@ mint_key() {
     code=$(console_post /orgs/smoke-org/projects/smoke-proj/apikeys "$out" \
         --data-urlencode "name=${name}" "${scope_args[@]}" --data-urlencode "expires_in=30")
     [ "$code" = "200" ] || fail "minting API key ${name} returned ${code}, want 200"
-    key=$(grep -oE 'select-all[^>]*>key_[A-Za-z0-9_-]{20,}' "$out" | grep -oE 'key_[A-Za-z0-9_-]{20,}' | head -1)
+    key=$(grep -oE '<input id="apikey-minted"[^>]* value="key_[A-Za-z0-9_-]{20,}"' "$out" | grep -oE 'key_[A-Za-z0-9_-]{20,}')
     [ -n "$key" ] || fail "minting API key ${name} revealed no plaintext"
+    [ "$(printf "%s\n" "$key" | wc -l | tr -d ' ')" = "1" ] || fail "minting API key ${name} revealed more than one key"
     printf "%s" "$key"
 }
 

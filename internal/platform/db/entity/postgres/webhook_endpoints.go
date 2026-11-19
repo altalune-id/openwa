@@ -17,6 +17,9 @@ type WebhookEndpoints struct {
 	Active          postgres.ColumnBool
 	CreatedAt       postgres.ColumnTimestampz
 	UpdatedAt       postgres.ColumnTimestampz
+	DeviceID        postgres.ColumnString
+	SecretHint      postgres.ColumnString
+	SecondaryHint   postgres.ColumnString
 
 	AllColumns postgres.ColumnList
 }
@@ -38,7 +41,10 @@ func NewWebhookEndpoints(schema, tablePrefix string) *WebhookEndpoints {
 		active          = postgres.BoolColumn("active")
 		createdAt       = postgres.TimestampzColumn("created_at")
 		updatedAt       = postgres.TimestampzColumn("updated_at")
-		all             = postgres.ColumnList{id, orgID, projectID, url, description, eventTypes, secretPrimary, secretSecondary, active, createdAt, updatedAt}
+		deviceID        = postgres.StringColumn("device_id")
+		secretHint      = postgres.StringColumn("secret_hint")
+		secondaryHint   = postgres.StringColumn("secondary_secret_hint")
+		all             = postgres.ColumnList{id, orgID, projectID, url, description, eventTypes, secretPrimary, secretSecondary, active, createdAt, updatedAt, deviceID, secretHint, secondaryHint}
 	)
 	return &WebhookEndpoints{
 		Table:           postgres.NewTable(schema, tablePrefix+"webhook_endpoints", "webhook_endpoints", all...),
@@ -53,6 +59,9 @@ func NewWebhookEndpoints(schema, tablePrefix string) *WebhookEndpoints {
 		Active:          active,
 		CreatedAt:       createdAt,
 		UpdatedAt:       updatedAt,
+		DeviceID:        deviceID,
+		SecretHint:      secretHint,
+		SecondaryHint:   secondaryHint,
 		AllColumns:      all,
 	}
 }

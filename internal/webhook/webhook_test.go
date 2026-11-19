@@ -43,7 +43,7 @@ func TestNew_URLRules(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			e, err := webhook.New(uuid.New(), uuid.New(), tt.url, "", validTypes())
+			e, err := webhook.New(uuid.New(), uuid.New(), nil, tt.url, "", validTypes())
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.True(t, webhook.IsInvalidURLError(err), "want *InvalidURLError, got %T: %v", err, err)
@@ -71,7 +71,7 @@ func TestNew_EventTypeRules(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			e, err := webhook.New(uuid.New(), uuid.New(), validURL, "", tt.types)
+			e, err := webhook.New(uuid.New(), uuid.New(), nil, validURL, "", tt.types)
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.True(t, webhook.IsInvalidEventTypesError(err), "want *InvalidEventTypesError, got %T: %v", err, err)
@@ -85,7 +85,7 @@ func TestNew_EventTypeRules(t *testing.T) {
 
 func TestNew_EventTypesAreCopied(t *testing.T) {
 	types := []events.Type{events.PostPublished}
-	e, err := webhook.New(uuid.New(), uuid.New(), validURL, "", types)
+	e, err := webhook.New(uuid.New(), uuid.New(), nil, validURL, "", types)
 	require.NoError(t, err)
 	types[0] = events.PostDeleted
 	assert.Equal(t, []events.Type{events.PostPublished}, e.EventTypes, "the aggregate must not alias the caller's slice")
@@ -106,7 +106,7 @@ func TestNew_DescriptionRules(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			e, err := webhook.New(uuid.New(), uuid.New(), validURL, tt.desc, validTypes())
+			e, err := webhook.New(uuid.New(), uuid.New(), nil, validURL, tt.desc, validTypes())
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.True(t, webhook.IsInvalidDescriptionError(err), "want *InvalidDescriptionError, got %T: %v", err, err)
@@ -121,7 +121,7 @@ func TestNew_DescriptionRules(t *testing.T) {
 func TestNew_Defaults(t *testing.T) {
 	org, proj := uuid.New(), uuid.New()
 	before := time.Now().UTC()
-	e, err := webhook.New(org, proj, validURL, "d", validTypes())
+	e, err := webhook.New(org, proj, nil, validURL, "d", validTypes())
 	require.NoError(t, err)
 
 	assert.NotEqual(t, uuid.Nil, e.ID)
@@ -137,7 +137,7 @@ func TestNew_Defaults(t *testing.T) {
 }
 
 func TestEndpoint_Subscribes(t *testing.T) {
-	e, err := webhook.New(uuid.New(), uuid.New(), validURL, "", []events.Type{events.PostPublished, events.PostDeleted})
+	e, err := webhook.New(uuid.New(), uuid.New(), nil, validURL, "", []events.Type{events.PostPublished, events.PostDeleted})
 	require.NoError(t, err)
 
 	assert.True(t, e.Subscribes(events.PostPublished))
@@ -149,7 +149,7 @@ func TestEndpoint_Subscribes(t *testing.T) {
 func TestEndpoint_Update(t *testing.T) {
 	newEndpoint := func(t *testing.T) *webhook.Endpoint {
 		t.Helper()
-		e, err := webhook.New(uuid.New(), uuid.New(), validURL, "old", validTypes())
+		e, err := webhook.New(uuid.New(), uuid.New(), nil, validURL, "old", validTypes())
 		require.NoError(t, err)
 		e.UpdatedAt = e.UpdatedAt.Add(-time.Hour)
 		return e
@@ -262,7 +262,7 @@ func TestErrors_Helpers(t *testing.T) {
 func wrap(err error) error { return fmt.Errorf("outer: %w", err) }
 
 func TestEndpoint_SetSecrets(t *testing.T) {
-	e, err := webhook.New(uuid.New(), uuid.New(), validURL, "", validTypes())
+	e, err := webhook.New(uuid.New(), uuid.New(), nil, validURL, "", validTypes())
 	require.NoError(t, err)
 	e.UpdatedAt = time.Now().Add(-time.Hour).UTC()
 	before := e.UpdatedAt
@@ -296,7 +296,7 @@ func TestNew_AllowInsecureURL(t *testing.T) {
 			if tt.insecure {
 				opts = append(opts, webhook.AllowInsecureURL())
 			}
-			_, err := webhook.New(uuid.New(), uuid.New(), tt.url, "", validTypes(), opts...)
+			_, err := webhook.New(uuid.New(), uuid.New(), nil, tt.url, "", validTypes(), opts...)
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.True(t, webhook.IsInvalidURLError(err))
@@ -308,7 +308,7 @@ func TestNew_AllowInsecureURL(t *testing.T) {
 }
 
 func TestEndpoint_Update_AllowInsecureURL(t *testing.T) {
-	e, err := webhook.New(uuid.New(), uuid.New(), validURL, "", validTypes())
+	e, err := webhook.New(uuid.New(), uuid.New(), nil, validURL, "", validTypes())
 	require.NoError(t, err)
 	require.Error(t, e.Update("http://127.0.0.1:9099/hook", "", validTypes(), true))
 	require.NoError(t, e.Update("http://127.0.0.1:9099/hook", "", validTypes(), true, webhook.AllowInsecureURL()))

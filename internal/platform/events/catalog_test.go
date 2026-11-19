@@ -234,3 +234,24 @@ func TestCheckPayloadCoversEveryCatalogEntry(t *testing.T) {
 		})
 	}
 }
+
+func TestEveryTypeDeclaresDeviceBinding(t *testing.T) {
+	want := map[events.Type]bool{
+		events.PostPublished: false, events.PostUnpublished: false, events.PostDeleted: false, events.WebhookPing: false,
+		events.DeviceConnected: true, events.DeviceDisconnected: true, events.DeviceLoggedOut: true,
+		events.MessageReceived: true, events.MessageMatched: true, events.MessageStatus: true,
+	}
+	for _, s := range events.All() {
+		got, ok := want[s.Type]
+		if !ok {
+			t.Errorf("%s: add it to this table and decide whether it is device-bound", s.Type)
+			continue
+		}
+		if s.DeviceBound != got {
+			t.Errorf("%s: DeviceBound = %v, want %v", s.Type, s.DeviceBound, got)
+		}
+	}
+	if len(want) != len(events.All()) {
+		t.Errorf("table has %d types, catalog %d", len(want), len(events.All()))
+	}
+}

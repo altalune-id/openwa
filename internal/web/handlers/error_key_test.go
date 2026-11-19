@@ -68,7 +68,7 @@ func TestManagersOnly_RefusalIsTranslatedOnPageAndFragment(t *testing.T) {
 	member := addMember(t, f, o.ID, owner, org.RoleMember)
 	tr := i18n.NewEmbeddedBundle(i18n.EnUS).For(i18n.EnUS)
 	mux := http.NewServeMux()
-	handlers.NewSettingsHandler(f.Deps, f.Projects, nil).Register(mux)
+	handlers.NewSettingsHandler(f.Deps, f.Projects, nil, newTestAlerts(t, nil)).Register(mux)
 
 	for _, path := range []string{"/orgs/acme/projects/alpha/rename", "/orgs/acme/projects/alpha/settings/retention"} {
 		for _, hx := range []bool{false, true} {

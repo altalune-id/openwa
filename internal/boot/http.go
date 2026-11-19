@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"altalune.id/openwa/internal/alert"
 	"altalune.id/openwa/internal/apikey"
 	"altalune.id/openwa/internal/apperror"
 	"altalune.id/openwa/internal/auth"
@@ -39,6 +40,7 @@ import (
 	webhandlers "altalune.id/openwa/internal/web/handlers"
 	webmw "altalune.id/openwa/internal/web/middleware"
 	"altalune.id/openwa/internal/webhook"
+	"altalune.id/openwa/internal/whatsapp"
 )
 
 func buildAPIHandler(cfg *config.Config, k *platform.Kernel, s *Services, resource *tokens.Resource) (*controlplane.Server, http.Handler) {
@@ -102,6 +104,8 @@ func buildWebHandler(
 	chats *chat.Service,
 	messages *message.Service,
 	contacts *contact.Service,
+	alerts *alert.Service,
+	outages *whatsapp.Outages,
 	required *atomic.Bool,
 	onComplete func(ctx context.Context),
 	setupToken string,
@@ -121,6 +125,7 @@ func buildWebHandler(
 	deps.Projects = projects
 	deps.Users = users
 	deps.I18n = bundle
+	deps.Attention = outages
 
 	authHandler := webhandlers.NewAuthHandler(deps, auths, users, orgs, projects, kernel.AltAuth, required)
 	onboardingHandler := webhandlers.NewOnboardingHandler(deps, users)
@@ -133,9 +138,12 @@ func buildWebHandler(
 	rulesHandler := webhandlers.NewRulesHandler(deviceHandler, messages, chats, contacts)
 	inboxHandler := webhandlers.NewInboxHandler(deps, projects, chats, messages, devices, cfg.WhatsApp.MediaMaxBytes)
 	contactsHandler := webhandlers.NewContactsHandler(deps, projects, contacts, devices)
-	settingsHandler := webhandlers.NewSettingsHandler(deps, projects, messages)
+	settingsHandler := webhandlers.NewSettingsHandler(deps, projects, messages, alerts)
+	unsubscribeHandler := webhandlers.NewUnsubscribeHandler(deps, alerts)
 	apiKeyHandler := webhandlers.NewAPIKeyHandler(deps, projects, apiKeys, devices)
-	webhookHandler := webhandlers.NewWebhookHandler(deps, projects, webhooks)
+	webhookHandler := webhandlers.NewWebhookHandler(deps, projects, webhooks, devices)
+	connectHandler := webhandlers.NewConnectHandler(deps, projects, apiKeys, devices, webhooks)
+	developersHandler := webhandlers.NewDevelopersHandler(deps, projects, apiKeys, devices, webhooks)
 	inviteHandler := webhandlers.NewInviteHandler(deps, orgs, invites)
 	localeHandler := webhandlers.NewLocaleHandler(deps, users)
 	themeHandler := webhandlers.NewThemeHandler(deps)
@@ -150,7 +158,7 @@ func buildWebHandler(
 		BasePath: cfg.HTTP.BasePath,
 		HealthOK: healthOK,
 		AppHandlers: []web.Register{
-			authHandler, onboardingHandler, onboardHandler, homeHandler, orgHandler, projectHandler, overviewHandler, deviceHandler, rulesHandler, inboxHandler, contactsHandler, settingsHandler, apiKeyHandler, webhookHandler, inviteHandler, localeHandler, themeHandler, tipsHandler, welcomeHandler, signupHandler, legalHandler,
+			authHandler, onboardingHandler, onboardHandler, homeHandler, orgHandler, projectHandler, overviewHandler, deviceHandler, rulesHandler, inboxHandler, contactsHandler, settingsHandler, apiKeyHandler, webhookHandler, connectHandler, developersHandler, inviteHandler, unsubscribeHandler, localeHandler, themeHandler, tipsHandler, welcomeHandler, signupHandler, legalHandler,
 		},
 		APIHandler:       apiHandler,
 		DataHandler:      dataHandler,

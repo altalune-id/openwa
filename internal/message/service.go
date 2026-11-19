@@ -131,9 +131,9 @@ type MediaFetcher interface {
 	Fetch(ctx context.Context, url string) ([]byte, string, error)
 }
 
-// Webhooks enqueues an outbound event inside the caller's unit of work.
+// Webhooks enqueues an outbound event from one device inside the caller's unit of work.
 type Webhooks interface {
-	Enqueue(ctx context.Context, t events.Type, data any) error
+	EnqueueForDevice(ctx context.Context, t events.Type, deviceID uuid.UUID, data any) error
 }
 
 // Waker nudges a device's sender goroutine.
@@ -946,7 +946,7 @@ func (s *Service) emitStatus(ctx context.Context, m *Message, status, errText st
 	if err != nil {
 		return err
 	}
-	return s.webhooks.Enqueue(ctx, events.MessageStatus, statusPayload(dev, m, status, errText, at))
+	return s.webhooks.EnqueueForDevice(ctx, events.MessageStatus, m.DeviceID, statusPayload(dev, m, status, errText, at))
 }
 
 func (s *Service) resolveReply(ctx context.Context, deviceID uuid.UUID, replyTo string) (string, error) {

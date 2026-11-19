@@ -48,9 +48,11 @@ type Config struct {
 	Queue         QueueConfig         `yaml:"queue"         mapstructure:"queue"`
 	Observability ObservabilityConfig `yaml:"observability" mapstructure:"observability"`
 	Mail          MailConfig          `yaml:"mail"          mapstructure:"mail"`
+	Notifications NotificationsConfig `yaml:"notifications" mapstructure:"notifications" awareness:"-"`
 	I18n          I18nConfig          `yaml:"i18n"          mapstructure:"i18n"`
 	Compliance    ComplianceConfig    `yaml:"compliance"    mapstructure:"compliance"`
 	Brand         BrandConfig         `yaml:"brand"         mapstructure:"brand"         awareness:"-"`
+	Connect       ConnectConfig       `yaml:"connect"       mapstructure:"connect"       awareness:"-"`
 	Security      SecurityConfig      `yaml:"security"      mapstructure:"security"`
 	WhatsApp      WhatsAppConfig      `yaml:"whatsapp"      mapstructure:"whatsapp"`
 	Blog          BlogConfig          `yaml:"blog"          mapstructure:"blog"`
@@ -110,6 +112,18 @@ type ComplianceConfig struct {
 // BrandConfig names the product in the console shell.
 type BrandConfig struct {
 	Name string `yaml:"name" mapstructure:"name" awareness:"-"`
+}
+
+// ConnectConfig configures the connect-an-agent card.
+type ConnectConfig struct {
+	RecommendedAgent RecommendedAgentConfig `yaml:"recommendedAgent" mapstructure:"recommendedAgent" awareness:"-"`
+}
+
+// RecommendedAgentConfig names one optional agent tile on the connect card; set all three fields or none.
+type RecommendedAgentConfig struct {
+	Name       string `yaml:"name"       mapstructure:"name"       awareness:"-" validate:"required_with=ConsoleURL GuideURL,max=40"`
+	ConsoleURL string `yaml:"consoleURL" mapstructure:"consoleURL" awareness:"-" validate:"required_with=Name GuideURL,omitempty,url,startswith=https://"`
+	GuideURL   string `yaml:"guideURL"   mapstructure:"guideURL"   awareness:"-" validate:"required_with=Name ConsoleURL,omitempty,url,startswith=https://"`
 }
 
 // I18nConfig configures the SSR i18n subsystem.
@@ -237,6 +251,21 @@ type MailConfig struct {
 	From   string       `yaml:"from"   mapstructure:"from"`
 	SMTP   SMTPConfig   `yaml:"smtp"   mapstructure:"smtp"`
 	Resend ResendConfig `yaml:"resend" mapstructure:"resend"`
+	// IdlePoll is the longest wait between two mail queue sweeps when no enqueue wakes the worker.
+	IdlePoll time.Duration `yaml:"idlePoll" mapstructure:"idlePoll" awareness:"-" validate:"gte=0"`
+}
+
+// NotificationsConfig tunes the emails OpenWA sends on its own.
+type NotificationsConfig struct {
+	Disconnect DisconnectNotifyConfig `yaml:"disconnect" mapstructure:"disconnect" awareness:"-"`
+}
+
+// DisconnectNotifyConfig tunes the email sent when a number stays disconnected; Enabled is the server-wide kill switch.
+type DisconnectNotifyConfig struct {
+	Enabled     bool          `yaml:"enabled"     mapstructure:"enabled"     awareness:"-"`
+	Grace       time.Duration `yaml:"grace"       mapstructure:"grace"       awareness:"-" validate:"gt=0"`
+	Cooldown    time.Duration `yaml:"cooldown"    mapstructure:"cooldown"    awareness:"-" validate:"gtefield=Grace"`
+	DailyOrgCap int           `yaml:"dailyOrgCap" mapstructure:"dailyOrgCap" awareness:"-" validate:"gte=1"`
 }
 
 // SMTPConfig configures the SMTP driver used by MailConfig.

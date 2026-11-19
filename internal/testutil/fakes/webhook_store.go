@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"altalune.id/openwa/internal/apperror"
+	"altalune.id/openwa/internal/platform/events"
 	"altalune.id/openwa/internal/platform/outbox"
 	"altalune.id/openwa/internal/platform/tenant"
 	"altalune.id/openwa/internal/webhook"
@@ -22,6 +23,8 @@ type WebhookStore struct {
 	endpoints map[uuid.UUID]*webhook.Endpoint
 	attempts  []webhook.Attempt
 
+	// SaveErr, when set, runs on each Save; a non-nil result is returned instead of saving, so a test can stand in for a database constraint.
+	SaveErr func(e *webhook.Endpoint) error
 	// SaveAttemptErr, when set, is returned by SaveAttempt instead of recording the attempt.
 	SaveAttemptErr error
 	// AfterByID, when set, runs after each successful ByID and outside the lock, so a test can interleave a racing write.
@@ -54,6 +57,11 @@ func (f *WebhookStore) Save(ctx context.Context, e *webhook.Endpoint) error {
 	if err != nil {
 		return err
 	}
+	if f.SaveErr != nil {
+		if err := f.SaveErr(e); err != nil {
+			return err
+		}
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if e.OrgID != tc.OrgID {
@@ -61,13 +69,14 @@ func (f *WebhookStore) Save(ctx context.Context, e *webhook.Endpoint) error {
 	}
 	stored := cloneEndpoint(e)
 	if existing, ok := f.endpoints[e.ID]; ok {
-		// NOTE: both real stores refuse the conflict update under another org and keep the stored created_at, org, project and secrets.
+		// NOTE: both real stores refuse the conflict update under another org and keep the stored created_at, org, project, device and secrets.
 		if existing.OrgID != tc.OrgID {
 			return &webhook.NotFoundError{ID: e.ID.String()}
 		}
 		stored.OrgID = existing.OrgID
 		stored.ProjectID = existing.ProjectID
 		stored.CreatedAt = existing.CreatedAt
+		stored.DeviceID = existing.DeviceID
 		stored.Secrets = cloneSecrets(existing.Secrets)
 	}
 	f.endpoints[e.ID] = stored
@@ -211,15 +220,65 @@ func (f *WebhookStore) ListAttempts(ctx context.Context, endpointID, deliveryID 
 	return out, nil
 }
 
+func (f *WebhookStore) Delivered(ctx context.Context, t events.Type) (bool, error) {
+	tc, err := tenant.From(ctx)
+	if err != nil {
+		return false, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.ContainsFunc(f.attempts, func(a webhook.Attempt) bool {
+		return a.OrgID == tc.OrgID && a.ProjectID == tc.ProjectID && a.EventType == t && a.StatusCode >= 200 && a.StatusCode < 300 && a.Error == ""
+	}), nil
+}
+
+func (f *WebhookStore) ListMissingHints(ctx context.Context) ([]*webhook.Endpoint, error) {
+	tc, err := tenant.From(ctx)
+	if err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []*webhook.Endpoint
+	for _, e := range f.endpoints {
+		if e.OrgID != tc.OrgID {
+			continue
+		}
+		if e.Secrets.PrimaryHint == "" || (len(e.Secrets.Secondary) > 0 && e.Secrets.SecondaryHint == "") {
+			out = append(out, cloneEndpoint(e))
+		}
+	}
+	return out, nil
+}
+
+func (f *WebhookStore) SetHints(ctx context.Context, id uuid.UUID, secrets webhook.SealedSecrets) error {
+	tc, err := tenant.From(ctx)
+	if err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	e, ok := f.endpoints[id]
+	if !ok || e.OrgID != tc.OrgID || !bytes.Equal(e.Secrets.Primary, secrets.Primary) || !sameSecondary(e.Secrets.Secondary, secrets.Secondary) {
+		return nil
+	}
+	e.Secrets.PrimaryHint, e.Secrets.SecondaryHint = secrets.PrimaryHint, secrets.SecondaryHint
+	return nil
+}
+
 func cloneEndpoint(e *webhook.Endpoint) *webhook.Endpoint {
 	cp := *e
 	cp.EventTypes = slices.Clone(e.EventTypes)
+	if e.DeviceID != nil {
+		id := *e.DeviceID
+		cp.DeviceID = &id
+	}
 	cp.Secrets = cloneSecrets(e.Secrets)
 	return &cp
 }
 
 func cloneSecrets(s webhook.SealedSecrets) webhook.SealedSecrets {
-	return webhook.SealedSecrets{Primary: slices.Clone(s.Primary), Secondary: slices.Clone(s.Secondary)}
+	return webhook.SealedSecrets{Primary: slices.Clone(s.Primary), Secondary: slices.Clone(s.Secondary), PrimaryHint: s.PrimaryHint, SecondaryHint: s.SecondaryHint}
 }
 
 func sameSecondary(stored, expected []byte) bool {

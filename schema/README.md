@@ -10,7 +10,7 @@ and `{{.Role}}` before goose applies them. Postgres is the only database.
 
 ```
 schema/
-├── migrations/postgres/    # 001_init … 019_user_prefs, VERSION
+├── migrations/postgres/    # 001_init … 025_webhook_delivered_index, VERSION
 ├── migrator.go             # goose runner, template rendering, embed FS
 ├── migrator_templatefs.go  # per-boot template-rendered file system
 ├── rls_guard.go            # boot-time BYPASSRLS assertion
@@ -27,8 +27,10 @@ enforcement — every table in this list carries `org_id` and gets
 
 ## Tables
 
-`users` and `sessions` are global (no `org_id`); every other table is
-tenant-scoped and appears in `TenantTableSuffixes`.
+`users`, `sessions`, `whatsapp_leases` and `mail_queue` carry no RLS; they are
+listed in `RequiredTableSuffixes`. Every other table is tenant-scoped and appears
+in `TenantTableSuffixes`. `mail_queue` holds sealed mail with no tenant column:
+the worker claims across every org, and a settled row keeps no payload (CHECK).
 
 ```mermaid
 erDiagram
@@ -46,8 +48,13 @@ erDiagram
     projects ||--o{ api_key_projects : "granted"
     projects ||--o{ webhook_endpoints : "sends to"
     webhook_endpoints ||--o{ webhook_deliveries : "attempts"
+    devices |o--o{ webhook_endpoints : "scopes"
     projects ||--o{ devices : "pairs"
     devices ||--o{ messages : "carries"
+    devices ||--|| whatsapp_sessions : "links"
+    projects ||--o| alert_settings : "alerts"
+    projects ||--o{ alert_optouts : "unsubscribed"
+    projects ||--o{ alert_send_counts : "counts"
 
     users {
         uuid id PK
@@ -84,9 +91,52 @@ erDiagram
     }
     devices {
         uuid id PK
-        uuid project_id FK
+        uuid project_id FK "UNIQUE (project_id, id) backs the webhook scope FK"
         jsonb rules "v2 items; no v marker = v1"
         int version
+    }
+    webhook_endpoints {
+        uuid id PK
+        uuid project_id FK
+        uuid device_id FK "null = every number; (project_id, device_id) to devices, cascade; immutable; unique with url when set"
+        text event_types
+        text secret_hint "last 4 chars of the primary secret; '' until set or backfilled"
+        text secondary_secret_hint "last 4 chars of the old secret during a rotation, else ''"
+    }
+    webhook_deliveries {
+        uuid endpoint_id FK
+        text event_type
+        int status_code "partial index (org_id, project_id, event_type) where 2xx and no error"
+    }
+    whatsapp_sessions {
+        uuid device_id PK
+        text state "unlinked|linking|connected|disconnected|logged_out"
+        int version
+        timestamptz disconnected_at "set in SQL when connected goes down; never written from Go"
+        timestamptz disconnect_notified_at "set by the alert claim; never cleared; no version bump"
+    }
+    alert_settings {
+        uuid project_id PK
+        uuid org_id FK
+        bool disconnect_enabled "no row = true"
+        text recipients "JSON array; [] = org owners and admins"
+    }
+    alert_optouts {
+        uuid project_id PK
+        text email PK
+    }
+    alert_send_counts {
+        uuid project_id PK
+        text kind PK "test: clicks per UTC hour | email: emails per UTC day"
+        timestamptz window_start PK
+        int sent
+    }
+    mail_queue {
+        uuid id PK
+        bytea payload "sealed to id; NULL once settled"
+        text status "pending|sent|failed"
+        int attempt
+        timestamptz next_attempt_at
     }
     messages {
         uuid id PK

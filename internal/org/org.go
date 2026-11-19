@@ -101,6 +101,7 @@ type MemberProfile struct {
 	UserID    uuid.UUID
 	Email     string
 	Name      string
+	Locale    string
 	Role      Role
 	CreatedAt time.Time
 	System    bool

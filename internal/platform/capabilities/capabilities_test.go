@@ -72,6 +72,25 @@ func TestFrom_MailEnabled_SMTP(t *testing.T) {
 	}
 }
 
+func TestFrom_MailEnabled_OnlyForADeliveringDriver(t *testing.T) {
+	for _, tc := range []struct {
+		driver, host string
+		want         bool
+	}{
+		{"", "", false},
+		{"console", "", false},
+		{"console", "smtp.example.com", false},
+		{"smtp", "smtp.example.com", true},
+		{"resend", "", true},
+	} {
+		c := config.Defaults()
+		c.Mail.Driver, c.Mail.SMTP.Host = tc.driver, tc.host
+		if got := From(c).MailEnabled; got != tc.want {
+			t.Errorf("driver %q host %q: MailEnabled = %v, want %v", tc.driver, tc.host, got, tc.want)
+		}
+	}
+}
+
 func TestFrom_APIEnabled(t *testing.T) {
 	c := config.Defaults()
 	if !From(c).APIEnabled {

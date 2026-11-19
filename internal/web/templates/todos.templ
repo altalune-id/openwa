@@ -6,20 +6,20 @@ import (
 )
 
 type TodosView struct {
-	OrgSlug string
+	OrgSlug     string
 	ProjectID   string
 	ProjectSlug string
 	ProjectName string
 	Items       []TodoRow
 	Error       string
-	ErrorCode string
+	ErrorCode   string
 }
 
 // TodoList is the HTMX-swappable list section — POST to /todos targets #todo-list.
 templ TodoList(d web.LayoutData, items []TodoRow) {
-	<ul id="todo-list" class="mt-6 divide-y divide-border/50 rounded-lg border border-border bg-card shadow-sm">
+	<ul id="todo-list" class="mt-6 divide-y divide-base-300 rounded-box border border-base-300 bg-base-100">
 		if len(items) == 0 {
-			<li class="px-4 py-8 text-center text-sm text-muted-foreground">{ d.Tr("todos.empty") }</li>
+			<li class="px-4 py-8 text-center text-sm text-base-content/70">{ d.Tr("todos.empty") }</li>
 		}
 		for _, t := range items {
 			@TodoRowFragment(d, t)
@@ -29,10 +29,10 @@ templ TodoList(d web.LayoutData, items []TodoRow) {
 
 templ TodosPage(d web.LayoutData, v TodosView) {
 	<section>
-		<header class="flex items-baseline justify-between border-b border-border pb-4">
+		<header class="flex items-baseline justify-between border-b border-base-300 pb-4">
 			<div>
-				<h1 class="text-2xl font-semibold text-foreground">{ d.Tr("nav.todos") }</h1>
-				<p class="mt-1 text-sm text-muted-foreground">{ v.ProjectName }</p>
+				<h1 class="text-2xl font-semibold">{ d.Tr("nav.todos") }</h1>
+				<p class="mt-1 text-sm text-base-content/70">{ v.ProjectName }</p>
 			</div>
 			<form
 				method="post"
@@ -46,7 +46,7 @@ templ TodosPage(d web.LayoutData, v TodosView) {
 				hx-status:5xx="target:#hx-error swap:innerHTML"
 				class="inline"
 			>
-				<button type="submit" class="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+				<button type="submit" class="inline-flex items-center gap-1.5 text-sm text-base-content/70">
 					@icons.Icon("trash-2", "h-4 w-4")
 					<span>{ d.Tr("todos.clear_completed") }</span>
 				</button>

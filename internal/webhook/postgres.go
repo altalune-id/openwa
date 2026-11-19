@@ -35,17 +35,20 @@ func newPostgresStore(pool pdb.Pool, pc *tenant.PgConn, schema, tablePrefix stri
 }
 
 type pgEndpointRow struct {
-	ID              uuid.UUID `alias:"webhook_endpoints.id"`
-	OrgID           uuid.UUID `alias:"webhook_endpoints.org_id"`
-	ProjectID       uuid.UUID `alias:"webhook_endpoints.project_id"`
-	URL             string    `alias:"webhook_endpoints.url"`
-	Description     string    `alias:"webhook_endpoints.description"`
-	EventTypes      string    `alias:"webhook_endpoints.event_types"`
-	SecretPrimary   []byte    `alias:"webhook_endpoints.secret_primary"`
-	SecretSecondary []byte    `alias:"webhook_endpoints.secret_secondary"`
-	Active          bool      `alias:"webhook_endpoints.active"`
-	CreatedAt       time.Time `alias:"webhook_endpoints.created_at"`
-	UpdatedAt       time.Time `alias:"webhook_endpoints.updated_at"`
+	ID              uuid.UUID  `alias:"webhook_endpoints.id"`
+	OrgID           uuid.UUID  `alias:"webhook_endpoints.org_id"`
+	ProjectID       uuid.UUID  `alias:"webhook_endpoints.project_id"`
+	URL             string     `alias:"webhook_endpoints.url"`
+	Description     string     `alias:"webhook_endpoints.description"`
+	EventTypes      string     `alias:"webhook_endpoints.event_types"`
+	SecretPrimary   []byte     `alias:"webhook_endpoints.secret_primary"`
+	SecretSecondary []byte     `alias:"webhook_endpoints.secret_secondary"`
+	Active          bool       `alias:"webhook_endpoints.active"`
+	CreatedAt       time.Time  `alias:"webhook_endpoints.created_at"`
+	UpdatedAt       time.Time  `alias:"webhook_endpoints.updated_at"`
+	DeviceID        *uuid.UUID `alias:"webhook_endpoints.device_id"`
+	SecretHint      string     `alias:"webhook_endpoints.secret_hint"`
+	SecondaryHint   string     `alias:"webhook_endpoints.secondary_secret_hint"`
 }
 
 func (r *pgEndpointRow) toEndpoint() (*Endpoint, error) {
@@ -57,10 +60,11 @@ func (r *pgEndpointRow) toEndpoint() (*Endpoint, error) {
 		ID:          r.ID,
 		OrgID:       r.OrgID,
 		ProjectID:   r.ProjectID,
+		DeviceID:    r.DeviceID,
 		URL:         r.URL,
 		Description: r.Description,
 		EventTypes:  types,
-		Secrets:     SealedSecrets{Primary: r.SecretPrimary, Secondary: r.SecretSecondary},
+		Secrets:     SealedSecrets{Primary: r.SecretPrimary, Secondary: r.SecretSecondary, PrimaryHint: r.SecretHint, SecondaryHint: r.SecondaryHint},
 		Active:      r.Active,
 		CreatedAt:   r.CreatedAt.UTC(),
 		UpdatedAt:   r.UpdatedAt.UTC(),
@@ -163,6 +167,8 @@ func (s *postgresStore) save(ctx context.Context, tx *sql.Tx, tc tenant.Context,
 			pgSecondary(e.Secrets.Secondary),
 			e.Active,
 			e.CreatedAt.UTC(), e.UpdatedAt.UTC(),
+			pgDeviceID(e.DeviceID),
+			e.Secrets.PrimaryHint, e.Secrets.SecondaryHint,
 		).
 		ON_CONFLICT(s.endpoints.ID).
 		// SECURITY: the conflict clause is guarded by org, or an upsert carrying another
@@ -180,6 +186,9 @@ func (s *postgresStore) save(ctx context.Context, tx *sql.Tx, tc tenant.Context,
 	// NOTE: the conflict clause's org guard refuses with zero rows, or with a row-level security refusal on Postgres 17.12+.
 	if pdb.IsRowSecurityViolation(err) {
 		return &NotFoundError{ID: e.ID.String()}
+	}
+	if isPgUniqueViolation(err, s.endpoints.TableName()+"_device_url_key") {
+		return &DuplicateEndpointError{URL: e.URL}
 	}
 	if err != nil {
 		return fmt.Errorf("webhook.postgres.Save: %w", err)
@@ -208,6 +217,8 @@ func (s *postgresStore) saveSecrets(ctx context.Context, tx *sql.Tx, tc tenant.C
 		SET(
 			s.endpoints.SecretPrimary.SET(postgres.Bytea(next.Primary)),
 			s.endpoints.SecretSecondary.SET(pgSecondary(next.Secondary)),
+			s.endpoints.SecretHint.SET(postgres.String(next.PrimaryHint)),
+			s.endpoints.SecondaryHint.SET(postgres.String(next.SecondaryHint)),
 			s.endpoints.UpdatedAt.SET(postgres.TimestampzT(time.Now().UTC())),
 		).
 		WHERE(s.endpoints.OrgID.EQ(postgres.UUID(tc.OrgID)).
@@ -381,6 +392,13 @@ func (s *postgresStore) ListAttempts(ctx context.Context, endpointID, deliveryID
 	return out, nil
 }
 
+func pgDeviceID(id *uuid.UUID) postgres.StringExpression {
+	if id == nil {
+		return pgent.NullUUID()
+	}
+	return postgres.UUID(*id)
+}
+
 func pgSecondary(b []byte) postgres.ByteaExpression {
 	if len(b) == 0 {
 		return pgent.NullBytea()
@@ -388,7 +406,94 @@ func pgSecondary(b []byte) postgres.ByteaExpression {
 	return postgres.Bytea(b)
 }
 
+func isPgUniqueViolation(err error, constraint string) bool {
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	return ok && pgErr.Code == "23505" && pgErr.ConstraintName == constraint
+}
+
 func isPgForeignKeyViolation(err error) bool {
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
 	return ok && pgErr.Code == "23503"
+}
+
+func (s *postgresStore) ListMissingHints(ctx context.Context) ([]*Endpoint, error) {
+	tx, owned, tc, err := s.txAcquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out, readErr := s.listMissingHints(ctx, tx, tc)
+	if txErr := s.endTx(tx, owned, readErr); txErr != nil {
+		return nil, txErr
+	}
+	return out, nil
+}
+
+func (s *postgresStore) listMissingHints(ctx context.Context, tx *sql.Tx, tc tenant.Context) ([]*Endpoint, error) {
+	stmt := postgres.SELECT(s.endpoints.AllColumns).
+		FROM(s.endpoints).
+		WHERE(s.endpoints.OrgID.EQ(postgres.UUID(tc.OrgID)).
+			AND(s.endpoints.SecretHint.EQ(postgres.String("")).
+				OR(s.endpoints.SecretSecondary.IS_NOT_NULL().AND(s.endpoints.SecondaryHint.EQ(postgres.String(""))))))
+	var rows []pgEndpointRow
+	if err := stmt.QueryContext(ctx, tx, &rows); err != nil && !errors.Is(err, qrm.ErrNoRows) {
+		return nil, fmt.Errorf("webhook.postgres.ListMissingHints: %w", err)
+	}
+	out := make([]*Endpoint, 0, len(rows))
+	for i := range rows {
+		e, err := rows[i].toEndpoint()
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, nil
+}
+
+func (s *postgresStore) SetHints(ctx context.Context, id uuid.UUID, secrets SealedSecrets) error {
+	tx, owned, tc, err := s.txAcquire(ctx)
+	if err != nil {
+		return err
+	}
+	stmt := s.endpoints.UPDATE().
+		SET(
+			s.endpoints.SecretHint.SET(postgres.String(secrets.PrimaryHint)),
+			s.endpoints.SecondaryHint.SET(postgres.String(secrets.SecondaryHint)),
+		).
+		WHERE(s.endpoints.OrgID.EQ(postgres.UUID(tc.OrgID)).
+			AND(s.endpoints.ID.EQ(postgres.UUID(id))).
+			AND(s.endpoints.SecretPrimary.EQ(postgres.Bytea(secrets.Primary))).
+			AND(s.endpoints.SecretSecondary.IS_NOT_DISTINCT_FROM(pgSecondary(secrets.Secondary))))
+	_, execErr := stmt.ExecContext(ctx, tx)
+	if execErr != nil {
+		execErr = fmt.Errorf("webhook.postgres.SetHints: %w", execErr)
+	}
+	return s.endTx(tx, owned, execErr)
+}
+
+func (s *postgresStore) Delivered(ctx context.Context, t events.Type) (bool, error) {
+	tx, owned, tc, err := s.txAcquire(ctx)
+	if err != nil {
+		return false, err
+	}
+	stmt := postgres.SELECT(s.attempts.ID).
+		FROM(s.attempts).
+		WHERE(s.attempts.OrgID.EQ(postgres.UUID(tc.OrgID)).
+			AND(s.attempts.ProjectID.EQ(postgres.UUID(tc.ProjectID))).
+			AND(s.attempts.EventType.EQ(postgres.String(string(t)))).
+			AND(s.attempts.StatusCode.BETWEEN(postgres.Int(200), postgres.Int(299))).
+			AND(s.attempts.Error.EQ(postgres.String("")))).
+		LIMIT(1)
+	var rows []struct {
+		ID uuid.UUID `alias:"webhook_deliveries.id"`
+	}
+	readErr := stmt.QueryContext(ctx, tx, &rows)
+	if readErr != nil && !errors.Is(readErr, qrm.ErrNoRows) {
+		readErr = fmt.Errorf("webhook.postgres.Delivered: %w", readErr)
+	} else {
+		readErr = nil
+	}
+	if err := s.endTx(tx, owned, readErr); err != nil {
+		return false, err
+	}
+	return len(rows) > 0, nil
 }
