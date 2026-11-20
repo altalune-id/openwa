@@ -92,7 +92,7 @@ extensibility, scalability).
 
 ```bash
 make check              # fmt + vet + templ-normalize + race tests — pre-commit gate
-make test               # every test, on Postgres: TEST_PG_DSN or a docker/podman socket
+make test               # every test, on Postgres: TEST_PG_DSN or a container runtime socket
 make generate           # regenerate templ + buf outputs
 make config-examples    # regenerate .env.example + config.example.yaml
 make tenant-tables      # regenerate schema/tenant_tables_gen.go

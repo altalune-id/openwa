@@ -16,7 +16,9 @@ Section 2. Verbs only — `Save`, `ByID`, `List`, `Delete`; never `Get*` or `Fin
 3. The fake in `internal/testutil/fakes/<name>.go`. `var _ <module>.Store = (*<Name>)(nil)` makes
    the missing method a compile error.
 4. A case in `postgres_test.go` on `pgtest.New(t)`, named `TestPostgres_<Behaviour>`. A guard's
-   hijack test goes in `postgres_hijack_test.go`.
+   hijack test goes in `postgres_hijack_test.go`. The package's `main_test.go` has
+   `func TestMain(m *testing.M) { pgtest.Main(m) }`: it removes the container when the binary exits,
+   and `pgtest.New` fails without it.
 5. `make check`.
 
 The one shared contract harness in the tree is `runStoreContract` in
