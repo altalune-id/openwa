@@ -23,6 +23,7 @@ This doc is the **shape** and is canonical for it. Ordered steps: [`howto/module
 | `service_test.go`         | Application tests on `internal/testutil/fakes.<Name>`       |
 | `postgres_test.go`        | Store tests on `pgtest.New(t)` or `TEST_PG_DSN`             |
 | `postgres_hijack_test.go` | Guard tests, run where the guard is the only protection     |
+| `main_test.go`            | `TestMain` calling `pgtest.Main(m)`                         |
 
 Those names are fixed; extra files are free — `pgreader.go` / `pgwriter.go` when `postgres.go` grows,
 `scheduler.go` (Section 6), a workflow file (Section 7), a pure helper like `blog/markdown.go`.

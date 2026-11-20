@@ -4,6 +4,7 @@ package pgtest
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/url"
 	"os"
 	"strings"
@@ -29,34 +30,69 @@ const (
 	schemaLen    = 16
 )
 
-//nolint:gochecknoglobals // the stale-container sweep runs once per test binary, not once per test.
-var sweepOnce sync.Once
-
-// Handle wraps an ephemeral or shared Postgres instance for a test.
-type Handle struct {
-	DSN       string
-	Schema    string
-	container testcontainers.Container
+//nolint:gochecknoglobals // one server per test binary; every handle gets its own schema on it.
+var server struct {
+	main bool
+	once sync.Once
+	ctr  testcontainers.Container
+	dsn  string
+	err  error
 }
 
-// Close terminates the underlying container (no-op when reusing an external Postgres via TEST_PG_DSN).
-func (h *Handle) Close() error {
-	if h == nil || h.container == nil {
-		return nil
+// Runner runs a test binary's tests and returns its exit code; *testing.M is one.
+type Runner interface {
+	Run() int
+}
+
+type wrapped struct{ next Runner }
+
+// Wrap returns a Runner that runs next, then removes the container New started.
+func Wrap(next Runner) Runner { return wrapped{next: next} }
+
+func (w wrapped) Run() int {
+	server.main = true
+	if err := os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true"); err != nil {
+		fmt.Fprintf(os.Stderr, "pgtest: disable ryuk: %v\n", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	return h.container.Terminate(ctx)
+	code := w.next.Run()
+	if err := testcontainers.TerminateContainer(server.ctr); err != nil {
+		fmt.Fprintf(os.Stderr, "pgtest: remove container: %v\n", err)
+	}
+	return code
 }
 
-// New returns a fresh Postgres for the test, reusing TEST_PG_DSN when that is set. NOTE: the environment decides TESTCONTAINERS_RYUK_DISABLED; with Ryuk off the label sweep below is the reaper.
+// Main runs the tests, removes the container and its volumes, and exits with the tests' code; call it from TestMain.
+func Main(m Runner) {
+	os.Exit(Wrap(m).Run())
+}
+
+// Handle is one test's private schema on the shared Postgres server.
+type Handle struct {
+	DSN    string
+	Schema string
+}
+
+// New returns a handle with a fresh schema, reusing TEST_PG_DSN when set; it fails when no container starts.
 func New(t *testing.T) *Handle {
 	t.Helper()
-	if dsn := os.Getenv(envDSN); dsn != "" {
-		return &Handle{DSN: dsn, Schema: uniqueSchema(t)}
+	if !server.main {
+		t.Fatalf("pgtest: TestMain must call pgtest.Main(m)")
 	}
+	dsn := os.Getenv(envDSN)
+	if dsn == "" {
+		server.once.Do(func() { server.dsn, server.err = startContainer(t) })
+		if server.err != nil {
+			t.Fatalf("pgtest: cannot start Postgres (set TEST_PG_DSN, e.g. from `make compose-up`, or provide a container runtime socket with postgres:17.12-alpine pulled): %v", server.err)
+		}
+		dsn = server.dsn
+	}
+	return &Handle{DSN: dsn, Schema: uniqueSchema(t)}
+}
 
-	sweepOnce.Do(func() { sweepStale(t) })
+// NOTE: Main removes the container; the label sweep removes one left by a killed test binary.
+func startContainer(t *testing.T) (string, error) {
+	t.Helper()
+	sweepStale(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -73,23 +109,16 @@ func New(t *testing.T) *Handle {
 		),
 	)
 	if err != nil {
-		t.Fatalf("pgtest: cannot start Postgres (set TEST_PG_DSN, e.g. from `make compose-up`, or provide a Docker/podman socket with postgres:17.12-alpine pulled; podman users export TESTCONTAINERS_RYUK_DISABLED=true): %v", err)
-		return nil
+		_ = testcontainers.TerminateContainer(c)
+		return "", fmt.Errorf("start postgres: %w", err)
 	}
-
 	dsn, err := c.ConnectionString(ctx, "sslmode=disable")
 	if err != nil {
-		_ = c.Terminate(ctx)
-		t.Fatalf("pgtest: connection string: %v", err)
+		_ = testcontainers.TerminateContainer(c)
+		return "", fmt.Errorf("connection string: %w", err)
 	}
-
-	h := &Handle{DSN: dsn, Schema: uniqueSchema(t), container: c}
-	t.Cleanup(func() {
-		if err := h.Close(); err != nil {
-			t.Logf("pgtest: terminate: %v", err)
-		}
-	})
-	return h
+	server.ctr = c
+	return dsn, nil
 }
 
 func sweepStale(t *testing.T) {

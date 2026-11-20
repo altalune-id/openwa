@@ -22,25 +22,21 @@ func NewDatabase(t *testing.T) *Handle {
 		_ = admin.Close()
 		t.Fatalf("pgtest: create database %s (the TEST_PG_DSN role needs CREATEDB): %v", name, err)
 	}
-	if base.container == nil {
-		t.Cleanup(func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			if _, err := admin.ExecContext(ctx, "DROP DATABASE IF EXISTS "+pgx.Identifier{name}.Sanitize()+" WITH (FORCE)"); err != nil {
-				t.Errorf("pgtest: leaked database %s: %v", name, err)
-			}
-			_ = admin.Close()
-		})
-	} else {
-		t.Cleanup(func() { _ = admin.Close() })
-	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if _, err := admin.ExecContext(ctx, "DROP DATABASE IF EXISTS "+pgx.Identifier{name}.Sanitize()+" WITH (FORCE)"); err != nil {
+			t.Errorf("pgtest: leaked database %s: %v", name, err)
+		}
+		_ = admin.Close()
+	})
 
 	u, err := url.Parse(base.DSN)
 	if err != nil {
 		t.Fatalf("pgtest: parse DSN: %v", err)
 	}
 	u.Path = "/" + name
-	return &Handle{DSN: u.String(), Schema: "public", container: nil}
+	return &Handle{DSN: u.String(), Schema: "public"}
 }
 
 func openRaw(t *testing.T, dsn string) *sql.DB {

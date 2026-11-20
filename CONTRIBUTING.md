@@ -36,15 +36,15 @@ make test-integration   # alias of `make test`
 There is one tier of tests and all of it runs on Postgres. `pgtest.New(t)` uses
 `TEST_PG_DSN` when set (the DSN user needs `CREATEDB`; every test gets its own
 schema) and otherwise starts a `postgres:17.12-alpine` container through
-testcontainers, which needs a docker or podman socket. A shared DSN is much
-faster:
+testcontainers, which needs a container runtime socket. A shared DSN is much
+faster. Every package that calls `pgtest.New` has a `main_test.go` with
+`func TestMain(m *testing.M) { pgtest.Main(m) }`: it starts one container per
+test binary, removes it when the binary exits, and `pgtest.New` fails without it.
 
 ```bash
 TEST_PG_DSN='postgres://openwa:openwa@localhost:5432/openwa_test?sslmode=disable' \
     make test
 ```
-
-Podman users export `TESTCONTAINERS_RYUK_DISABLED=true`.
 
 CI runs the full race suite with the coverage gate, and `main` takes only green
 PRs. The pre-push hook tests only the packages changed against `origin/main`;

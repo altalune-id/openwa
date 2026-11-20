@@ -112,7 +112,7 @@ enters a handler body. More of these in the `altalune-go-review` skill, `referen
 
 Every test runs on Postgres. Set `TEST_PG_DSN` at a throwaway database and use `-p 1` —
 without it, packages race on `CREATE/DROP ROLE` and cleanup fails. Without `TEST_PG_DSN` each
-`pgtest.New` starts its own container, which is much slower.
+package's test binary starts one container, removed by `pgtest.Main` when the binary exits.
 
 What `verify.sh` cannot check, and you still must do: open the page, run
 `bash scripts/verify-serve-smoke.sh` (and `verify-mcp-smoke.sh` for S7), and revert each

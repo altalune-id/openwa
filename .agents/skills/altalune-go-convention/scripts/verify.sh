@@ -5,7 +5,7 @@
 #   scripts/verify.sh --check         read-only: never writes a file (use during review)
 #
 # Every test runs on Postgres. TEST_PG_DSN should point at a throwaway database;
-# without it each pgtest.New starts its own container.
+# without it every package's test binary starts its own container.
 set -uo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
