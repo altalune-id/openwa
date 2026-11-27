@@ -204,3 +204,14 @@ func IsTokenMismatchError(err error) bool {
 	_, ok := errors.AsType[*TokenMismatchError](err)
 	return ok
 }
+
+// MembershipMissingError reports that the user holds no membership in the org.
+type MembershipMissingError struct{}
+
+func (e *MembershipMissingError) Error() string { return "invite: membership missing" }
+
+// IsMembershipMissingError reports whether err's tree contains a *MembershipMissingError.
+func IsMembershipMissingError(err error) bool {
+	_, ok := errors.AsType[*MembershipMissingError](err)
+	return ok
+}

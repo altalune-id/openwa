@@ -96,6 +96,7 @@ type OnboardWorkflow struct {
 	policy     Policy
 	log        *slog.Logger
 	unexpected apperror.UnexpectedFunc
+	uow        tenant.UnitOfWork
 	now        func() time.Time
 }
 
@@ -108,6 +109,7 @@ func NewOnboardWorkflow(
 	policy Policy,
 	log *slog.Logger,
 	unexpected apperror.UnexpectedFunc,
+	uow tenant.UnitOfWork,
 ) *OnboardWorkflow {
 	return &OnboardWorkflow{
 		users:      users,
@@ -117,6 +119,7 @@ func NewOnboardWorkflow(
 		policy:     policy,
 		log:        log,
 		unexpected: unexpected,
+		uow:        uow,
 		now:        func() time.Time { return time.Now().UTC() },
 	}
 }
@@ -160,14 +163,8 @@ func (w *OnboardWorkflow) onboardSelfhosted(ctx context.Context, userID uuid.UUI
 		return OnboardResult{}, &NotInvitedError{Email: userEmail}
 	}
 
-	now := w.now()
-	inv.AcceptedAt = &now
-	if err := w.invites.Save(tenant.WithOrg(ctx, inv.OrgID), inv); err != nil {
-		return OnboardResult{}, w.unexpected(ctx, "user.Onboard: accept invite", err)
-	}
-	m := &MembershipRef{OrgID: o.ID, UserID: userID, Role: inv.Role}
-	if err := w.orgs.SaveMembership(tenant.WithOrg(ctx, m.OrgID), m); err != nil {
-		return OnboardResult{}, w.unexpected(ctx, "user.Onboard: save membership", err)
+	if err := w.acceptInvite(ctx, userID, inv); err != nil {
+		return OnboardResult{}, err
 	}
 	projectID, err := w.pickProject(ctx, o.ID)
 	if err != nil {
@@ -195,20 +192,36 @@ func (w *OnboardWorkflow) onboardCloud(ctx context.Context, userID uuid.UUID, us
 	if inv == nil {
 		return OnboardResult{}, &SignupRequiredError{UserID: userID.String(), Email: userEmail}
 	}
-	now := w.now()
-	inv.AcceptedAt = &now
-	if err := w.invites.Save(tenant.WithOrg(ctx, inv.OrgID), inv); err != nil {
-		return OnboardResult{}, w.unexpected(ctx, "user.Onboard: accept invite", err)
-	}
-	m := &MembershipRef{OrgID: inv.OrgID, UserID: userID, Role: inv.Role}
-	if err := w.orgs.SaveMembership(tenant.WithOrg(ctx, m.OrgID), m); err != nil {
-		return OnboardResult{}, w.unexpected(ctx, "user.Onboard: save membership", err)
+	if err := w.acceptInvite(ctx, userID, inv); err != nil {
+		return OnboardResult{}, err
 	}
 	projectID, err := w.pickProject(ctx, inv.OrgID)
 	if err != nil {
 		return OnboardResult{}, err
 	}
 	return OnboardResult{OrgID: inv.OrgID, ProjectID: projectID}, nil
+}
+
+// SECURITY: an existing membership stays untouched; overwriting it would let an invite demote an owner.
+func (w *OnboardWorkflow) acceptInvite(ctx context.Context, userID uuid.UUID, inv *InviteRef) error {
+	return w.uow(tenant.WithOrg(ctx, inv.OrgID), func(ctx context.Context) error {
+		_, err := w.orgs.MembershipOf(ctx, inv.OrgID, userID)
+		if err != nil && !IsMembershipMissingError(err) {
+			return w.unexpected(ctx, "user.Onboard: membership lookup", err)
+		}
+		if err != nil {
+			m := &MembershipRef{OrgID: inv.OrgID, UserID: userID, Role: inv.Role}
+			if err := w.orgs.SaveMembership(ctx, m); err != nil {
+				return w.unexpected(ctx, "user.Onboard: save membership", err)
+			}
+		}
+		now := w.now()
+		inv.AcceptedAt = &now
+		if err := w.invites.Save(ctx, inv); err != nil {
+			return w.unexpected(ctx, "user.Onboard: accept invite", err)
+		}
+		return nil
+	})
 }
 
 func (w *OnboardWorkflow) findAnyPendingInvite(ctx context.Context, userEmail string) (*InviteRef, error) {

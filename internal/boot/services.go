@@ -179,6 +179,7 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 		orgStoreForInvite{store: orgStore},
 		log,
 		reporter.Unexpected,
+		uow,
 	)
 	invites := invite.NewService(inviteStore, sendWorkflow, acceptWorkflow, invitesEnabled, log, reporter.Unexpected)
 
@@ -198,6 +199,7 @@ func buildServices(cfg *config.Config, k *platform.Kernel, caps capabilities.Cap
 		onboardPolicyFrom(cfg),
 		log,
 		reporter.Unexpected,
+		uow,
 	)
 
 	genesisHash, err := hashGenesisPassword(cfg.Genesis.Password)

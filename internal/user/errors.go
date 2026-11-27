@@ -270,3 +270,14 @@ func IsTipsSeenContendedError(err error) bool {
 	_, ok := errors.AsType[*TipsSeenContendedError](err)
 	return ok
 }
+
+// MembershipMissingError signals that the user holds no membership in the org.
+type MembershipMissingError struct{}
+
+func (e *MembershipMissingError) Error() string { return "user: membership missing" }
+
+// IsMembershipMissingError reports whether err's tree contains a *MembershipMissingError.
+func IsMembershipMissingError(err error) bool {
+	_, ok := errors.AsType[*MembershipMissingError](err)
+	return ok
+}
