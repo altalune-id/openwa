@@ -2,6 +2,7 @@ package user_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -19,6 +20,12 @@ type fakeOrgs struct {
 	memberships    map[[2]uuid.UUID]*user.MembershipRef
 	userToOrgs     map[uuid.UUID][]uuid.UUID
 	ListForUserErr error
+	MembershipErr  error
+	// membershipOfMisses makes the first N MembershipOf calls miss, standing in for a membership written by a concurrent request.
+	membershipOfMisses int
+	// listForUserMisses makes the first N ListForUser calls return nothing, standing in for a membership written by a concurrent request.
+	listForUserMisses   int
+	saveMembershipCalls int
 }
 
 func newFakeOrgs() *fakeOrgs {
@@ -59,6 +66,10 @@ func (f *fakeOrgs) ListForUser(_ context.Context, userID uuid.UUID) ([]*user.Org
 	if f.ListForUserErr != nil {
 		return nil, f.ListForUserErr
 	}
+	if f.listForUserMisses > 0 {
+		f.listForUserMisses--
+		return nil, nil
+	}
 	ids := f.userToOrgs[userID]
 	out := make([]*user.OrgRef, 0, len(ids))
 	for _, id := range ids {
@@ -73,16 +84,24 @@ func (f *fakeOrgs) ListForUser(_ context.Context, userID uuid.UUID) ([]*user.Org
 func (f *fakeOrgs) MembershipOf(_ context.Context, orgID, userID uuid.UUID) (*user.MembershipRef, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.MembershipErr != nil {
+		return nil, f.MembershipErr
+	}
+	if f.membershipOfMisses > 0 {
+		f.membershipOfMisses--
+		return nil, &user.MembershipMissingError{}
+	}
 	if m, ok := f.memberships[[2]uuid.UUID{orgID, userID}]; ok {
 		cp := *m
 		return &cp, nil
 	}
-	return nil, &user.NotFoundError{}
+	return nil, &user.MembershipMissingError{}
 }
 
 func (f *fakeOrgs) SaveMembership(_ context.Context, m *user.MembershipRef) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.saveMembershipCalls++
 	cp := *m
 	f.memberships[[2]uuid.UUID{m.OrgID, m.UserID}] = &cp
 	f.userToOrgs[m.UserID] = append(f.userToOrgs[m.UserID], m.OrgID)
@@ -207,7 +226,7 @@ func TestOnboard_Selfhosted_AcceptsInvite(t *testing.T) {
 	}
 
 	policy := user.Policy{Mode: user.PolicyModeSelfhosted}
-	wf := user.NewOnboardWorkflow(users, orgs, projects, invites, policy, newTestLogger(), noopUnexpected())
+	wf := user.NewOnboardWorkflow(users, orgs, projects, invites, policy, newTestLogger(), noopUnexpected(), fakes.UnitOfWork)
 
 	userID := uuid.New()
 	res, err := wf.Onboard(context.Background(), userID, "alice@example.com")
@@ -246,7 +265,7 @@ func TestOnboard_Selfhosted_FindsTheSystemOrgWhateverItsSlug(t *testing.T) {
 	}
 
 	wf := user.NewOnboardWorkflow(fakes.NewUser(), orgs, newFakeProjects(), newFakeInvites(),
-		user.Policy{Mode: user.PolicyModeSelfhosted}, newTestLogger(), noopUnexpected())
+		user.Policy{Mode: user.PolicyModeSelfhosted}, newTestLogger(), noopUnexpected(), fakes.UnitOfWork)
 
 	res, err := wf.Onboard(context.Background(), adminID, "admin@example.com")
 	if err != nil {
@@ -271,7 +290,7 @@ func TestOnboard_Selfhosted_NoSystemOrgIsSignupRequired(t *testing.T) {
 	}
 
 	wf := user.NewOnboardWorkflow(fakes.NewUser(), orgs, newFakeProjects(), newFakeInvites(),
-		user.Policy{Mode: user.PolicyModeSelfhosted}, newTestLogger(), noopUnexpected())
+		user.Policy{Mode: user.PolicyModeSelfhosted}, newTestLogger(), noopUnexpected(), fakes.UnitOfWork)
 
 	_, err := wf.Onboard(context.Background(), uuid.New(), "alice@example.com")
 	if !user.IsSignupRequiredError(err) {
@@ -288,7 +307,7 @@ func TestOnboard_Selfhosted_NotInvited(t *testing.T) {
 	}
 
 	policy := user.Policy{Mode: user.PolicyModeSelfhosted}
-	wf := user.NewOnboardWorkflow(fakes.NewUser(), orgs, newFakeProjects(), newFakeInvites(), policy, newTestLogger(), noopUnexpected())
+	wf := user.NewOnboardWorkflow(fakes.NewUser(), orgs, newFakeProjects(), newFakeInvites(), policy, newTestLogger(), noopUnexpected(), fakes.UnitOfWork)
 
 	_, err := wf.Onboard(context.Background(), uuid.New(), "alice@example.com")
 	if err == nil {
@@ -307,7 +326,7 @@ func TestOnboard_Cloud_NoMembershipNoInviteReturnsSignupRequired(t *testing.T) {
 	users := fakes.NewUser()
 
 	policy := user.Policy{Mode: user.PolicyModeCloud}
-	wf := user.NewOnboardWorkflow(users, orgs, projects, invites, policy, newTestLogger(), noopUnexpected())
+	wf := user.NewOnboardWorkflow(users, orgs, projects, invites, policy, newTestLogger(), noopUnexpected(), fakes.UnitOfWork)
 
 	_, err := wf.Onboard(context.Background(), uuid.New(), "alice@example.com")
 	if err == nil {
@@ -341,7 +360,7 @@ func TestOnboard_Cloud_AcceptsInvite(t *testing.T) {
 	}
 
 	policy := user.Policy{Mode: user.PolicyModeCloud}
-	wf := user.NewOnboardWorkflow(users, orgs, projects, invites, policy, newTestLogger(), noopUnexpected())
+	wf := user.NewOnboardWorkflow(users, orgs, projects, invites, policy, newTestLogger(), noopUnexpected(), fakes.UnitOfWork)
 
 	userID := uuid.New()
 	res, err := wf.Onboard(context.Background(), userID, "alice@example.com")
@@ -363,6 +382,125 @@ func TestOnboard_Cloud_AcceptsInvite(t *testing.T) {
 	}
 }
 
+func TestOnboard_Selfhosted_ExistingOwnerKeepsMembership(t *testing.T) {
+	t.Parallel()
+	orgs := newFakeOrgs()
+	invites := newFakeInvites()
+
+	singleton := &user.OrgRef{ID: uuid.New(), Slug: "primary", Name: "Primary", OwnerID: uuid.New(), CreatedAt: time.Now().UTC(), System: true}
+	if err := orgs.Save(context.Background(), singleton); err != nil {
+		t.Fatal(err)
+	}
+	ownerID := singleton.OwnerID
+	orgs.memberships[[2]uuid.UUID{singleton.ID, ownerID}] = &user.MembershipRef{OrgID: singleton.ID, UserID: ownerID, Role: "owner"}
+	orgs.membershipOfMisses = 1
+
+	inviteID := uuid.New()
+	if err := invites.Save(context.Background(), &user.InviteRef{
+		ID: inviteID, OrgID: singleton.ID, Email: "owner@example.com", Role: "member",
+		ExpiresAt: time.Now().UTC().Add(time.Hour),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	wf := user.NewOnboardWorkflow(fakes.NewUser(), orgs, newFakeProjects(), invites,
+		user.Policy{Mode: user.PolicyModeSelfhosted}, newTestLogger(), noopUnexpected(), fakes.UnitOfWork)
+	res, err := wf.Onboard(context.Background(), ownerID, "owner@example.com")
+	if err != nil {
+		t.Fatalf("Onboard: %v", err)
+	}
+	if res.OrgID != singleton.ID {
+		t.Errorf("orgID=%v want %v", res.OrgID, singleton.ID)
+	}
+	assertOwnerKept(t, orgs, singleton.ID, ownerID)
+	if invites.byID[inviteID].AcceptedAt == nil {
+		t.Error("invite must be marked accepted")
+	}
+}
+
+func TestOnboard_Cloud_ExistingOwnerKeepsMembership(t *testing.T) {
+	t.Parallel()
+	orgs := newFakeOrgs()
+	invites := newFakeInvites()
+
+	orgA := &user.OrgRef{ID: uuid.New(), Slug: "acme", Name: "Acme", OwnerID: uuid.New(), CreatedAt: time.Now().UTC()}
+	if err := orgs.Save(context.Background(), orgA); err != nil {
+		t.Fatal(err)
+	}
+	ownerID := orgA.OwnerID
+	orgs.memberships[[2]uuid.UUID{orgA.ID, ownerID}] = &user.MembershipRef{OrgID: orgA.ID, UserID: ownerID, Role: "owner"}
+	orgs.userToOrgs[ownerID] = []uuid.UUID{orgA.ID}
+	orgs.listForUserMisses = 1
+
+	inviteID := uuid.New()
+	if err := invites.Save(context.Background(), &user.InviteRef{
+		ID: inviteID, OrgID: orgA.ID, Email: "owner@example.com", Role: "member",
+		ExpiresAt: time.Now().UTC().Add(time.Hour),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	wf := user.NewOnboardWorkflow(fakes.NewUser(), orgs, newFakeProjects(), invites,
+		user.Policy{Mode: user.PolicyModeCloud}, newTestLogger(), noopUnexpected(), fakes.UnitOfWork)
+	res, err := wf.Onboard(context.Background(), ownerID, "owner@example.com")
+	if err != nil {
+		t.Fatalf("Onboard: %v", err)
+	}
+	if res.OrgID != orgA.ID {
+		t.Errorf("orgID=%v want %v", res.OrgID, orgA.ID)
+	}
+	assertOwnerKept(t, orgs, orgA.ID, ownerID)
+	if invites.byID[inviteID].AcceptedAt == nil {
+		t.Error("invite must be marked accepted")
+	}
+}
+
+func TestOnboard_Cloud_MembershipLookupFailureWritesNothing(t *testing.T) {
+	t.Parallel()
+	orgs := newFakeOrgs()
+	invites := newFakeInvites()
+
+	orgA := &user.OrgRef{ID: uuid.New(), Slug: "acme", Name: "Acme", OwnerID: uuid.New(), CreatedAt: time.Now().UTC()}
+	if err := orgs.Save(context.Background(), orgA); err != nil {
+		t.Fatal(err)
+	}
+	orgs.MembershipErr = errors.New("db down")
+
+	inviteID := uuid.New()
+	if err := invites.Save(context.Background(), &user.InviteRef{
+		ID: inviteID, OrgID: orgA.ID, Email: "alice@example.com", Role: "member",
+		ExpiresAt: time.Now().UTC().Add(time.Hour),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	wf := user.NewOnboardWorkflow(fakes.NewUser(), orgs, newFakeProjects(), invites,
+		user.Policy{Mode: user.PolicyModeCloud}, newTestLogger(), noopUnexpected(), fakes.UnitOfWork)
+	if _, err := wf.Onboard(context.Background(), uuid.New(), "alice@example.com"); err == nil {
+		t.Fatal("Onboard: want error on membership lookup failure")
+	}
+	if orgs.saveMembershipCalls != 0 {
+		t.Errorf("SaveMembership calls=%d want 0", orgs.saveMembershipCalls)
+	}
+	if invites.byID[inviteID].AcceptedAt != nil {
+		t.Error("invite must stay pending")
+	}
+}
+
+func assertOwnerKept(t *testing.T, orgs *fakeOrgs, orgID, userID uuid.UUID) {
+	t.Helper()
+	m, err := orgs.MembershipOf(context.Background(), orgID, userID)
+	if err != nil {
+		t.Fatalf("MembershipOf: %v", err)
+	}
+	if m.Role != "owner" {
+		t.Errorf("role=%q want owner", m.Role)
+	}
+	if orgs.saveMembershipCalls != 0 {
+		t.Errorf("SaveMembership calls=%d want 0: an existing membership must stay untouched", orgs.saveMembershipCalls)
+	}
+}
+
 func TestOnboard_UnknownMode(t *testing.T) {
 	t.Parallel()
 	wf := user.NewOnboardWorkflow(
@@ -373,6 +511,7 @@ func TestOnboard_UnknownMode(t *testing.T) {
 		user.Policy{Mode: "invalid"},
 		newTestLogger(),
 		noopUnexpected(),
+		fakes.UnitOfWork,
 	)
 	_, err := wf.Onboard(context.Background(), uuid.New(), "a@b.co")
 	if err == nil {

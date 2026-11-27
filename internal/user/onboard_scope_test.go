@@ -42,7 +42,7 @@ func TestOnboard_ScopesProjectReadsToTheJoinedOrg(t *testing.T) {
 	}))
 
 	policy := user.Policy{Mode: user.PolicyModeSelfhosted}
-	wf := user.NewOnboardWorkflow(users, orgs, projects, invites, policy, newTestLogger(), noopUnexpected())
+	wf := user.NewOnboardWorkflow(users, orgs, projects, invites, policy, newTestLogger(), noopUnexpected(), fakes.UnitOfWork)
 
 	// A user logging in carries no tenant scope — the workflow discovers the org and must bind to it.
 	_, err := wf.Onboard(context.Background(), uuid.New(), "alice@example.com")

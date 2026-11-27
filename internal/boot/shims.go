@@ -52,6 +52,9 @@ func (s orgStoreForInvite) SaveMembership(ctx context.Context, m *invite.Members
 
 func (s orgStoreForInvite) MembershipOf(ctx context.Context, orgID, userID uuid.UUID) (*invite.MembershipRef, error) {
 	m, err := s.store.MembershipOf(ctx, orgID, userID)
+	if org.IsMembershipMissingError(err) {
+		return nil, &invite.MembershipMissingError{}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -127,6 +130,9 @@ func (s orgStoreForOnboard) ListForUser(ctx context.Context, userID uuid.UUID) (
 
 func (s orgStoreForOnboard) MembershipOf(ctx context.Context, orgID, userID uuid.UUID) (*user.MembershipRef, error) {
 	m, err := s.store.MembershipOf(ctx, orgID, userID)
+	if org.IsMembershipMissingError(err) {
+		return nil, &user.MembershipMissingError{}
+	}
 	if err != nil {
 		return nil, err
 	}
