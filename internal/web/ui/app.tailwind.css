@@ -76,3 +76,16 @@
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 
+
+/* daisyUI draws btn-outline's border in the full text color; soften it at rest and keep it visible on hover. */
+@layer utilities {
+  .btn-outline:not(:disabled, .btn-disabled) {
+    --btn-border: oklch(from var(--btn-color, var(--color-base-content)) l c h / 30%);
+  }
+
+  @media (hover: hover) {
+    .btn-outline:hover:not(:disabled, .btn-disabled) {
+      --btn-border: oklch(from var(--btn-color, var(--color-base-content)) l c h / 55%);
+    }
+  }
+}
